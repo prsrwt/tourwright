@@ -10,7 +10,7 @@ script.json ──> voice (kokoro, local) ──> manifest with cue times
                                              │
                         stages.tsx ──> Vite bundle ──> player page
                                              │
-                     frame stepper (Playwright) ──> PNG frames ──> ffmpeg ──> out/<name>.mp4
+                     frame stepper (Playwright) ──> PNG frames ──> ffmpeg ──> tourwright/out/<name>.mp4
                                              │
                                           audio track (WAVs placed by frame)
 ```
@@ -26,8 +26,9 @@ The app supplies a `stages.tsx` and its fixtures. Tourwright runs Vite over them
 own `node_modules`, `tsconfig` paths and PostCSS config, and serves a player page that imports
 them. There is no dev server to start, no database to seed and no login to script.
 
-Vite reads the app's PostCSS config by itself, so Tailwind works unchanged. It does not read
-`tsconfig` path aliases by itself, so the presets have to supply them.
+Vite reads the app's PostCSS config by itself, so Tailwind works unchanged, and Vite 8 resolves
+`tsconfig` path aliases when asked (`resolve.tsconfigPaths`). The Next preset adds stand-ins for
+`next/link`, `next/image`, `next/navigation`, `next/router`, `next/head` and `next/dynamic`.
 
 This is how Remotion works (webpack rather than Vite), and it is the seam that decides whether a
 tool works on an app it does not control. Proved on the SwiftCause admin: bundling its real GASDS
@@ -49,15 +50,16 @@ The stepper is small because the hard parts are already ours: animation is a fun
 audio length is known before rendering, and the camera maths is our code.
 
 ```
+once: render each stage, wait for its fonts and images, measure every target
 for each frame f:
-  page.evaluate(() => window.__tour.setFrame(f))   // React re-renders
-  wait until the ready counter is zero             // fonts, images, measurements
+  page.evaluate(() => window.__tour.setFrame(f))   // React re-renders synchronously
   screenshot
   pipe to ffmpeg
 ```
 
-The ready counter is the equivalent of Remotion's `delayRender`, which the camera already needs so
-it can measure a target before framing it.
+Measuring up front is the equivalent of Remotion's `delayRender`: the camera needs a target's box
+before it can frame it. A stage's layout does not change from frame to frame, so one measurement
+holds for the whole video, and each frame then renders synchronously with nothing to wait for.
 
 The wall clock is frozen rather than merely avoided. Our own code never reads it, but an app's
 components may ("2 days ago", a blinking cursor), so the stepper pins `Date.now` and timers with
@@ -78,14 +80,21 @@ derivative, which would put the project back inside the problem it is leaving.
 
 An agent cannot watch a video, so every quality worth having becomes a number or an image:
 
-- `check` validates the script against the schema and the stage's real targets, and reports errors
-  written for a model: what is wrong, the valid options, the exact fix.
-- `verify` renders the settle frame of every beat and asserts against the live DOM: the target is
-  fully in frame, text is legible at the final scale, the frame is not blank, no error overlay, no
-  console errors. It writes `report.json`, `timing.md` (each cue, its time, and the words spoken
-  around it) and one labelled contact sheet of all the stills, so a model can look at one image.
+- `check` validates the script against the schema, cues and writing rules, with no browser, and
+  reports errors written for a model: what is wrong, the valid options, the exact fix.
+- `verify` checks stage and target names against what the bundle actually rendered (with the same
+  "did you mean" fixes), then renders the settle frame of every beat and asserts against the live
+  DOM: the target is fully in frame, text is at least 12 px at the final scale, the frame is not
+  blank, no stage threw and there were no console errors. It writes `report.json`, `timing.md`
+  (each cue, its time, and the words spoken around it) and one labelled contact sheet of all the
+  stills, so a model can look at one image.
+- `make` runs `verify` before `render`, and renders only if every still passes, so a broken script
+  fails in seconds rather than after a full render.
 
 The skill is documentation for that loop.
+
+Output goes to `tourwright/out/` rather than `out/`, because a Next.js static export also writes to
+`out/`.
 
 ### Cue timing
 
@@ -113,5 +122,5 @@ rate exactly. A frame is then a whole number of samples, so audio placed by fram
 - **ffmpeg** runs as a separate process, which keeps our own code MIT. Tourwright uses the `ffmpeg`
   on the PATH, or `ffmpeg-static` (GPL-3.0) if the app has installed it, and `doctor` reports which.
   It is not a dependency, not even an optional one: npm installs optional dependencies by default,
-  so everyone would download about 70 MB whether or not they already have ffmpeg.
+  so everyone would download about 80 MB whether or not they already have ffmpeg.
 - **Kokoro** model weights are Apache-2.0.

@@ -1,79 +1,90 @@
-# Stages, targets and countables
+# Stages and targets
 
-A stage renders the app's real components with typed fixture data inside the app shell (sidebar and header). Because it is live React rather than a screenshot, the camera can land anywhere and figures can count up. Read this file when you need a target or countable that does not exist yet, or a stage for a new screen.
+A stage renders the app's real components with fixture data. Because it is live React rather than a screenshot, the camera can land anywhere and every frame is sharp. Read this file when you need a stage for a new screen, or a target that does not exist yet.
 
 The golden rule: **stages compose real components; they never copy them.** If you find yourself re-creating markup, stop. You are drifting from the real app, and the next UI change will make the video lie.
 
-## Where things live
+## The stages file
 
-| File | Role |
-| --- | --- |
-| `src/stage/registry.tsx` | Registers each stage: its component, fixtures, targets and countables |
-| `src/stage/<Name>Page.tsx` | Composition: shell plus the real sections, each wrapped with `data-focus` |
-| `src/stage/fixtures.ts` | Fixture data, typed against the app's real interfaces |
-| `src/stage/Camera.tsx` | Measures targets and moves the camera; you don't edit it to make a video |
-| `src/stage/Highlighter.tsx` | Draws the highlight; you don't edit it to make a video |
+`tourwright/stages.tsx` default-exports every stage:
 
-## Adding a focus target
+```tsx
+import { defineStages } from 'tourwright/stage';
+import '@/app/globals.css'; // the app's global styles, so components look as they do in the app
+import { AppShell } from '@/components/AppShell';
+import { StatCards } from '@/components/StatCards';
+import { TaskTable } from '@/components/TaskTable';
+import { dashboard } from './fixtures';
+
+export default defineStages({
+  dashboard: {
+    render: () => (
+      <AppShell team={dashboard.team} active="/">
+        <div data-focus="stats">
+          <StatCards stats={dashboard.stats} />
+        </div>
+        <div data-focus="tasks">
+          <TaskTable tasks={dashboard.tasks} />
+        </div>
+      </AppShell>
+    ),
+    targets: {
+      'stat-overdue': '[data-testid="stat-overdue"]',
+      'status-column': '[data-testid^="status-"]',
+    },
+  },
+});
+```
+
+Tourwright bundles this file with Vite, using the app's own `node_modules`, `tsconfig` path aliases and PostCSS config (so Tailwind works unchanged). There is no dev server to start, no database to seed and no login.
+
+The stage renders at the video's width (1920 pixels by default) and its natural height, like a browser window that size. `"to": "all"` frames the whole of it.
+
+## Adding a target
 
 A target is a named element the camera and highlighter can find. There are two ways to declare one, in order of preference.
 
-1. **Wrap a section in the stage composition.** For a whole section that the composition already renders:
+1. **Wrap a section in `data-focus`** in the stage's `render`:
 
    ```tsx
    <div data-focus="collections">
-     <GasdsCollectionsSection {...fixtures.collections} />
+     <CollectionsSection {...fixtures.collections} />
    </div>
    ```
 
-   The wrapper must not change layout. Use a plain block element with no styles, or `display: contents` only if the camera can still measure it (check the still).
+   The wrapper must not change the layout. A plain `div` with no styles is usually right.
 
-2. **Point at an element inside a real component** with a selector in the registry, when the element you want sits inside a component you must not change:
+2. **Point at an element inside a component with a selector** in the stage's `targets`, when you cannot wrap it:
 
    ```ts
-   targets: {
-     collections: { focus: 'collections' },
-     'claim-total': { selector: "[data-testid='gasds-claim-total']" },
-   }
+   targets: { 'claim-total': '[data-testid="claim-total"]' }
    ```
 
-   Use an existing `data-testid` or a stable role or label. If there is no stable hook, adding a `data-testid` to the app component is an acceptable small app change. Make it in its own commit so reviewers can see it; it doesn't alter behaviour or styling. Never target by class names or DOM position; they break silently.
+   Use an existing `data-testid` or another stable attribute. If there is none, adding a `data-testid` to the app component is an acceptable small change; make it in its own commit. Never target by class names or position in the page; they break silently. A selector that matches several elements targets the box around all of them, which is how to highlight a table column.
 
-Then list the target in the stage's registry entry. `npm run check` validates scripts against that list, and the render fails loudly if a listed target is missing from the DOM.
+Choose targets at the level the narration speaks about. The camera likes sections; the highlighter likes the specific thing being named. Every target must be visible in the fixture state without any clicking. When a name is wrong, verify lists every target the stage offers.
 
-Choose targets at the level the narration speaks about. The camera likes sections; the highlighter likes the specific thing being named. Every target must be visible in the fixture state without any clicking.
+## Fixtures
 
-## Adding a countable
-
-A countable is a numeric fixture value that the stage can show at any in-between value. The real component then renders the counting number itself, with its own formatting, so nothing is faked.
+Put fixture data in a file next to the stages, typed with the app's real interfaces, so a change to those interfaces fails the type check instead of the video:
 
 ```ts
-countables: {
-  claimTotal: countable({
-    get: (f) => f.summary.claimableAmount,
-    set: (f, v) => ({ ...f, summary: { ...f.summary, claimableAmount: v } }),
-    round: 'pence',      // 'pence' (2 decimal places) or 'integer'
-  }),
-}
+import type { Dashboard } from '@/lib/types';
+
+export const dashboard: Dashboard = { team: 'Riverside Design', stats: [/* ... */], tasks: [/* ... */] };
 ```
 
-The stage component receives fixtures as a prop, with countables already applied for the current frame. Keep the lens typed against the fixture type so a change to the app's interfaces fails `npm run typecheck`.
+Use obviously fictional names and round numbers. Never paste data from a real account, even an anonymised one.
 
-If the component calculates the figure itself from other props (for example, summing donations), a countable on a summary field won't move it. Either set the inputs so the derived figure passes through the counting values (for example, scale one input), or don't count that figure. Never paint a number over the real component.
+## Next.js apps
 
-## Building a new stage
+With the `next` preset, these modules are replaced by stage-safe stand-ins: `next/link` (an anchor that never navigates), `next/image` (a plain `img`), `next/navigation` and `next/router` (routing does nothing; the path is `/`), `next/head` (renders nothing) and `next/dynamic`. `process.env.NEXT_PUBLIC_*` variables are read from the app's `.env` files.
 
-Only do this when the decision rule in SKILL.md says so.
-
-1. Create `src/stage/<Name>Page.tsx`. Render the app shell and the screen's real section components, imported from the app, the same way `GasdsPage.tsx` does. Wrap each section the narration will visit in `data-focus`.
-2. Add fixtures to `src/stage/fixtures.ts`, typed with the app's real interfaces. Use obviously fictional names and round amounts (for example "Riverside Community Choir", £1,250.00). Never paste data from a real account, even an anonymised one.
-3. Register the stage in `src/stage/registry.tsx` with its targets and any countables.
-4. Run `npm run typecheck` in the tool. If a component needs a provider (theme, router, query client), add a stub provider in the stage, not a copy of the component.
-5. Make a two-scene test script that visits every target, then run `npm run stills` and check that each target is framed correctly before writing the real script.
-6. Follow `docs/DESIGN.md` and `docs/COLOR_SYSTEM.md`. The stage must look like the app, because it is the app.
+Server components that fetch data cannot be staged directly. Stage the client components they render, and pass them fixtures, as a page would.
 
 ## Things that break stages
 
-- **Anything time-based inside components:** `Date.now()`, relative dates ("2 days ago"), timers, CSS transitions, skeleton loaders. Pass fixed dates in fixtures and turn off transitions in the stage (for example with a class that sets `transition: none` on the stage root).
-- **Data fetching.** Stage components must get everything from props or stub providers. A component that fetches on mount needs its data layer stubbed with fixtures.
-- **Fonts loading late.** The tool waits for fonts before rendering. If text reflows in the first frames, the target boxes are measured wrong; check the first still of each scene.
+- **Anything time-based inside components:** `Date.now()`, relative dates ("2 days ago"), timers, skeleton loaders. The clock is frozen at 15 January 2026 10:00 UTC while rendering, so a component that shows "today" shows that date on every frame. Timers never fire, so a component that waits on one stays in its waiting state. Pass fixed dates in fixtures.
+- **Data fetching.** Stage components must get everything from props or stub providers. A component that fetches on mount needs its data layer stubbed.
+- **Providers.** If a component needs a provider (theme, router, query client), wrap the stage in a stub provider. Don't copy the component.
+- **Console errors.** Verify fails on any console error, including React warnings such as a missing `key`. They are real bugs; fix them in the component or the fixtures.

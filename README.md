@@ -7,12 +7,55 @@ Everything runs locally: the voice is a model on your machine, and nothing is up
 
 > Status: pre-v0.1, in development. See `docs/ROADMAP.md`.
 
+## First run
+
+In a React app (Next.js, or Vite with React), with Node 22.18 or later:
+
 ```bash
-npx tourwright init          # config, an example script, and the agent skill
-npx tourwright make intro    # voice, render, verify -> out/intro.mp4
+npm install -D tourwright
+npx tourwright init                               # config, a starter stage, an intro script, the agent skill
+npx playwright install --only-shell chromium      # once per machine
+npx tourwright make intro                         # -> tourwright/out/intro.mp4
 ```
 
-The CLI also answers to `walkthrough`.
+`init` prints these steps too, and adds `npm install -D ffmpeg-static` if it finds no ffmpeg.
+`npx tourwright doctor` reports anything missing, with the command that fixes it. The CLI also
+answers to `walkthrough`.
+
+### What gets downloaded, and where
+
+| What | Size | When | Where it is kept |
+| --- | --- | --- | --- |
+| Headless Chromium (Playwright) | about 115 MB | `npx playwright install --only-shell chromium` | Playwright's cache: `%LOCALAPPDATA%\ms-playwright` on Windows, `~/.cache/ms-playwright` on Linux, `~/Library/Caches/ms-playwright` on macOS |
+| Kokoro voice model, `fp32` (the default) | about 326 MB | the first `verify`, `render` or `make` | `%LOCALAPPDATA%\tourwright\models`, `~/.cache/tourwright/models` or `~/Library/Caches/tourwright/models`; `TOURWRIGHT_CACHE` overrides it |
+| Kokoro voice model, `q8` (`"dtype": "q8"` in a script's voice settings) | about 92 MB | as above | as above |
+| ffmpeg, only if you have none on the PATH | about 80 MB | `npm install -D ffmpeg-static` | the app's `node_modules` |
+
+The model is shared by every app on the machine. Narration audio is cached per sentence in
+`tourwright/out/.cache/voice`, so only changed sentences are spoken again.
+
+Set `TOURWRIGHT_VOICE=fake` to work without the model: narration is silent, but its timing is
+realistic, so checks and stills still mean something. CI uses this.
+
+### npm install-script warnings
+
+npm 11 lists packages whose install scripts it has not been told to trust. Installing Tourwright
+names `onnxruntime-node`, `sharp` and `protobufjs` (from the voice model's runtime), and
+`ffmpeg-static` if you add it. The voice runs without any of them being approved. `ffmpeg-static`
+downloads its binary in its install script; if `doctor` reports ffmpeg missing after installing it,
+run `npm approve-scripts ffmpeg-static` and then `npm rebuild ffmpeg-static`.
+
+## Commands
+
+| Command | What it does |
+| --- | --- |
+| `init` | Set up Tourwright in this app. Never overwrites a file. |
+| `new <name>` | Create a walkthrough from a template |
+| `check <name>` | Validate a script: schema, cues, beats, writing rules. No browser. |
+| `verify <name>` | Render a still at every beat and check each against the live page. Writes a report, a timing table and a contact sheet. |
+| `render <name>` | Render the MP4 |
+| `make <name>` | Check and verify, then render only if every still passes |
+| `doctor` | Report ffmpeg, the browser and the voice. `--voice` downloads the model and speaks a test sentence. |
 
 ## Why
 
@@ -30,6 +73,16 @@ pipes frames to ffmpeg, and the narration's own length decides how long each sce
 `skill/` holds the `walkthrough` skill: how to write a script, run the checks and verify the
 result from a timing report and a contact sheet of stills. `init` copies it into a project's
 `.claude/skills/`.
+
+## Developing
+
+```bash
+npm install
+npx playwright install --only-shell chromium
+npm run typecheck && npm test
+npm run build                                  # the example app uses the built package
+cd examples/next-app && TOURWRIGHT_VOICE=fake npx tourwright make intro
+```
 
 ## Licence
 
