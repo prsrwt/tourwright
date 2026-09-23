@@ -3,6 +3,7 @@
 
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -139,9 +140,35 @@ test('rendering the same script twice gives identical frames, and an MP4', { ski
       assert.ok(existsSync(file));
       assert.equal(result.frames, prepared.timeline.frames);
       hashes.push(readFileSync(result.hashFile, 'utf8'));
+      // Burned captions (the default): a WebVTT file beside the video, and no subtitle track in
+      // it, which players would show on top of the burned-in text.
+      assert.match(readFileSync(result.captionsFile!, 'utf8'), /^WEBVTT\n\n1\n.*\nThese cards count your tasks\.\n$/);
+      assert.doesNotMatch(streamsOf(ffmpeg.path, file), /Subtitle/);
     } finally {
       await session.close();
     }
   }
   assert.equal(hashes[0], hashes[1]);
+
+  // Soft captions go inside the MP4 as a subtitle track instead.
+  const soft = setup({
+    soft: {
+      title: 'Soft',
+      settings: { video: { width: 640, height: 360 }, captions: { mode: 'soft' } },
+      scenes: [{ stage: 'dashboard', say: 'These cards count your tasks.' }],
+    },
+  });
+  const prepared = await prepare(soft, 'soft');
+  const session = await openSession(soft, prepared, quiet);
+  try {
+    const file = join(soft.out, 'soft.mp4');
+    await renderVideo(prepared.timeline, session.player, { ffmpeg, file, workDir: prepared.outDir });
+    assert.match(streamsOf(ffmpeg.path, file), /Subtitle: mov_text/);
+  } finally {
+    await session.close();
+  }
 });
+
+function streamsOf(ffmpeg: string, file: string): string {
+  return spawnSync(ffmpeg, ['-hide_banner', '-i', file], { encoding: 'utf8' }).stderr;
+}

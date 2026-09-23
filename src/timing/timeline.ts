@@ -63,6 +63,14 @@ export interface TimedScene {
   beats: TimedBeat[];
 }
 
+export interface Caption {
+  /** The written sentence, as a viewer reads it: markers removed, lexicon not applied. */
+  text: string;
+  /** Global frames: shown from `from` up to, not including, `to`. */
+  from: number;
+  to: number;
+}
+
 export interface Timeline {
   title: string;
   subtitle?: string;
@@ -76,6 +84,8 @@ export interface Timeline {
   /** Highlight slide and fade durations, in frames. */
   highlightFrames: { slide: number; fade: number };
   scenes: TimedScene[];
+  /** One per sentence, whatever the captions setting; the setting decides how they are shown. */
+  captions: Caption[];
 }
 
 export interface SentenceAudio {
@@ -148,7 +158,22 @@ export function buildTimeline(script: Script, settings: Settings, audio: readonl
     settings,
     highlightFrames: { slide: Math.max(1, toFrames(settings.highlight.slide)), fade: Math.max(1, toFrames(settings.highlight.fade)) },
     scenes,
+    captions: scenes.flatMap((scene) => captionsFor(scene, gap)),
   };
+}
+
+/**
+ * A caption stays up until the next sentence starts, so it does not flicker off in the gap
+ * between sentences. The last one in a scene holds for one gap after its audio, then clears
+ * before the next scene.
+ */
+function captionsFor(scene: TimedScene, gap: number): Caption[] {
+  const end = scene.from + scene.frames;
+  return scene.sentences.map((sentence, i) => {
+    const next = scene.sentences[i + 1];
+    const to = next ? next.from : Math.min(sentence.from + sentence.frames + gap, end);
+    return { text: sentence.text, from: sentence.from, to };
+  });
 }
 
 /** The frame where a beat's movement has finished, clamped inside its scene: what verify stills show. */

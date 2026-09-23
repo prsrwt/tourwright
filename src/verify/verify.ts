@@ -16,6 +16,8 @@ import { timingMarkdown } from './timing.ts';
 export const MIN_TEXT_PX = 12;
 /** A frame where this share of pixels is one colour shows nothing. */
 export const BLANK_SHARE = 0.995;
+/** A caption may clip the edge of a big target, but should not hide much of it. */
+export const MAX_CAPTION_COVER = 0.1;
 /** Sub-pixel rounding allowance when checking that a target is inside the frame. */
 const EDGE_TOLERANCE = 1;
 
@@ -65,6 +67,8 @@ export async function verifyWalkthrough(name: string, timeline: Timeline, player
   const video = { w: timeline.width, h: timeline.height };
   const stills: Still[] = [];
   const images: Buffer[] = [];
+  // Where the caption sits in each still, so the blank check judges the stage, not the caption.
+  const masks: (Rect | null)[] = [];
   for (const shot of shots) {
     const at = `scenes[${shot.scene.index}]`;
     const diagnostics: Diagnostic[] = [];
@@ -74,6 +78,7 @@ export async function verifyWalkthrough(name: string, timeline: Timeline, player
     const file = join(stillsDir, `${label}.png`);
     writeFileSync(file, png);
     images.push(png);
+    masks.push(await player.page.evaluate(() => window.__tour.captionRect()));
 
     const targets = new Map<string, string>();
     if (shot.beat?.camera && shot.beat.camera.to !== 'all') targets.set(shot.beat.camera.to, `${at}.beats[${shot.beat.index}].camera.to`);
@@ -90,6 +95,16 @@ export async function verifyWalkthrough(name: string, timeline: Timeline, player
           fix: shot.beat?.camera?.to === target
             ? 'use "zoom": "fit", or a smaller zoom number, so the whole target fits.'
             : `move the camera to "${target}" (or something that contains it) before highlighting it.`,
+        });
+      }
+      const caption = masks[masks.length - 1];
+      const covered = caption && overlap(rect, caption);
+      if (covered && covered > MAX_CAPTION_COVER) {
+        diagnostics.push({
+          level: 'warning',
+          path,
+          message: `In still ${label}, the caption covers ${Math.round(covered * 100)}% of target "${target}".`,
+          fix: `frame "${target}" higher (for example "align": "top" or a smaller zoom), or move captions with "settings": { "captions": { "position": "top" } }.`,
         });
       }
       const text = await player.page.evaluate(([s, t]) => window.__tour.minTextSize(s, t), [shot.scene.stage, target] as const);
@@ -114,7 +129,7 @@ export async function verifyWalkthrough(name: string, timeline: Timeline, player
 
   // Pixel checks run on a separate page, so they cannot disturb the player.
   const browser = player.page.context().browser()!;
-  const stats = await imageStats(browser, images);
+  const stats = await imageStats(browser, images, masks);
   stats.forEach((s, i) => {
     const still = stills[i]!;
     if (s.dominantShare >= BLANK_SHARE && !failed(shots[i]!.scene.stage)) {
@@ -158,6 +173,13 @@ export async function verifyWalkthrough(name: string, timeline: Timeline, player
   };
   writeFileSync(files.report, JSON.stringify(report, null, 2) + '\n');
   return report;
+}
+
+/** The share of `target`'s area, from 0 to 1, that `cover` hides. */
+export function overlap(target: Rect, cover: Rect): number {
+  const w = Math.min(target.x + target.w, cover.x + cover.w) - Math.max(target.x, cover.x);
+  const h = Math.min(target.y + target.h, cover.y + cover.h) - Math.max(target.y, cover.y);
+  return w > 0 && h > 0 && target.w * target.h > 0 ? (w * h) / (target.w * target.h) : 0;
 }
 
 function outside(rect: Rect, video: { w: number; h: number }): string | undefined {

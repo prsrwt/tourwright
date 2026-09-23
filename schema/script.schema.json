@@ -144,6 +144,34 @@
             }
           },
           "additionalProperties": false
+        },
+        "captions": {
+          "description": "Captions of the narration, one sentence at a time.",
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "burned",
+                "soft",
+                "off"
+              ]
+            },
+            "size": {
+              "description": "Text size in pixels at 1080p, scaled for other heights.",
+              "type": "number",
+              "minimum": 12,
+              "maximum": 120
+            },
+            "position": {
+              "type": "string",
+              "enum": [
+                "bottom",
+                "top"
+              ]
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false,

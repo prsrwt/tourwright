@@ -88,7 +88,8 @@ Put only what you are changing in `script.json`. These are the defaults:
   "video":     { "width": 1920, "height": 1080, "fps": 30, "crf": 23 },
   "voice":     { "voice": "bm_fable", "speed": 1, "dtype": "fp32", "sentenceGap": 0.3, "tail": 0.7 },
   "camera":    { "ease": "inOutCubic", "duration": 0.9, "lead": 0.4, "padding": 48, "maxZoom": 2.5 },
-  "highlight": { "color": "#2563eb", "stroke": 3, "radius": 12, "padding": 10, "dim": 0.5, "slide": 0.5, "fade": 0.3 }
+  "highlight": { "color": "#2563eb", "stroke": 3, "radius": 12, "padding": 10, "dim": 0.5, "slide": 0.5, "fade": 0.3 },
+  "captions":  { "mode": "burned", "size": 40, "position": "bottom" }
 }
 ```
 
@@ -96,6 +97,7 @@ Put only what you are changing in `script.json`. These are the defaults:
 - `voice.voice`: any Kokoro voice ID. `bm_fable`, `bm_george` and `bm_lewis` are British male; `bf_emma` and `bf_isabella` are British female; `af_heart`, `af_bella`, `am_adam` and `am_michael` are American. `speed` runs from 0.5 to 2. `dtype` trades quality for download size: `fp32` (about 326 MB), `fp16`, `q8` (about 92 MB) or `q4`.
 - `camera.padding` is pixels of space kept around a framed target. `maxZoom` limits how close the camera gets, as a multiple of the whole-stage width.
 - `highlight.color` is any CSS colour. `dim` is the opacity of the darkening outside the highlight, from 0 to 1. `slide` and `fade` are seconds.
+- `captions`: the narration, one sentence at a time, each shown from when it starts until the next sentence starts. They show the written words, not the lexicon's respellings. `mode` is `"burned"` (drawn into the video, so they show everywhere, including Slack and GitHub), `"soft"` (a subtitle track inside the MP4, which players show and viewers can turn off) or `"off"`. `burned` and `soft` both write `<name>.vtt` next to the MP4, for web pages that add subtitles with a `<track>`. `size` is pixels at 1080p. Verify warns when a caption covers more than 10% of a target; frame the target higher, or use `"position": "top"`.
 - Easing presets: `linear`, `inOutSine`, `inOutCubic`, `outCubic`, `outExpo`. Use `inOutCubic` for camera moves.
 
 Audio is cached one file per sentence, keyed by the spoken text and the voice settings, so changing a sentence or a voice setting only re-voices what changed.

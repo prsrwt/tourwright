@@ -7,6 +7,13 @@ export type EaseName = (typeof EASE_NAMES)[number];
 // audio samples and the soundtrack can be placed by frame without drift.
 export const FRAME_RATES = [24, 25, 30, 50, 60] as const;
 
+/**
+ * burned: drawn into the video, so they show everywhere, including where players ignore
+ * subtitle tracks. soft: a subtitle track inside the MP4, which players show and let viewers
+ * turn off. Both write a .vtt file next to the MP4. off: none of these.
+ */
+export const CAPTION_MODES = ['burned', 'soft', 'off'] as const;
+
 export interface Settings {
   video: { width: number; height: number; fps: (typeof FRAME_RATES)[number]; crf: number };
   voice: { voice: string; speed: number; dtype: 'fp32' | 'fp16' | 'q8' | 'q4'; sentenceGap: number; tail: number };
@@ -20,6 +27,7 @@ export interface Settings {
     slide: number;
     fade: number;
   };
+  captions: { mode: (typeof CAPTION_MODES)[number]; size: number; position: 'bottom' | 'top' };
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -27,6 +35,7 @@ export const DEFAULT_SETTINGS: Settings = {
   voice: { voice: 'bm_fable', speed: 1, dtype: 'fp32', sentenceGap: 0.3, tail: 0.7 },
   camera: { ease: 'inOutCubic', duration: 0.9, lead: 0.4, padding: 48, maxZoom: 2.5 },
   highlight: { color: '#2563eb', stroke: 3, radius: 12, padding: 10, dim: 0.5, slide: 0.5, fade: 0.3 },
+  captions: { mode: 'burned', size: 40, position: 'bottom' },
 };
 
 const seconds = z.number().min(0);
@@ -76,6 +85,14 @@ export const SettingsInput = z
         fade: seconds.optional(),
       })
       .optional(),
+    captions: z
+      .strictObject({
+        mode: z.enum(CAPTION_MODES).optional(),
+        size: z.number().min(12).max(120).optional().describe('Text size in pixels at 1080p, scaled for other heights.'),
+        position: z.enum(['bottom', 'top']).optional(),
+      })
+      .optional()
+      .describe('Captions of the narration, one sentence at a time.'),
   })
   .describe('Overrides for this walkthrough. Anything left out uses the default.');
 
@@ -89,5 +106,6 @@ export function resolveSettings(input: SettingsInput | undefined): Settings {
     voice: { ...d.voice, ...input?.voice },
     camera: { ...d.camera, ...input?.camera },
     highlight: { ...d.highlight, ...input?.highlight },
+    captions: { ...d.captions, ...input?.captions },
   };
 }

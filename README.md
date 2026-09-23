@@ -28,6 +28,11 @@ npx tourwright make intro                         # -> tourwright/out/intro.mp4
 `npx tourwright doctor` reports anything missing, with the command that fixes it. The CLI also
 answers to `walkthrough`.
 
+Every video has captions of the narration, burned in by default so they show in Slack, on GitHub
+and anywhere else a video plays muted. `make` also writes `<name>.vtt` next to the MP4, for web
+pages that add subtitles with a `<track>`. For switchable subtitles instead, set
+`"captions": { "mode": "soft" }`, which puts them inside the MP4 as a subtitle track.
+
 ### What gets downloaded, and where
 
 | What | Size | When | Where it is kept |

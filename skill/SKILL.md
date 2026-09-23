@@ -83,7 +83,7 @@ Rules of thumb:
 Don't report a walkthrough as done until all of these hold.
 
 1. **Verify is clean.** `npx tourwright verify <name>` shows no errors, and any warning left has a reason you can state.
-2. **Look at the contact sheet.** Open `tourwright/out/<name>/contact-sheet.png`: every still, labelled `<scene>-<cue>` with its time. Each still is the frame where that beat's movement has settled. For each one, confirm that the target is the thing being talked about, the highlight outlines that element and not its neighbour or parent, and the framing makes sense. Open a still in `stills/` at full size if the sheet is too small to judge.
+2. **Look at the contact sheet.** Open `tourwright/out/<name>/contact-sheet.png`: every still, labelled `<scene>-<cue>` with its time. Each still is the frame where that beat's movement has settled. For each one, confirm that the target is the thing being talked about, the highlight outlines that element and not its neighbour or parent, the framing makes sense, and the caption (burned in by default) reads correctly and does not hide what the narration is about. Open a still in `stills/` at full size if the sheet is too small to judge.
 3. **Timing lands on the words.** Open `tourwright/out/<name>/timing.md`. For each cue it shows the words heard around it, with `**[here]**` where the cue lands. Confirm each one is where you meant.
 4. **Duration is sensible.** The total is at the top of `timing.md`. A "60-second" video between 50 and 75 seconds is fine.
 5. **No real data.** Every name, amount and reference on screen comes from fixtures. If anything looks real, stop and find out where it came from.

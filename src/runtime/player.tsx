@@ -42,6 +42,8 @@ export interface TourApi {
   targetOnScreen(stage: string, target: string): Rect | null;
   /** Smallest rendered font size, in screen pixels, of visible text inside a target at the current frame. */
   minTextSize(stage: string, target: string): number | null;
+  /** Screen rect of the burned-in caption at the current frame, when one is showing. */
+  captionRect(): Rect | null;
   errors: string[];
 }
 
@@ -119,6 +121,7 @@ export function mountPlayer(stages: Stages): void {
               }}
             />
           )}
+          {t.settings.captions.mode === 'burned' && <CaptionView timeline={t} frame={frame} />}
           {frame < t.titleFrames && <TitleCard title={t.title} subtitle={t.subtitle} />}
         </Frame>,
       ),
@@ -187,6 +190,13 @@ export function mountPlayer(stages: Stages): void {
       const rect = measure(world, target, stages[stage]?.targets ?? {});
       return rect && timeline ? toScreen(rect, current.view, { w: timeline.width, h: timeline.height }) : null;
     },
+    captionRect() {
+      const el = host.querySelector('[data-tour-caption]');
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      const origin = host.getBoundingClientRect();
+      return { x: r.left - origin.left, y: r.top - origin.top, w: r.width, h: r.height };
+    },
     minTextSize(stage, target) {
       const world = worldEl();
       if (!world || current.stage !== stage) return null;
@@ -241,6 +251,48 @@ function StageView({ stages, name, onError }: { stages: Stages; name: string; on
 
 function StageContent({ render }: { render: () => ReactNode }) {
   return render();
+}
+
+/** The current sentence, drawn in screen space so the camera never moves or scales it. */
+function CaptionView({ timeline, frame }: { timeline: Timeline; frame: number }) {
+  const caption = timeline.captions.find((c) => frame >= c.from && frame < c.to);
+  if (!caption) return null;
+  const { size, position } = timeline.settings.captions;
+  const scale = timeline.height / 1080;
+  const margin = Math.round(timeline.height * 0.06);
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        [position]: margin,
+        display: 'flex',
+        justifyContent: 'center',
+        pointerEvents: 'none',
+      }}
+    >
+      <div
+        data-tour-caption=""
+        style={{
+          maxWidth: '80%',
+          padding: `${Math.round(10 * scale)}px ${Math.round(22 * scale)}px`,
+          borderRadius: Math.round(12 * scale),
+          // Nearly opaque, so nothing behind shows through, with a faint edge that separates it
+          // from dark screens as well as light ones.
+          background: 'rgba(15, 23, 42, 0.94)',
+          border: `${Math.max(1, Math.round(scale))}px solid rgba(255, 255, 255, 0.18)`,
+          color: '#fff',
+          fontFamily: 'ui-sans-serif, system-ui, sans-serif',
+          fontSize: size * scale,
+          lineHeight: 1.35,
+          textAlign: 'center',
+        }}
+      >
+        {caption.text}
+      </div>
+    </div>
+  );
 }
 
 function TitleCard({ title, subtitle }: { title: string; subtitle: string | undefined }) {

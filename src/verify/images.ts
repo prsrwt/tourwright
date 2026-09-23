@@ -1,20 +1,22 @@
 // Image work done in the browser that is already open, so Tourwright needs no image library.
 
 import type { Browser } from 'playwright';
+import type { Rect } from '../runtime/motion.ts';
 
 export interface ImageStats {
   /** Share of pixels, from 0 to 1, in the most common colour (quantised to 4 bits a channel). */
   dominantShare: number;
 }
 
-export async function imageStats(browser: Browser, images: readonly Buffer[]): Promise<ImageStats[]> {
+/** `masks` are areas to leave out of each image, such as Tourwright's own caption. */
+export async function imageStats(browser: Browser, images: readonly Buffer[], masks: readonly (Rect | null)[] = []): Promise<ImageStats[]> {
   const context = await browser.newContext();
   try {
     const page = await context.newPage();
     const out: ImageStats[] = [];
-    for (const png of images) {
+    for (const [i, png] of images.entries()) {
       out.push(
-        await page.evaluate(async (base64) => {
+        await page.evaluate(async ([base64, mask]) => {
           const img = new Image();
           img.src = `data:image/png;base64,${base64}`;
           await img.decode();
@@ -25,12 +27,17 @@ export async function imageStats(browser: Browser, images: readonly Buffer[]): P
           const counts = new Map<number, number>();
           let total = 0;
           for (let i = 0; i < data.length; i += 8) {
+            if (mask) {
+              const x = (i / 4) % img.width;
+              const y = Math.floor(i / 4 / img.width);
+              if (x >= mask.x && x < mask.x + mask.w && y >= mask.y && y < mask.y + mask.h) continue;
+            }
             const key = ((data[i]! >> 4) << 8) | ((data[i + 1]! >> 4) << 4) | (data[i + 2]! >> 4);
             counts.set(key, (counts.get(key) ?? 0) + 1);
             total += 1;
           }
           return { dominantShare: Math.max(...counts.values()) / total };
-        }, png.toString('base64')),
+        }, [png.toString('base64'), masks[i] ?? null] as const),
       );
     }
     return out;
