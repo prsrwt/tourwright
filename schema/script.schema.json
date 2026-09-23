@@ -1,0 +1,287 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "subtitle": {
+      "type": "string"
+    },
+    "settings": {
+      "type": "object",
+      "properties": {
+        "video": {
+          "type": "object",
+          "properties": {
+            "width": {
+              "type": "integer",
+              "minimum": 64,
+              "maximum": 7680
+            },
+            "height": {
+              "type": "integer",
+              "minimum": 64,
+              "maximum": 7680
+            },
+            "fps": {
+              "type": "number",
+              "enum": [
+                24,
+                25,
+                30,
+                50,
+                60
+              ]
+            },
+            "crf": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 51
+            }
+          },
+          "additionalProperties": false
+        },
+        "voice": {
+          "type": "object",
+          "properties": {
+            "voice": {
+              "type": "string",
+              "minLength": 1
+            },
+            "speed": {
+              "type": "number",
+              "minimum": 0.5,
+              "maximum": 2
+            },
+            "dtype": {
+              "type": "string",
+              "enum": [
+                "fp32",
+                "fp16",
+                "q8",
+                "q4"
+              ]
+            },
+            "sentenceGap": {
+              "type": "number",
+              "minimum": 0
+            },
+            "tail": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false
+        },
+        "camera": {
+          "type": "object",
+          "properties": {
+            "ease": {
+              "type": "string",
+              "enum": [
+                "linear",
+                "inOutSine",
+                "inOutCubic",
+                "outCubic",
+                "outExpo"
+              ]
+            },
+            "duration": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "lead": {
+              "type": "number",
+              "minimum": 0
+            },
+            "padding": {
+              "type": "number",
+              "minimum": 0
+            },
+            "maxZoom": {
+              "type": "number",
+              "minimum": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "highlight": {
+          "type": "object",
+          "properties": {
+            "color": {
+              "type": "string",
+              "minLength": 1
+            },
+            "stroke": {
+              "type": "number",
+              "minimum": 0
+            },
+            "radius": {
+              "type": "number",
+              "minimum": 0
+            },
+            "padding": {
+              "type": "number",
+              "minimum": 0
+            },
+            "dim": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "slide": {
+              "type": "number",
+              "minimum": 0
+            },
+            "fade": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "description": "Overrides for this walkthrough. Anything left out uses the default."
+    },
+    "lexicon": {
+      "description": "Written word to how the voice should say it. Whole words, case-sensitive.",
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "scenes": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "description": "Short name used in reports and still filenames. Defaults to the scene number.",
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "stage": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A stage registered in the app's stages file."
+          },
+          "say": {
+            "type": "string",
+            "description": "Narration. A [cue] marker may only start a sentence."
+          },
+          "tail": {
+            "description": "Seconds held after the narration ends. Defaults to settings.voice.tail.",
+            "type": "number",
+            "minimum": 0
+          },
+          "beats": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "at": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "A cue marker from this scene's \"say\", or \"start\" or \"end\"."
+                },
+                "camera": {
+                  "type": "object",
+                  "properties": {
+                    "to": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "A target name registered for the stage, or \"all\" for the whole stage."
+                    },
+                    "zoom": {
+                      "description": "\"fit\" fits the whole target, \"width\" fits its width, a number is an absolute scale (1 = the whole stage width).",
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "fit",
+                            "width"
+                          ]
+                        },
+                        {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        }
+                      ]
+                    },
+                    "align": {
+                      "type": "string",
+                      "enum": [
+                        "center",
+                        "top"
+                      ]
+                    },
+                    "ease": {
+                      "type": "string",
+                      "enum": [
+                        "linear",
+                        "inOutSine",
+                        "inOutCubic",
+                        "outCubic",
+                        "outExpo"
+                      ]
+                    },
+                    "duration": {
+                      "description": "Seconds the move takes.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    }
+                  },
+                  "required": [
+                    "to"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Move the camera to a target."
+                },
+                "highlight": {
+                  "description": "Outline a target, or false to clear the highlight.",
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    {
+                      "type": "boolean",
+                      "const": false
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "at"
+              ],
+              "additionalProperties": false,
+              "description": "An action tied to a cue."
+            }
+          }
+        },
+        "required": [
+          "stage",
+          "say"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "title",
+    "scenes"
+  ],
+  "additionalProperties": false,
+  "title": "Tourwright script"
+}
