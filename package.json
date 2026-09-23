@@ -1,0 +1,20 @@
+{
+  "name": "tourwright",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Narrated walkthrough videos of your app's real React components: script in, MP4 out. Local voice, deterministic frames, no cloud.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "tourwright": "./dist/cli/index.js",
+    "walkthrough": "./dist/cli/index.js"
+  },
+  "files": ["dist", "skill", "runtime"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test"
+  },
+  "engines": { "node": ">=20.19" },
+  "keywords": ["video", "walkthrough", "demo", "react", "playwright", "tts", "documentation"]
+}
