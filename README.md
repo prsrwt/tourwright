@@ -40,8 +40,12 @@ answers to `walkthrough`.
 The model is shared by every app on the machine. Narration audio is cached per sentence in
 `tourwright/out/.cache/voice`, so only changed sentences are spoken again.
 
-Set `TOURWRIGHT_VOICE=fake` to work without the model: narration is silent, but its timing is
-realistic, so checks and stills still mean something. CI uses this.
+Add `--fake-voice` to `verify`, `render` or `make` to work without the model: narration is
+silent, but its timing is realistic, so checks and stills still mean something. In CI, the
+environment variable `TOURWRIGHT_VOICE=fake` does the same.
+
+The model download resumes where it stopped if the connection drops, and a file is only used
+once its size matches the server's, so a flaky network costs time but never leaves a broken model.
 
 ### npm install-script warnings
 
@@ -87,7 +91,7 @@ npm install
 npx playwright install --only-shell chromium
 npm run typecheck && npm test
 npm run build                                  # the example app uses the built package
-cd examples/next-app && TOURWRIGHT_VOICE=fake npx tourwright make intro
+cd examples/next-app && npx tourwright make intro --fake-voice
 ```
 
 ## Licence

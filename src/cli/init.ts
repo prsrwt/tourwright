@@ -84,6 +84,6 @@ export function runInit(root: string): number {
   steps.push('npx tourwright make intro   (the first run downloads the voice model, about 326 MB)');
   console.log(`\nNext:\n${steps.map((s, i) => `  ${i + 1}. ${s}`).join('\n')}`);
   console.log('\nThen replace the starter stage in tourwright/stages.tsx with your own components.');
-  console.log('Set TOURWRIGHT_VOICE=fake to work with silent narration and no model download.');
+  console.log('Add --fake-voice to verify, render or make to work with silent narration and no model download.');
   return 0;
 }

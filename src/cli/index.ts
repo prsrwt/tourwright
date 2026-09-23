@@ -21,10 +21,11 @@ Commands:
 
 Options:
   --json          Machine-readable output (check, verify)
+  --fake-voice    Silent narration with realistic timing: no voice model (verify, render, make)
   --voice         Download the voice model if needed and test it (doctor)
   -h, --help      Show this help
 
-Set TOURWRIGHT_VOICE=fake to use silent narration with realistic timing, with no model download.`;
+The environment variable TOURWRIGHT_VOICE=fake does the same as --fake-voice, for CI.`;
 
 async function main(argv: string[]): Promise<number> {
   const { values, positionals } = parseArgs({
@@ -33,6 +34,7 @@ async function main(argv: string[]): Promise<number> {
     options: {
       json: { type: 'boolean', default: false },
       voice: { type: 'boolean', default: false },
+      'fake-voice': { type: 'boolean', default: false },
       help: { type: 'boolean', short: 'h', default: false },
     },
   });
@@ -41,6 +43,9 @@ async function main(argv: string[]): Promise<number> {
     console.log(USAGE);
     return command || values.help ? 0 : 1;
   }
+  // --fake-voice works the same in every shell; the variable form differs between bash and PowerShell.
+  const env = values['fake-voice'] ? { ...process.env, TOURWRIGHT_VOICE: 'fake' } : process.env;
+  const config = () => loadConfig(process.cwd(), env);
   const needName = (): string | undefined => {
     if (!name) console.error(`Usage: tourwright ${command} <name>`);
     return name;
@@ -49,24 +54,24 @@ async function main(argv: string[]): Promise<number> {
   switch (command) {
     case 'check': {
       const n = needName();
-      return n ? runCheck(await loadConfig(process.cwd()), n, { json: values.json }) : 1;
+      return n ? runCheck(await config(), n, { json: values.json }) : 1;
     }
     case 'render': {
       const n = needName();
       if (!n) return 1;
       const { runRender } = await import('./render.ts');
-      return runRender(await loadConfig(process.cwd()), n);
+      return runRender(await config(), n);
     }
     case 'verify': {
       const n = needName();
       if (!n) return 1;
       const { runVerify } = await import('./verify.ts');
-      return runVerify(await loadConfig(process.cwd()), n, { json: values.json });
+      return runVerify(await config(), n, { json: values.json });
     }
     case 'doctor': {
       const { runDoctor } = await import('./doctor.ts');
       try {
-        return await runDoctor(await loadConfig(process.cwd()), undefined, { voice: values.voice });
+        return await runDoctor(await config(), undefined, { voice: values.voice });
       } catch (error) {
         if (!(error instanceof ConfigError)) throw error;
         return runDoctor(undefined, error.message, { voice: values.voice });
@@ -80,13 +85,13 @@ async function main(argv: string[]): Promise<number> {
       const n = needName();
       if (!n) return 1;
       const { runNew } = await import('./new.ts');
-      return runNew(await loadConfig(process.cwd()), n);
+      return runNew(await config(), n);
     }
     case 'make': {
       const n = needName();
       if (!n) return 1;
       const { runMake } = await import('./make.ts');
-      return runMake(await loadConfig(process.cwd()), n);
+      return runMake(await config(), n);
     }
     default:
       console.error(`Unknown command "${command}".\n\n${USAGE}`);

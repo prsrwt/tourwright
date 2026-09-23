@@ -36,7 +36,7 @@ Reference files, read when you reach the step that needs them:
 | `npx tourwright make <name>` | Check and verify, then render only if every still passes |
 | `npx tourwright doctor` | Report ffmpeg, the browser and the voice, with the fix for anything missing |
 
-Add `--json` to `check` or `verify` for machine-readable output. Set `TOURWRIGHT_VOICE=fake` to iterate without the voice model: narration is silent, but its timing is realistic, so stills and timing reports are still meaningful. Use the real voice for the final render.
+Add `--json` to `check` or `verify` for machine-readable output. Add `--fake-voice` to `verify`, `render` or `make` to iterate without the voice model: narration is silent, but its timing is realistic, so stills and timing reports are still meaningful. Use the real voice for the final render.
 
 ## The workflow
 
