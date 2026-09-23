@@ -6,7 +6,7 @@ import { modelCacheDir } from '../cache.ts';
 import type { ResolvedConfig } from '../config/config.ts';
 import { findFfmpeg, FFMPEG_MISSING } from '../render/ffmpeg.ts';
 import { DEFAULT_SETTINGS } from '../schema/settings.ts';
-import { KOKORO_DOWNLOAD_MB, kokoroModelCached } from '../voice/kokoro.ts';
+import { KOKORO_DOWNLOAD_MB, kokoroModelCached, kokoroModelDir } from '../voice/kokoro.ts';
 
 interface Line {
   ok: boolean;
@@ -51,9 +51,11 @@ export async function runDoctor(config: ResolvedConfig | undefined, configError:
     add(
       true,
       'voice',
-      kokoroModelCached()
+      kokoroModelCached(dtype)
         ? `Kokoro model cached in ${modelCacheDir()}. Run "tourwright doctor --voice" to test speaking.`
-        : `Kokoro model not downloaded yet: about ${KOKORO_DOWNLOAD_MB[dtype]} MB on first use, into ${modelCacheDir()}. Run "tourwright doctor --voice" to download and test it now.`,
+        : existsSync(kokoroModelDir())
+          ? `Kokoro model partly downloaded, or not yet confirmed complete, in ${modelCacheDir()}. The next run resumes and checks it; "tourwright doctor --voice" does it now.`
+          : `Kokoro model not downloaded yet: about ${KOKORO_DOWNLOAD_MB[dtype]} MB on first use, into ${modelCacheDir()}. Run "tourwright doctor --voice" to download and test it now.`,
     );
   }
 
