@@ -31,7 +31,7 @@ export function runCheck(config: ResolvedConfig, name: string, options: CheckOpt
   } else {
     if (diagnostics.length) console.log(`${formatDiagnostics(diagnostics)}\n`);
     console.log(`${shown}: ${errors} ${errors === 1 ? 'error' : 'errors'}, ${warnings} ${warnings === 1 ? 'warning' : 'warnings'}.`);
-    console.log('Stage and target names are not checked yet; that needs the stage bundle.');
+    console.log('Stage and target names are checked by verify and render, against the real components.');
   }
   return errors ? 1 : 0;
 }

@@ -17,7 +17,7 @@ const ConfigInput = z.strictObject({
   preset: z.enum(PRESETS).optional().describe('How to bundle the app. Detected from package.json when left out.'),
   stages: z.string().min(1).optional().describe('The file that registers the stages. Default "tourwright/stages.tsx".'),
   walkthroughs: z.string().min(1).optional().describe('Folder holding one folder per walkthrough. Default "tourwright/walkthroughs".'),
-  out: z.string().min(1).optional().describe('Folder for rendered videos and reports. Default "out".'),
+  out: z.string().min(1).optional().describe('Folder for rendered videos and reports. Default "tourwright/out".'),
   voice: z.strictObject({ backend: z.enum(VOICE_BACKENDS).optional() }).optional(),
 });
 
@@ -88,7 +88,7 @@ export function resolveConfig(input: UserConfig, configFile: string, env: NodeJS
     preset: input.preset ?? detectPreset(root),
     stages: resolve(root, input.stages ?? 'tourwright/stages.tsx'),
     walkthroughs: resolve(root, input.walkthroughs ?? 'tourwright/walkthroughs'),
-    out: resolve(root, input.out ?? 'out'),
+    out: resolve(root, input.out ?? 'tourwright/out'),
     voice: { backend: (envBackend as VoiceBackend | undefined) ?? input.voice?.backend ?? 'kokoro' },
   };
 }

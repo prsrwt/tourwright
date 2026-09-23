@@ -1,63 +1,110 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util';
+import { formatDiagnostics } from '../check/diagnostic.ts';
 import { ConfigError, loadConfig } from '../config/config.ts';
+import { StagesMissingError } from '../bundle/server.ts';
+import { PrepareError } from '../pipeline/prepare.ts';
+import { BrowserMissingError } from '../render/page.ts';
+import { RenderError } from '../render/render.ts';
 import { runCheck } from './check.ts';
 
 const USAGE = `Usage: tourwright <command> [options]
 
 Commands:
   check <name>    Validate a walkthrough's script.json
-  init            Set up tourwright in this app          (not yet available)
-  new <name>      Create a walkthrough from a template   (not yet available)
-  verify <name>   Render a still per beat and check them (not yet available)
-  render <name>   Render out/<name>.mp4                  (not yet available)
-  make <name>     Check, render and verify               (not yet available)
-  doctor          Check ffmpeg, the browser and the voice (not yet available)
+  init            Set up Tourwright in this app
+  new <name>      Create a walkthrough from a template
+  verify <name>   Render a still per beat and check them against the page
+  render <name>   Render the MP4
+  make <name>     Check and verify, then render if every still passes
+  doctor          Check ffmpeg, the browser and the voice
 
 Options:
-  --json          Machine-readable output (check)
-  -h, --help      Show this help`;
+  --json          Machine-readable output (check, verify)
+  --voice         Download the voice model if needed and test it (doctor)
+  -h, --help      Show this help
+
+Set TOURWRIGHT_VOICE=fake to use silent narration with realistic timing, with no model download.`;
 
 async function main(argv: string[]): Promise<number> {
   const { values, positionals } = parseArgs({
     args: argv,
     allowPositionals: true,
-    options: { json: { type: 'boolean', default: false }, help: { type: 'boolean', short: 'h', default: false } },
+    options: {
+      json: { type: 'boolean', default: false },
+      voice: { type: 'boolean', default: false },
+      help: { type: 'boolean', short: 'h', default: false },
+    },
   });
   const [command, name] = positionals;
   if (values.help || !command) {
     console.log(USAGE);
     return command || values.help ? 0 : 1;
   }
+  const needName = (): string | undefined => {
+    if (!name) console.error(`Usage: tourwright ${command} <name>`);
+    return name;
+  };
 
   switch (command) {
     case 'check': {
-      if (!name) {
-        console.error('Usage: tourwright check <name>');
-        return 1;
-      }
-      return runCheck(await loadConfig(process.cwd()), name, { json: values.json });
+      const n = needName();
+      return n ? runCheck(await loadConfig(process.cwd()), n, { json: values.json }) : 1;
     }
-    case 'init':
-    case 'new':
-    case 'verify':
-    case 'render':
-    case 'make':
-    case 'doctor':
-      console.error(`"${command}" is not available yet in this development build.`);
-      return 1;
+    case 'render': {
+      const n = needName();
+      if (!n) return 1;
+      const { runRender } = await import('./render.ts');
+      return runRender(await loadConfig(process.cwd()), n);
+    }
+    case 'verify': {
+      const n = needName();
+      if (!n) return 1;
+      const { runVerify } = await import('./verify.ts');
+      return runVerify(await loadConfig(process.cwd()), n, { json: values.json });
+    }
+    case 'doctor': {
+      const { runDoctor } = await import('./doctor.ts');
+      try {
+        return await runDoctor(await loadConfig(process.cwd()), undefined, { voice: values.voice });
+      } catch (error) {
+        if (!(error instanceof ConfigError)) throw error;
+        return runDoctor(undefined, error.message, { voice: values.voice });
+      }
+    }
+    case 'init': {
+      const { runInit } = await import('./init.ts');
+      return runInit(process.cwd());
+    }
+    case 'new': {
+      const n = needName();
+      if (!n) return 1;
+      const { runNew } = await import('./new.ts');
+      return runNew(await loadConfig(process.cwd()), n);
+    }
+    case 'make': {
+      const n = needName();
+      if (!n) return 1;
+      const { runMake } = await import('./make.ts');
+      return runMake(await loadConfig(process.cwd()), n);
+    }
     default:
       console.error(`Unknown command "${command}".\n\n${USAGE}`);
       return 1;
   }
 }
 
+/** Errors whose message already says what is wrong and how to fix it, so no stack trace. */
+const EXPECTED = [ConfigError, PrepareError, StagesMissingError, BrowserMissingError, RenderError];
+
 main(process.argv.slice(2)).then(
   (code) => {
     process.exitCode = code;
   },
   (error: unknown) => {
-    if (error instanceof ConfigError || (error as { code?: string }).code?.startsWith('ERR_PARSE_ARGS')) {
+    if (error instanceof PrepareError && error.diagnostics.length) {
+      console.error(`${formatDiagnostics(error.diagnostics)}\n\n${error.message}`);
+    } else if (EXPECTED.some((type) => error instanceof type) || (error as { code?: string }).code?.startsWith('ERR_PARSE_ARGS')) {
       console.error((error as Error).message);
     } else {
       console.error(error);
