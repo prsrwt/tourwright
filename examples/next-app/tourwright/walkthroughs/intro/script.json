@@ -7,15 +7,33 @@
       "id": "overview",
       "stage": "dashboard",
       "say": "[open]This is the Larkspur dashboard. It shows how your team's week is going at a glance.",
-      "beats": [{ "at": "open", "camera": { "to": "all" } }]
+      "beats": [
+        {
+          "at": "open",
+          "camera": {
+            "to": "all"
+          }
+        }
+      ]
     },
     {
       "id": "stats",
       "stage": "dashboard",
       "say": "[cards]These cards count your open, completed and overdue tasks. [overdue]Overdue tasks are the ones to look at first.",
       "beats": [
-        { "at": "cards", "camera": { "to": "stats", "zoom": "fit" }, "highlight": "stats" },
-        { "at": "overdue", "highlight": "stat-overdue" }
+        {
+          "at": "cards",
+          "camera": {
+            "to": "stats",
+            "zoom": "fit"
+          },
+          "highlight": "stats",
+          "animate": "counts"
+        },
+        {
+          "at": "overdue",
+          "highlight": "stat-overdue"
+        }
       ]
     },
     {
@@ -23,9 +41,23 @@
       "stage": "dashboard",
       "say": "[table]Below them is every task due this week, with who owns it. [status]The status shows where each one stands.",
       "beats": [
-        { "at": "table", "camera": { "to": "tasks", "zoom": "width", "align": "top" }, "highlight": "tasks" },
-        { "at": "status", "highlight": "status-column" },
-        { "at": "end", "highlight": false }
+        {
+          "at": "table",
+          "camera": {
+            "to": "tasks",
+            "zoom": "width",
+            "align": "top"
+          },
+          "highlight": "tasks"
+        },
+        {
+          "at": "status",
+          "highlight": "status-column"
+        },
+        {
+          "at": "end",
+          "highlight": false
+        }
       ]
     }
   ]

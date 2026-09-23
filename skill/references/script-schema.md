@@ -48,7 +48,17 @@ Write `[name]` at the start of a sentence in `say`. Names use lowercase letters,
 { "at": "total", "camera": { "to": "claim-total", "zoom": "fit" }, "highlight": "claim-total" }
 ```
 
-`at` is required, and a beat needs `camera`, `highlight` or both. Each cue has at most one beat.
+`at` is required, and a beat needs `camera`, `highlight`, `animate`, or a combination. Each cue has at most one beat.
+
+### animate
+
+`"animate": "claimTotal"`, or several at once: `"animate": ["claimTotal", "donationCount"]`. The
+names are values the stage declares (see `stages.md`, "Making parts move").
+
+- A **number** eases from its `from` to its `to` over `settings.animate.duration` (1.2 s), then stays there, including in later scenes on the same stage. Before its beat it shows `from`. A number no beat animates shows its `to` throughout. Each number animates once.
+- A **steps** value moves on to its next step at each beat that animates it, so `[null, "claimed", "paid"]` can be animated twice. A toggle `[false, true]` flips once, and its CSS transition plays.
+- The animation starts when the same beat's camera move settles, so the viewer is already looking at it. Without a camera move, it starts at the cue.
+- Verify adds a still of the moment each animation starts (`<scene>-<cue>-before`), so the contact sheet shows its range, and warns if an animation changed nothing on the page.
 
 ### camera
 
@@ -89,7 +99,8 @@ Put only what you are changing in `script.json`. These are the defaults:
   "voice":     { "voice": "bm_fable", "speed": 1, "dtype": "fp32", "sentenceGap": 0.3, "tail": 0.7 },
   "camera":    { "ease": "inOutCubic", "duration": 0.9, "lead": 0.4, "padding": 48, "maxZoom": 2.5 },
   "highlight": { "color": "#2563eb", "stroke": 3, "radius": 12, "padding": 10, "dim": 0.5, "slide": 0.5, "fade": 0.3 },
-  "captions":  { "mode": "burned", "size": 40, "position": "bottom" }
+  "captions":  { "mode": "burned", "size": 40, "position": "bottom" },
+  "animate":   { "duration": 1.2, "ease": "outCubic" }
 }
 ```
 

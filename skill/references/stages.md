@@ -64,6 +64,58 @@ A target is a named element the camera and highlighter can find. There are two w
 
 Choose targets at the level the narration speaks about. The camera likes sections; the highlighter likes the specific thing being named. Every target must be visible in the fixture state without any clicking. When a name is wrong, verify lists every target the stage offers.
 
+## Making parts move: values
+
+A meter that fills, a total that counts up, a toggle that flips, a progress strip that walks
+through its steps: these are the moments that make a demo feel alive, and they show the viewer
+what the feature *does*, not just what it looks like. Tourwright animates them by giving the real
+component different props on each frame. The component draws every in-between state itself, so
+nothing is faked and the animation stays right when the component changes.
+
+Declare the values in the stage with `defineStage`, then use them in `render`:
+
+```tsx
+import { defineStage, defineStages } from 'tourwright/stage';
+
+export default defineStages({
+  gasds: defineStage({
+    values: {
+      claimTotal: { from: 0, to: 1732.5, decimals: 2 },        // a number: eases from "from" to "to" once
+      details: { steps: [false, true] },                       // a toggle: flips once
+      progress: { steps: [null, 'claimed', 'paid'] },          // steps: moves on one step per beat
+    },
+    render: ({ claimTotal, details, progress }) => (
+      <>
+        <GasdsLimitCard thisClaim={claimTotal} advancedView={details} {...fixtures.limit} />
+        <GasdsProgressSteps latestBatchStatus={progress} eligibleCount={300} />
+      </>
+    ),
+  }),
+});
+```
+
+A script then animates a value from a beat: `{ "at": "total", "camera": { "to": "claim" }, "animate": "claimTotal" }`.
+See `script-schema.md` for the timing.
+
+**Finding what can move.** While classifying the screen, look at each component's props for:
+
+- **Quantities**: totals, counts, amounts, percentages, "used against a limit". A number value, usually from 0 (or a smaller earlier figure) to the fixture's value. A meter or progress bar fills because its prop grows.
+- **Progressions**: status fields, step indexes, "latest batch status". A steps value with the states in order.
+- **Switches**: booleans that change what is shown, such as an "advanced view" or "show details". A steps value `[false, true]`. The switch slides and the sections it reveals appear, because CSS transitions are played by the frame.
+
+Animate what the narration is explaining (the Explain items), not everything that could move.
+One animation per scene is usually right.
+
+**When a value changes nothing.** If a component works a figure out from other props (it sums a
+list of donations, say), animating a summary prop moves nothing. Verify warns: "changed nothing
+on the page". Animate the inputs instead, for example by scaling the list's amounts with a 0 to 1
+value, or do not animate that figure. Never paint a number over the real component.
+
+**Toggles change the layout.** When a steps value reveals or hides sections, Tourwright measures
+the stage in each state, so the camera and highlight find the new sections. Flip the value in an
+earlier beat than the one that moves the camera to what it reveals; verify reports a target that
+"is not on the page at this point" otherwise.
+
 ## Fixtures
 
 Put fixture data in a file next to the stages, typed with the app's real interfaces, so a change to those interfaces fails the type check instead of the video:

@@ -23,10 +23,12 @@ export function timingMarkdown(name: string, timeline: Timeline): string {
     if (scene.beats.length) {
       lines.push('', '| Beat | Cue | Moves from | Settles at | Action |', '| --- | --- | --- | --- | --- |');
       for (const beat of scene.beats) {
-        const starts = Math.min(beat.camera?.from ?? Infinity, beat.highlight?.from ?? Infinity);
+        const starts = Math.min(beat.camera?.from ?? Infinity, beat.highlight?.from ?? Infinity, beat.animate?.from ?? Infinity);
         const actions = [
           beat.camera && `camera to "${beat.camera.to}" (${typeof beat.camera.zoom === 'number' ? `${beat.camera.zoom}x` : beat.camera.zoom})`,
           beat.highlight && (beat.highlight.to === false ? 'clear highlight' : `highlight "${beat.highlight.to}"`),
+          beat.animate &&
+            `animate ${beat.animate.values.map((v) => `"${v}"`).join(', ')} from ${sceneSeconds(timeline, scene, beat.animate.from).toFixed(2)} s`,
         ].filter(Boolean);
         lines.push(
           `| ${beat.index} | ${beat.at} | ${sceneSeconds(timeline, scene, starts).toFixed(2)} s | ${sceneSeconds(timeline, scene, settleFrame(timeline, scene, beat)).toFixed(2)} s | ${actions.join(', ')} |`,

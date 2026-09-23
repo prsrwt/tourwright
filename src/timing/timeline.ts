@@ -35,6 +35,14 @@ export interface CameraMove {
   frames: number;
 }
 
+export interface Animation {
+  /** Stage values: numbers ease to their end value, steps move to their next step. */
+  values: string[];
+  from: number;
+  frames: number;
+  ease: EaseName;
+}
+
 export interface HighlightMove {
   /** A target, or false to fade the highlight out. */
   to: string | false;
@@ -49,6 +57,7 @@ export interface TimedBeat {
   cue: number;
   camera?: CameraMove;
   highlight?: HighlightMove;
+  animate?: Animation;
 }
 
 export interface TimedScene {
@@ -140,6 +149,15 @@ export function buildTimeline(script: Script, settings: Settings, audio: readonl
         };
       }
       if (beat.highlight !== undefined) timed.highlight = { to: beat.highlight, from: start };
+      if (beat.animate !== undefined) {
+        // Start once the camera has arrived, so the viewer is already looking at what moves.
+        timed.animate = {
+          values: typeof beat.animate === 'string' ? [beat.animate] : beat.animate,
+          from: timed.camera ? timed.camera.from + timed.camera.frames : Math.max(from, cue),
+          frames: Math.max(1, toFrames(settings.animate.duration)),
+          ease: settings.animate.ease,
+        };
+      }
       return [timed];
     });
 
@@ -184,6 +202,7 @@ export function settleFrame(timeline: Timeline, scene: TimedScene, beat: TimedBe
     const { slide, fade } = timeline.highlightFrames;
     settle = Math.max(settle, beat.highlight.from + Math.max(slide, fade));
   }
+  if (beat.animate) settle = Math.max(settle, beat.animate.from + beat.animate.frames);
   return Math.min(settle, scene.from + scene.frames - 1);
 }
 

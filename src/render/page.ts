@@ -35,7 +35,8 @@ export async function openPlayer(url: string, timeline: Timeline): Promise<Playe
       viewport: { width: timeline.width, height: timeline.height },
       deviceScaleFactor: 1,
       colorScheme: 'light',
-      reducedMotion: 'reduce',
+      // Not "reduce": apps that honour it would skip the transitions a demo should show. The
+      // player drives every CSS animation by the frame, so they stay deterministic.
       locale: 'en-GB',
       timezoneId: 'UTC',
     });
@@ -48,7 +49,7 @@ export async function openPlayer(url: string, timeline: Timeline): Promise<Playe
     page.on('requestfailed', (request) => errors.push(`Request failed: ${request.url()} (${request.failure()?.errorText ?? 'unknown'})`));
 
     // Freeze Date and timers before any app code runs. Timers never fire, so nothing can animate
-    // on the wall clock; screenshots also disable CSS animations.
+    // on the wall clock; CSS animations are set by the player from the frame number instead.
     await page.clock.install({ time: FROZEN_TIME });
     await page.clock.pauseAt(FROZEN_TIME);
 

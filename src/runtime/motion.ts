@@ -37,10 +37,22 @@ export const EASES: Record<EaseName, (t: number) => number> = {
   outExpo: (t) => (t >= 1 ? 1 : 1 - 2 ** (-10 * t)),
 };
 
-/** Where the stages measured their targets, per stage: world size and each target's box. */
-export interface Measurements {
-  [stage: string]: { world: Size; targets: Record<string, Rect | null> };
+/** A stage's size and its targets' boxes, as measured in one layout. */
+export interface StageMeasure {
+  world: Size;
+  targets: Record<string, Rect | null>;
 }
+
+/** Measurements per stage, when a stage has only one layout. */
+export interface Measurements {
+  [stage: string]: StageMeasure;
+}
+
+/**
+ * The measurement that holds for a stage at a frame. A stage whose values include steps (a
+ * toggle, say) can change layout part-way through, so where things are depends on when.
+ */
+export type MeasureLookup = (stage: string, frame: number) => StageMeasure | undefined;
 
 export interface FramingOptions {
   zoom: 'fit' | 'width' | number;
@@ -141,11 +153,12 @@ const NONE: HighlightState = { rect: { x: 0, y: 0, w: 0, h: 0 }, opacity: 0 };
  * to the whole stage and clears the highlight; a scene on the same stage carries both over.
  * Targets missing from the measurements are skipped here; verify reports them.
  */
-export function buildMotion(timeline: Timeline, measured: Measurements): Motion {
+export function buildMotion(timeline: Timeline, measured: Measurements | MeasureLookup): Motion {
+  const lookup: MeasureLookup = typeof measured === 'function' ? measured : (stage) => measured[stage];
   const video = { w: timeline.width, h: timeline.height };
   const { camera } = timeline.settings;
   const first = timeline.scenes[0];
-  const firstWorld = (first && measured[first.stage]?.world) || video;
+  const firstWorld = (first && lookup(first.stage, first.from)?.world) || video;
   const views = new Track<View>(viewAll(firstWorld, video), lerpView);
   const highlights = new Track<HighlightState>(NONE, lerpHighlight);
   const outCubic = EASES.outCubic;
@@ -153,10 +166,9 @@ export function buildMotion(timeline: Timeline, measured: Measurements): Motion 
 
   let stage: string | undefined;
   for (const scene of timeline.scenes) {
-    const m = measured[scene.stage];
-    const world = m?.world ?? video;
+    const at = (frame: number) => lookup(scene.stage, frame);
     if (scene.stage !== stage) {
-      views.add(scene.from, 0, viewAll(world, video), EASES.linear);
+      views.add(scene.from, 0, viewAll(at(scene.from)?.world ?? video, video), EASES.linear);
       highlights.add(scene.from, 0, NONE, EASES.linear);
       stage = scene.stage;
     }
@@ -164,6 +176,9 @@ export function buildMotion(timeline: Timeline, measured: Measurements): Motion 
     for (const beat of beats) {
       if (beat.camera) {
         const c = beat.camera;
+        // Framed where the target will be when the camera arrives.
+        const m = at(c.from + c.frames);
+        const world = m?.world ?? video;
         const rect = c.to === 'all' ? null : m?.targets[c.to];
         if (c.to === 'all' || rect) {
           const to = rect ? viewFor(rect, c, world, video, camera) : viewAll(world, video);
@@ -178,7 +193,8 @@ export function buildMotion(timeline: Timeline, measured: Measurements): Motion 
         highlights.add(h.from, fade, (from) => ({ rect: from.rect, opacity: 0 }), outCubic);
         continue;
       }
-      const rect = h.to === 'all' ? { x: 0, y: 0, ...world } : m?.targets[h.to];
+      const m = at(h.from + slide);
+      const rect = h.to === 'all' ? { x: 0, y: 0, ...(m?.world ?? video) } : m?.targets[h.to];
       if (!rect) continue;
       if (highlights.at(h.from).opacity === 0) {
         // Appearing from nothing: jump to the target invisibly, then fade in place.

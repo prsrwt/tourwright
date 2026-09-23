@@ -152,12 +152,12 @@ function checkScene(scene: Scene, index: number): Diagnostic[] {
     } else {
       used.set(beat.at, b);
     }
-    if (beat.camera === undefined && beat.highlight === undefined) {
+    if (beat.camera === undefined && beat.highlight === undefined && beat.animate === undefined) {
       out.push({
         level: 'error',
         path,
-        message: 'This beat does nothing. A beat needs "camera", "highlight" or both.',
-        fix: `add "camera": { "to": "<target>" } or "highlight": "<target>", or remove the beat.`,
+        message: 'This beat does nothing. A beat needs "camera", "highlight" or "animate".',
+        fix: `add "camera": { "to": "<target>" }, "highlight": "<target>" or "animate": "<value>", or remove the beat.`,
       });
     }
   });

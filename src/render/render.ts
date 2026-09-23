@@ -75,10 +75,11 @@ export async function renderVideo(timeline: Timeline, player: PlayerPage, option
   let reported = 0;
   try {
     for (let frame = 0; frame < timeline.frames; frame++) {
-      const report = await player.page.evaluate((f) => window.__tour.setFrame(f), frame);
+      const report = await player.page.evaluate((f) => window.__tour.setFrame(f, 'play'), frame);
       const errors = [...player.errors, ...report.errors];
       if (errors.length) throw new RenderError(`The stage reported an error at frame ${frame}:\n${errors.join('\n')}`);
-      const png = await player.page.screenshot({ type: 'png', animations: 'disabled', caret: 'hide' });
+      // The player has set every CSS animation to this frame's time, so capture them as they are.
+      const png = await player.page.screenshot({ type: 'png', caret: 'hide' });
       hashes.push(createHash('sha256').update(png).digest('hex'));
       if (!ffmpeg.stdin.write(png)) {
         await Promise.race([new Promise((done) => ffmpeg.stdin.once('drain', done)), exited]);

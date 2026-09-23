@@ -32,6 +32,10 @@ export const Beat = z
       })
       .optional()
       .describe('Outline a target, or false to clear the highlight.'),
+    animate: z
+      .union([z.string().min(1), z.array(z.string().min(1)).min(1)])
+      .optional()
+      .describe("A value the stage declares, or several: a number eases to its end value (a total counts up, a meter fills), and a list of steps moves to its next step (a toggle flips). Starts when this beat's camera move settles."),
   })
   .describe('An action tied to a cue.');
 

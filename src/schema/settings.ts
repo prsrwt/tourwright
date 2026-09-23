@@ -28,6 +28,7 @@ export interface Settings {
     fade: number;
   };
   captions: { mode: (typeof CAPTION_MODES)[number]; size: number; position: 'bottom' | 'top' };
+  animate: { duration: number; ease: EaseName };
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -36,6 +37,7 @@ export const DEFAULT_SETTINGS: Settings = {
   camera: { ease: 'inOutCubic', duration: 0.9, lead: 0.4, padding: 48, maxZoom: 2.5 },
   highlight: { color: '#2563eb', stroke: 3, radius: 12, padding: 10, dim: 0.5, slide: 0.5, fade: 0.3 },
   captions: { mode: 'burned', size: 40, position: 'bottom' },
+  animate: { duration: 1.2, ease: 'outCubic' },
 };
 
 const seconds = z.number().min(0);
@@ -93,6 +95,12 @@ export const SettingsInput = z
       })
       .optional()
       .describe('Captions of the narration, one sentence at a time.'),
+    animate: z
+      .strictObject({
+        duration: z.number().positive().optional().describe('Seconds a number takes to reach its end value.'),
+        ease: z.enum(EASE_NAMES).optional(),
+      })
+      .optional(),
   })
   .describe('Overrides for this walkthrough. Anything left out uses the default.');
 
@@ -107,5 +115,6 @@ export function resolveSettings(input: SettingsInput | undefined): Settings {
     camera: { ...d.camera, ...input?.camera },
     highlight: { ...d.highlight, ...input?.highlight },
     captions: { ...d.captions, ...input?.captions },
+    animate: { ...d.animate, ...input?.animate },
   };
 }

@@ -51,6 +51,8 @@ interface Shot {
   beat?: TimedBeat;
   cue: string;
   frame: number;
+  /** The moment an animation starts, shown beside its settled still so the range is visible. */
+  before?: boolean;
 }
 
 export async function verifyWalkthrough(name: string, timeline: Timeline, player: PlayerPage, outDir: string, preflight: Diagnostic[]): Promise<VerifyReport> {
@@ -60,7 +62,10 @@ export async function verifyWalkthrough(name: string, timeline: Timeline, player
 
   const shots: Shot[] = [];
   for (const scene of timeline.scenes) {
-    for (const beat of scene.beats) shots.push({ scene, beat, cue: beat.at, frame: settleFrame(timeline, scene, beat) });
+    for (const beat of scene.beats) {
+      if (beat.animate) shots.push({ scene, beat, cue: `${beat.at}-before`, frame: beat.animate.from, before: true });
+      shots.push({ scene, beat, cue: beat.at, frame: settleFrame(timeline, scene, beat) });
+    }
     // A scene with no beats still gets a still, halfway through, so every scene is seen.
     if (scene.beats.length === 0) shots.push({ scene, cue: 'hold', frame: scene.from + Math.floor(scene.frames / 2) });
   }
@@ -70,6 +75,7 @@ export async function verifyWalkthrough(name: string, timeline: Timeline, player
   const images: Buffer[] = [];
   // Where the caption sits in each still, so the blank check judges the stage, not the caption.
   const masks: (Rect | null)[] = [];
+  const beforeMarkup = new Map<TimedBeat, string>();
   for (const shot of shots) {
     const at = `scenes[${shot.scene.index}]`;
     const diagnostics: Diagnostic[] = [];
@@ -80,6 +86,24 @@ export async function verifyWalkthrough(name: string, timeline: Timeline, player
     writeFileSync(file, png);
     images.push(png);
     masks.push(await player.page.evaluate(() => window.__tour.captionRect()));
+
+    if (shot.beat?.animate) {
+      const markup = await player.page.evaluate(() => window.__tour.stageMarkup());
+      if (shot.before) {
+        beforeMarkup.set(shot.beat, markup);
+      } else if (beforeMarkup.get(shot.beat) === markup) {
+        diagnostics.push({
+          level: 'warning',
+          path: `${at}.beats[${shot.beat.index}].animate`,
+          message: `Animating ${shot.beat.animate.values.map((v) => `"${v}"`).join(', ')} changed nothing on the page: the stage looks the same before and after.`,
+          fix: 'pass the value to the prop the component actually draws from. If the component works the figure out from other props, animate those instead.',
+        });
+      }
+    }
+    if (shot.before) {
+      stills.push({ file, label, scene: shot.scene.id, cue: shot.cue, frame: shot.frame, time: sceneSeconds(timeline, shot.scene, shot.frame), diagnostics });
+      continue;
+    }
 
     const targets = new Map<string, string>();
     if (shot.beat?.camera && shot.beat.camera.to !== 'all') targets.set(shot.beat.camera.to, `${at}.beats[${shot.beat.index}].camera.to`);

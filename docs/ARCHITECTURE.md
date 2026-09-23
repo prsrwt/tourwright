@@ -58,13 +58,22 @@ for each frame f:
 ```
 
 Measuring up front is the equivalent of Remotion's `delayRender`: the camera needs a target's box
-before it can frame it. A stage's layout does not change from frame to frame, so one measurement
-holds for the whole video, and each frame then renders synchronously with nothing to wait for.
+before it can frame it. A stage is measured once per layout it takes: numbers counting up barely
+move anything, but a steps value such as a toggle can reveal whole sections, so each distinct
+combination of steps is measured once, and each frame looks up the one in force. Each frame then
+renders synchronously with nothing to wait for.
+
+Stage values are how parts of a real component move: a number eases from its start to its end
+value, and a steps value moves through its states, all as a pure function of the frame. The
+component receives the in-between props and draws them itself, so a meter fills because its real
+prop grows, not because anything is painted over it.
 
 The wall clock is frozen rather than merely avoided. Our own code never reads it, but an app's
 components may ("2 days ago", a blinking cursor), so the stepper pins `Date.now` and timers with
-Playwright's clock and takes screenshots with CSS animations disabled. Such a component then renders
-the same on every frame and every run.
+Playwright's clock. CSS transitions and animations run on the browser's own clock instead, so the
+player takes them over through the Web Animations API: each one is paused and set to the time the
+frame number implies, counted from the frame it started on. A toggle then slides, and a spinner
+spins, identically on every run. Stills for verify show each at its end.
 
 Read Remotion's renderer for understanding, never for code: its licence forbids distributing a
 derivative, which would put the project back inside the problem it is leaving.

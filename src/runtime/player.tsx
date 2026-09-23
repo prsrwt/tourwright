@@ -5,15 +5,21 @@ import { Component, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import type { Timeline } from '../timing/timeline.ts';
-import { buildMotion, toScreen, type Measurements, type Motion, type Rect, type View } from './motion.ts';
+import { buildMotion, toScreen, type Motion, type Rect, type StageMeasure, type View } from './motion.ts';
 import { stageThrew } from './messages.ts';
-import type { Stages } from './stage.ts';
+import type { Stages, ValueDefinitions } from './stage.ts';
+import { buildValues, type StageValues } from './values.ts';
 
 export interface StageReport {
   /** False when the stages file does not register this stage. */
   registered: boolean;
-  world: { w: number; h: number };
-  targets: Record<string, Rect | null>;
+  /** The stage's animatable values, as declared (steps that cannot be sent as JSON become null). */
+  values: ValueDefinitions;
+  /**
+   * The stage measured in each layout it takes, keyed by StageValues.state: one layout unless a
+   * steps value (a toggle, say) changes what is on the page.
+   */
+  states: Record<string, StageMeasure>;
   /** Every target the stage offers: data-focus names and registered selectors. */
   available: string[];
   /** Why a registered selector could not be used. */
@@ -37,13 +43,19 @@ export interface FrameReport {
 
 export interface TourApi {
   start(timeline: Timeline): Promise<ReadyReport>;
-  setFrame(frame: number): FrameReport;
+  /**
+   * Renders a frame. "play" (rendering a video, frame after frame) runs CSS transitions and
+   * animations by the frame number; "settle" (a still) shows each one at its end.
+   */
+  setFrame(frame: number, mode?: AnimationMode): FrameReport;
   /** Screen rect of a target at the current frame, for verify. */
   targetOnScreen(stage: string, target: string): Rect | null;
   /** Smallest rendered font size, in screen pixels, of visible text inside a target at the current frame. */
   minTextSize(stage: string, target: string): number | null;
   /** Screen rect of the burned-in caption at the current frame, when one is showing. */
   captionRect(): Rect | null;
+  /** The stage's markup at the current frame, to tell whether animating a value changed anything. */
+  stageMarkup(): string;
   errors: string[];
 }
 
@@ -54,6 +66,36 @@ declare global {
 }
 
 const FOCUS = 'data-focus';
+
+export type AnimationMode = 'play' | 'settle';
+
+/**
+ * CSS transitions and animations run on the browser's own clock, not the frame. Take control of
+ * them: pause each one and set its time from the frame number, counted from the frame it started
+ * on. A toggle then slides, and a spinner spins, identically on every render. Reading the
+ * animations also flushes styles, so a transition triggered by this frame's props exists here.
+ */
+function syncAnimations(frame: number, mode: AnimationMode, fps: number, starts: WeakMap<Animation, number>): void {
+  for (const animation of document.getAnimations()) {
+    if (mode === 'settle') {
+      try {
+        animation.finish();
+      } catch {
+        // An infinite animation has no end to jump to; show its first frame.
+        animation.pause();
+        animation.currentTime = 0;
+      }
+      continue;
+    }
+    let start = starts.get(animation);
+    if (start === undefined) {
+      start = frame;
+      starts.set(animation, start);
+    }
+    animation.pause();
+    animation.currentTime = ((frame - start) * 1000) / fps;
+  }
+}
 
 class Boundary extends Component<{ children: ReactNode; stage: string; onError: (message: string) => void }, { failed: boolean }> {
   override state = { failed: false };
@@ -86,12 +128,15 @@ export function mountPlayer(stages: Stages): void {
   });
   let timeline: Timeline | undefined;
   let motion: Motion | undefined;
-  let measured: Measurements = {};
+  let values: StageValues | undefined;
   let current = { stage: '', view: { cx: 0, cy: 0, s: 1 } as View };
 
   const worldEl = () => host.querySelector<HTMLElement>('[data-tour-world]');
 
-  const draw = (frame: number): FrameReport => {
+  // The frame each CSS transition or animation was first seen on: its time zero.
+  const animationStarts = new WeakMap<Animation, number>();
+
+  const draw = (frame: number, mode: AnimationMode = 'settle'): FrameReport => {
     const t = timeline!;
     const video = { w: t.width, h: t.height };
     const sceneIndex = findScene(t, frame);
@@ -103,7 +148,7 @@ export function mountPlayer(stages: Stages): void {
     const h = t.settings.highlight;
     flushSync(() =>
       root.render(
-        <Frame width={t.width} height={t.height} view={view} stage={scene && <StageView key={scene.stage} stages={stages} name={scene.stage} onError={record} />}>
+        <Frame width={t.width} height={t.height} view={view} stage={scene && <StageView key={scene.stage} stages={stages} name={scene.stage} values={values!.at(scene.stage, frame)} onError={record} />}>
           {onScreen && (
             <div
               style={{
@@ -126,6 +171,7 @@ export function mountPlayer(stages: Stages): void {
         </Frame>,
       ),
     );
+    syncAnimations(frame, mode, t.fps, animationStarts);
     return { frame, scene: sceneIndex, view, highlight: onScreen, errors: [...errors] };
   };
 
@@ -133,54 +179,71 @@ export function mountPlayer(stages: Stages): void {
     errors,
     async start(next) {
       timeline = next;
-      measured = {};
+      const definitions: Record<string, ValueDefinitions> = {};
+      for (const [name, stage] of Object.entries(stages)) definitions[name] = stage.values ?? {};
+      const stageValues = buildValues(next, definitions);
+      values = stageValues;
       const report: ReadyReport = { stages: {}, registered: Object.keys(stages), errors };
-      const needed = new Map<string, Set<string>>();
+
+      // For each stage: the targets it needs, and one frame for each layout it passes through.
+      const { slide } = next.highlightFrames;
+      const needed = new Map<string, { targets: Set<string>; layouts: Map<string, number> }>();
       for (const scene of next.scenes) {
-        const names = needed.get(scene.stage) ?? new Set<string>();
+        const entry = needed.get(scene.stage) ?? { targets: new Set<string>(), layouts: new Map<string, number>() };
+        const frames = [scene.from];
         for (const beat of scene.beats) {
-          if (beat.camera && beat.camera.to !== 'all') names.add(beat.camera.to);
-          if (beat.highlight && beat.highlight.to !== false && beat.highlight.to !== 'all') names.add(beat.highlight.to);
+          if (beat.camera) frames.push(beat.camera.from + beat.camera.frames);
+          if (beat.highlight) frames.push(beat.highlight.from + slide);
+          if (beat.animate) frames.push(beat.animate.from + beat.animate.frames);
+          if (beat.camera && beat.camera.to !== 'all') entry.targets.add(beat.camera.to);
+          if (beat.highlight && beat.highlight.to !== false && beat.highlight.to !== 'all') entry.targets.add(beat.highlight.to);
         }
-        needed.set(scene.stage, names);
+        for (const frame of frames) {
+          const state = stageValues.state(scene.stage, frame);
+          if (!entry.layouts.has(state)) entry.layouts.set(state, frame);
+        }
+        needed.set(scene.stage, entry);
       }
 
-      // Measure each stage once, unscaled, after its fonts and images have loaded. The layout does
-      // not change from frame to frame, so these boxes hold for the whole video.
+      // Measure each layout once, unscaled, after its fonts and images have loaded. Within one
+      // layout nothing moves from frame to frame, so these boxes hold wherever it is shown.
       await document.fonts.ready;
-      for (const [name, targets] of needed) {
+      for (const [name, { targets, layouts }] of needed) {
         const registered = name in stages;
-        flushSync(() =>
-          root.render(
-            <Frame
-              width={next.width}
-              height={next.height}
-              view={{ cx: next.width / 2, cy: next.height / 2, s: 1 }}
-              stage={registered && <StageView key={name} stages={stages} name={name} onError={record} />}
-            />,
-          ),
-        );
-        const world = worldEl();
-        if (!world) throw new Error(`The player lost its frame while rendering stage "${name}". Errors so far: ${errors.join(' | ') || 'none'}`);
-        await settle(world);
-        const size = { w: world.scrollWidth, h: world.scrollHeight };
-        const stage: StageReport = { registered, world: size, targets: {}, available: [], invalid: {} };
         const selectors = stages[name]?.targets ?? {};
-        for (const [target, selector] of Object.entries(selectors)) {
-          try {
-            world.querySelector(selector);
-          } catch {
-            stage.invalid[target] = `"${selector}" is not a valid CSS selector.`;
+        const stage: StageReport = { registered, values: JSON.parse(JSON.stringify(definitions[name] ?? {})), states: {}, available: [], invalid: {} };
+        const available = new Set<string>(Object.keys(selectors));
+        for (const [state, frame] of layouts) {
+          flushSync(() =>
+            root.render(
+              <Frame
+                width={next.width}
+                height={next.height}
+                view={{ cx: next.width / 2, cy: next.height / 2, s: 1 }}
+                stage={registered && <StageView key={name} stages={stages} name={name} values={stageValues.forLayout(name, frame)} onError={record} />}
+              />,
+            ),
+          );
+          const world = worldEl();
+          if (!world) throw new Error(`The player lost its frame while rendering stage "${name}". Errors so far: ${errors.join(' | ') || 'none'}`);
+          await settle(world);
+          for (const [target, selector] of Object.entries(selectors)) {
+            try {
+              world.querySelector(selector);
+            } catch {
+              stage.invalid[target] = `"${selector}" is not a valid CSS selector.`;
+            }
           }
+          for (const el of world.querySelectorAll(`[${FOCUS}]`)) available.add(el.getAttribute(FOCUS)!);
+          const boxes: Record<string, Rect | null> = {};
+          for (const target of targets) boxes[target] = registered ? measure(world, target, selectors) : null;
+          stage.states[state] = { world: { w: world.scrollWidth, h: world.scrollHeight }, targets: boxes };
         }
-        const focus = [...world.querySelectorAll(`[${FOCUS}]`)].map((el) => el.getAttribute(FOCUS)!);
-        stage.available = [...new Set([...focus, ...Object.keys(selectors)])].sort();
-        for (const target of targets) stage.targets[target] = registered ? measure(world, target, selectors) : null;
+        stage.available = [...available].sort();
         report.stages[name] = stage;
-        measured[name] = { world: size, targets: stage.targets };
       }
 
-      motion = buildMotion(next, measured);
+      motion = buildMotion(next, (stage, frame) => report.stages[stage]?.states[stageValues.state(stage, frame)]);
       return report;
     },
     setFrame: draw,
@@ -189,6 +252,9 @@ export function mountPlayer(stages: Stages): void {
       if (!world || current.stage !== stage) return null;
       const rect = measure(world, target, stages[stage]?.targets ?? {});
       return rect && timeline ? toScreen(rect, current.view, { w: timeline.width, h: timeline.height }) : null;
+    },
+    stageMarkup() {
+      return worldEl()?.innerHTML ?? '';
     },
     captionRect() {
       const el = host.querySelector('[data-tour-caption]');
@@ -238,13 +304,13 @@ function Frame({ width, height, view, stage, children }: { width: number; height
   );
 }
 
-function StageView({ stages, name, onError }: { stages: Stages; name: string; onError: (message: string) => void }) {
+function StageView({ stages, name, values, onError }: { stages: Stages; name: string; values: Record<string, unknown>; onError: (message: string) => void }) {
   const stage = stages[name];
   if (!stage) return null;
   // render() must be called inside the boundary, or a stage that throws takes the player down.
   return (
     <Boundary stage={name} onError={onError}>
-      <StageContent render={stage.render} />
+      <StageContent render={() => stage.render(values)} />
     </Boundary>
   );
 }

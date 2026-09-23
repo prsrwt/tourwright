@@ -172,6 +172,27 @@
             }
           },
           "additionalProperties": false
+        },
+        "animate": {
+          "type": "object",
+          "properties": {
+            "duration": {
+              "description": "Seconds a number takes to reach its end value.",
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "ease": {
+              "type": "string",
+              "enum": [
+                "linear",
+                "inOutSine",
+                "inOutCubic",
+                "outCubic",
+                "outExpo"
+              ]
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false,
@@ -286,6 +307,23 @@
                     {
                       "type": "boolean",
                       "const": false
+                    }
+                  ]
+                },
+                "animate": {
+                  "description": "A value the stage declares, or several: a number eases to its end value (a total counts up, a meter fills), and a list of steps moves to its next step (a toggle flips). Starts when this beat's camera move settles.",
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      }
                     }
                   ]
                 }

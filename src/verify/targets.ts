@@ -4,9 +4,17 @@
 import { closest, type Diagnostic } from '../check/diagnostic.ts';
 import type { ReadyReport } from '../runtime/player.tsx';
 import type { Timeline } from '../timing/timeline.ts';
+import { buildValues } from '../runtime/values.ts';
 
 export function targetDiagnostics(timeline: Timeline, ready: ReadyReport): Diagnostic[] {
   const out: Diagnostic[] = [];
+  const definitions = Object.fromEntries(Object.entries(ready.stages).map(([name, stage]) => [name, stage.values]));
+  const values = buildValues(timeline, definitions);
+  for (const problem of values.problems) {
+    const scene = timeline.scenes[problem.scene]!;
+    if (!ready.stages[scene.stage]?.registered) continue; // The unknown stage is reported below.
+    out.push({ level: 'error', path: `scenes[${problem.scene}].beats[${problem.beat}].animate`, message: problem.message, fix: problem.fix });
+  }
   for (const [name, stage] of Object.entries(ready.stages)) {
     for (const [target, reason] of Object.entries(stage.invalid)) {
       out.push({ level: 'error', path: '(stages file)', message: `Stage "${name}", target "${target}": ${reason}`, fix: 'fix the selector in the stage\'s "targets".' });
@@ -27,11 +35,26 @@ export function targetDiagnostics(timeline: Timeline, ready: ReadyReport): Diagn
       continue;
     }
     for (const beat of scene.beats) {
-      const refs: [string, string][] = [];
-      if (beat.camera && beat.camera.to !== 'all') refs.push([`${at}.beats[${beat.index}].camera.to`, beat.camera.to]);
-      if (beat.highlight && beat.highlight.to !== false && beat.highlight.to !== 'all') refs.push([`${at}.beats[${beat.index}].highlight`, beat.highlight.to]);
-      for (const [path, target] of refs) {
-        if (stage.targets[target]) continue;
+      // Each target is looked up in the layout the stage has when the move arrives, the same one
+      // the player frames it in.
+      const refs: [string, string, number][] = [];
+      if (beat.camera && beat.camera.to !== 'all') refs.push([`${at}.beats[${beat.index}].camera.to`, beat.camera.to, beat.camera.from + beat.camera.frames]);
+      if (beat.highlight && beat.highlight.to !== false && beat.highlight.to !== 'all') {
+        refs.push([`${at}.beats[${beat.index}].highlight`, beat.highlight.to, beat.highlight.from + timeline.highlightFrames.slide]);
+      }
+      for (const [path, target, frame] of refs) {
+        const layout = stage.states[values.state(scene.stage, frame)];
+        if (layout?.targets[target]) continue;
+        const elsewhere = Object.values(stage.states).some((s) => s.targets[target]);
+        if (elsewhere) {
+          out.push({
+            level: 'error',
+            path,
+            message: `Target "${target}" is not on the page at this point: it only appears once the stage's values change (a toggle, say).`,
+            fix: `animate the value that shows "${target}" in an earlier beat, before the camera or highlight goes to it.`,
+          });
+          continue;
+        }
         if (stage.available.includes(target)) {
           out.push({
             level: 'error',
