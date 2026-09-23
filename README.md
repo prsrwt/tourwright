@@ -7,8 +7,11 @@ Everything runs locally: the voice is a model on your machine, and nothing is up
 
 > Status: pre-v0.1, in development. See `docs/ROADMAP.md`.
 
-**[Watch the setup walkthrough](docs/media/setup.mp4)** (1 min 47 s, with narration). It was made
-with Tourwright from `examples/next-app/tourwright/walkthroughs/setup/script.json`.
+**[Watch the setup walkthrough](docs/media/setup.mp4)** 
+
+
+https://github.com/user-attachments/assets/d119e1e4-0926-449d-ae5f-e00f2badd022
+
 
 ## First run
 
