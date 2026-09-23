@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [22, 24]
+    runs-on: ${{ matrix.os }}
+    env:
+      # Silent narration with realistic timing: CI never downloads the voice model.
+      TOURWRIGHT_VOICE: fake
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install headless Chromium
+        run: npx playwright install --with-deps --only-shell chromium
+
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm test
+
+      - name: Make the example walkthrough
+        working-directory: examples/next-app
+        run: npx tourwright make intro
+
+      - name: Doctor
+        working-directory: examples/next-app
+        run: npx tourwright doctor
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: intro-${{ matrix.os }}-node${{ matrix.node }}
+          path: |
+            examples/next-app/tourwright/out/intro.mp4
+            examples/next-app/tourwright/out/intro/contact-sheet.png
+            examples/next-app/tourwright/out/intro/timing.md
+            examples/next-app/tourwright/out/intro/report.json
+          if-no-files-found: ignore
