@@ -1,0 +1,68 @@
+// Opens the player in Chromium with the wall clock frozen, and collects every error it reports.
+
+import type { Browser, Page } from 'playwright';
+import type { ReadyReport } from '../runtime/player.tsx';
+import type { Timeline } from '../timing/timeline.ts';
+
+/** Every render sees this date, so a component that shows "today" renders the same on every run. */
+export const FROZEN_TIME = new Date('2026-01-15T10:00:00Z');
+
+export interface PlayerPage {
+  page: Page;
+  ready: ReadyReport;
+  /** Console errors, uncaught errors and failed requests, in order. */
+  errors: string[];
+  close(): Promise<void>;
+}
+
+export class BrowserMissingError extends Error {}
+
+export async function openPlayer(url: string, timeline: Timeline): Promise<PlayerPage> {
+  const { chromium } = await import('playwright');
+  let browser: Browser;
+  try {
+    // Greyscale anti-aliasing (sub-pixel colour fringes look wrong once scaled and encoded), a
+    // fixed colour profile and no scrollbars, so a frame depends only on what is rendered.
+    browser = await chromium.launch({ args: ['--disable-lcd-text', '--force-color-profile=srgb', '--hide-scrollbars'] });
+  } catch (error) {
+    if (/Executable doesn't exist|playwright install/i.test((error as Error).message)) {
+      throw new BrowserMissingError('Playwright\'s Chromium is not installed.\nFix: run "npx playwright install --only-shell chromium" (about 115 MB, once per machine).');
+    }
+    throw error;
+  }
+  try {
+    const context = await browser.newContext({
+      viewport: { width: timeline.width, height: timeline.height },
+      deviceScaleFactor: 1,
+      colorScheme: 'light',
+      reducedMotion: 'reduce',
+      locale: 'en-GB',
+      timezoneId: 'UTC',
+    });
+    const page = await context.newPage();
+    const errors: string[] = [];
+    page.on('console', (message) => {
+      if (message.type() === 'error') errors.push(`Console error: ${message.text()}`);
+    });
+    page.on('pageerror', (error) => errors.push(`Uncaught error: ${error.message}`));
+    page.on('requestfailed', (request) => errors.push(`Request failed: ${request.url()} (${request.failure()?.errorText ?? 'unknown'})`));
+
+    // Freeze Date and timers before any app code runs. Timers never fire, so nothing can animate
+    // on the wall clock; screenshots also disable CSS animations.
+    await page.clock.install({ time: FROZEN_TIME });
+    await page.clock.pauseAt(FROZEN_TIME);
+
+    await page.goto(url, { waitUntil: 'load' });
+    const deadline = Date.now() + 60_000;
+    while (!(await page.evaluate(() => typeof window.__tour === 'object'))) {
+      if (errors.length) throw new Error(`The player failed to load:\n${errors.join('\n')}`);
+      if (Date.now() > deadline) throw new Error('The player did not start within 60 seconds.');
+      await new Promise((done) => setTimeout(done, 50));
+    }
+    const ready = await page.evaluate((t) => window.__tour.start(t), timeline);
+    return { page, ready, errors, close: () => browser.close() };
+  } catch (error) {
+    await browser.close();
+    throw error;
+  }
+}
