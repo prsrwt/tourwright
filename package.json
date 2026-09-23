@@ -9,12 +9,29 @@
     "tourwright": "./dist/cli/index.js",
     "walkthrough": "./dist/cli/index.js"
   },
-  "files": ["dist", "skill", "runtime"],
-  "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --test"
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./schema/script.schema.json": "./schema/script.schema.json",
+    "./package.json": "./package.json"
   },
-  "engines": { "node": ">=20.19" },
+  "files": ["dist", "schema", "skill", "runtime"],
+  "workspaces": ["examples/*"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "schema": "node src/schema/emit.ts",
+    "test": "node --test \"test/**/*.test.ts\""
+  },
+  "dependencies": {
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.6",
+    "typescript": "^7.0.2"
+  },
+  "engines": { "node": ">=22.18" },
   "keywords": ["video", "walkthrough", "demo", "react", "playwright", "tts", "documentation"]
 }
