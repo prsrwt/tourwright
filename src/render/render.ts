@@ -1,0 +1,98 @@
+// The frame stepper: set a frame, screenshot it, pipe it to ffmpeg. Every frame is a pure function
+// of its number, so the same script renders the same frames on every run.
+
+import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { mkdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { buildSoundtrack } from '../timing/audio.ts';
+import type { Timeline } from '../timing/timeline.ts';
+import type { FfmpegLocation } from './ffmpeg.ts';
+import type { PlayerPage } from './page.ts';
+
+export interface RenderResult {
+  file: string;
+  frames: number;
+  seconds: number;
+  /** One SHA-256 per frame, so two renders can be compared. */
+  hashFile: string;
+}
+
+export interface RenderOptions {
+  ffmpeg: FfmpegLocation;
+  /** Where the MP4 goes. */
+  file: string;
+  /** Folder for the soundtrack and frame hashes. */
+  workDir: string;
+  log?: (line: string) => void;
+}
+
+export class RenderError extends Error {}
+
+export async function renderVideo(timeline: Timeline, player: PlayerPage, options: RenderOptions): Promise<RenderResult> {
+  const log = options.log ?? (() => undefined);
+  mkdirSync(options.workDir, { recursive: true });
+  const soundtrack = join(options.workDir, 'soundtrack.wav');
+  writeFileSync(soundtrack, buildSoundtrack(timeline));
+
+  // Encode to a temporary name, so a failed render never leaves a broken file where the video goes.
+  const partial = `${options.file}.partial.mp4`;
+  const crf = timeline.settings.video.crf;
+  const args = [
+    ...['-y', '-hide_banner', '-loglevel', 'error'],
+    ...['-f', 'image2pipe', '-framerate', String(timeline.fps), '-c:v', 'png', '-i', '-'],
+    ...['-i', soundtrack],
+    ...['-map', '0:v', '-map', '1:a'],
+    ...['-c:v', 'libx264', '-preset', 'medium', '-crf', String(crf), '-pix_fmt', 'yuv420p', '-r', String(timeline.fps)],
+    ...['-c:a', 'aac', '-b:a', '160k'],
+    ...['-movflags', '+faststart', partial],
+  ];
+  const ffmpeg = spawn(options.ffmpeg.path, args, { stdio: ['pipe', 'ignore', 'pipe'], windowsHide: true });
+  let stderr = '';
+  ffmpeg.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
+  const exited = new Promise<number>((done, fail) => {
+    ffmpeg.on('error', fail);
+    ffmpeg.on('close', (code) => done(code ?? 1));
+  });
+  // A write error means ffmpeg has already quit; its exit code and stderr explain why.
+  ffmpeg.stdin.on('error', () => undefined);
+
+  const hashes: string[] = [];
+  const started = Date.now();
+  let reported = 0;
+  try {
+    for (let frame = 0; frame < timeline.frames; frame++) {
+      const report = await player.page.evaluate((f) => window.__tour.setFrame(f), frame);
+      const errors = [...player.errors, ...report.errors];
+      if (errors.length) throw new RenderError(`The stage reported an error at frame ${frame}:\n${errors.join('\n')}`);
+      const png = await player.page.screenshot({ type: 'png', animations: 'disabled', caret: 'hide' });
+      hashes.push(createHash('sha256').update(png).digest('hex'));
+      if (!ffmpeg.stdin.write(png)) {
+        await Promise.race([new Promise((done) => ffmpeg.stdin.once('drain', done)), exited]);
+      }
+      if (ffmpeg.exitCode !== null) break;
+      const percent = Math.floor(((frame + 1) / timeline.frames) * 100);
+      if (percent >= reported + 10) {
+        reported = percent - (percent % 10);
+        log(`  ${String(reported).padStart(3)}%  frame ${frame + 1} of ${timeline.frames}`);
+      }
+    }
+  } catch (error) {
+    ffmpeg.kill();
+    await exited.catch(() => undefined);
+    rmSync(partial, { force: true });
+    throw error;
+  }
+  ffmpeg.stdin.end();
+  const code = await exited;
+  if (code !== 0) {
+    rmSync(partial, { force: true });
+    throw new RenderError(`ffmpeg failed (exit code ${code}):\n${stderr.trim() || '(no output)'}`);
+  }
+  renameSync(partial, options.file);
+
+  const hashFile = join(options.workDir, 'frames.sha256');
+  writeFileSync(hashFile, hashes.map((h, i) => `${h}  ${i}`).join('\n') + '\n');
+  log(`Rendered ${timeline.frames} frames in ${((Date.now() - started) / 1000).toFixed(1)} s.`);
+  return { file: options.file, frames: timeline.frames, seconds: timeline.frames / timeline.fps, hashFile };
+}
