@@ -30,7 +30,7 @@ in the tool this project grew out of.
 1. A clean first run works on Windows and Ubuntu: `npx tourwright init`, then
    `npx tourwright make intro`, with no undocumented step. The README lists every first-run
    download, its size and where it is cached.
-2. Lengthening a sentence and re-running the voice step moves every later beat, with no time edited
+2. Lengthening a sentence and rendering again moves every later beat, with no time edited
    by hand.
 3. Rendering the same script twice on the same machine produces identical frame hashes.
 4. Fault injection is caught with a message that names the fix: a misspelt target, a target off

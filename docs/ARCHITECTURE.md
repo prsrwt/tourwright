@@ -26,6 +26,9 @@ The app supplies a `stages.tsx` and its fixtures. Tourwright runs Vite over them
 own `node_modules`, `tsconfig` paths and PostCSS config, and serves a player page that imports
 them. There is no dev server to start, no database to seed and no login to script.
 
+Vite reads the app's PostCSS config by itself, so Tailwind works unchanged. It does not read
+`tsconfig` path aliases by itself, so the presets have to supply them.
+
 This is how Remotion works (webpack rather than Vite), and it is the seam that decides whether a
 tool works on an app it does not control. Proved on the SwiftCause admin: bundling its real GASDS
 components needed about 30 lines of config (a path alias, a `next/link` stub and Tailwind's
@@ -56,6 +59,11 @@ for each frame f:
 The ready counter is the equivalent of Remotion's `delayRender`, which the camera already needs so
 it can measure a target before framing it.
 
+The wall clock is frozen rather than merely avoided. Our own code never reads it, but an app's
+components may ("2 days ago", a blinking cursor), so the stepper pins `Date.now` and timers with
+Playwright's clock and takes screenshots with CSS animations disabled. Such a component then renders
+the same on every frame and every run.
+
 Read Remotion's renderer for understanding, never for code: its licence forbids distributing a
 derivative, which would put the project back inside the problem it is leaving.
 
@@ -84,8 +92,17 @@ The skill is documentation for that loop.
 Narration is synthesised sentence by sentence, so each sentence's start is known exactly. A cue
 marker (`[claim]`) written at the start of a sentence gets an exact time. In v0.1 that is the only
 place a cue may go: mid-sentence cues would need estimation or forced alignment, and the constraint
-is worth more than the freedom. Timing therefore survives any rewording: change a sentence, run the
-voice step, and every later beat moves with it.
+is worth more than the freedom. Timing therefore survives any rewording: change a sentence, render
+again, and every later beat moves with it.
+
+There is no separate voice command. `render`, `verify` and `make` synthesise whatever is missing,
+cached one file per sentence under a hash of its spoken text and the voice settings. A manifest can
+therefore never be stale, and only changed sentences are synthesised again. The fake backend
+produces silence whose length depends only on the text, so tests and an agent's iteration loop
+never need the model.
+
+Frame rates are limited to 24, 25, 30, 50 and 60, each of which divides the voice's 24 kHz sample
+rate exactly. A frame is then a whole number of samples, so audio placed by frame never drifts.
 
 ## Licences to settle before anything is published
 
@@ -93,6 +110,8 @@ voice step, and every later beat moves with it.
   espeak-ng and contains GPL text. espeak-ng is GPL-3.0, so the declared licence looks wrong.
   Tourwright does not redistribute it, but no README may claim an Apache-2.0 voice stack until this
   is resolved.
-- **ffmpeg** runs as a separate process. Prefer the system binary; fall back to `ffmpeg-static`
-  (GPL-3.0) as an optional dependency, which keeps our own code MIT.
+- **ffmpeg** runs as a separate process, which keeps our own code MIT. Tourwright uses the `ffmpeg`
+  on the PATH, or `ffmpeg-static` (GPL-3.0) if the app has installed it, and `doctor` reports which.
+  It is not a dependency, not even an optional one: npm installs optional dependencies by default,
+  so everyone would download about 70 MB whether or not they already have ffmpeg.
 - **Kokoro** model weights are Apache-2.0.
