@@ -1,0 +1,255 @@
+{
+  "$schema": "../../../node_modules/tourwright/schema/script.schema.json",
+  "title": "Set up Tourwright",
+  "subtitle": "From install to a narrated video, step by step",
+  "lexicon": {
+    "Tourwright": "Tour-right",
+    "Next.js": "Next J S",
+    "Vite": "Veet",
+    "CSS": "C S S"
+  },
+  "scenes": [
+    {
+      "id": "what",
+      "stage": "dashboard",
+      "say": "[open]Tourwright turns a script into a narrated video of your app's real React components. [steps]This video was made with it. Here is how to set it up, step by step.",
+      "beats": [
+        {
+          "at": "open",
+          "camera": {
+            "to": "all"
+          }
+        },
+        {
+          "at": "steps",
+          "camera": {
+            "to": "stats",
+            "zoom": "fit"
+          },
+          "highlight": "stats"
+        },
+        {
+          "at": "end",
+          "highlight": false
+        }
+      ]
+    },
+    {
+      "id": "install",
+      "stage": "terminal",
+      "say": "[install]First, add Tourwright to your React app as a dev dependency. It works with Next.js and with Vite.",
+      "beats": [
+        {
+          "at": "install",
+          "camera": {
+            "to": "all"
+          },
+          "highlight": "install"
+        }
+      ]
+    },
+    {
+      "id": "init",
+      "stage": "terminal",
+      "say": "[init]Then run init. [files]It creates a config, a starter stage, an intro script, and a skill for coding agents.",
+      "beats": [
+        {
+          "at": "init",
+          "camera": {
+            "to": "init",
+            "zoom": "width",
+            "align": "top"
+          },
+          "highlight": "init"
+        },
+        {
+          "at": "files",
+          "highlight": "init-files"
+        }
+      ]
+    },
+    {
+      "id": "browser",
+      "stage": "terminal",
+      "say": "[browser]Rendering needs headless Chromium, installed once per machine. [doctor]If anything else is missing, doctor names it, along with the command that fixes it.",
+      "beats": [
+        {
+          "at": "browser",
+          "camera": {
+            "to": "browser",
+            "zoom": "width",
+            "align": "top"
+          },
+          "highlight": "browser"
+        },
+        {
+          "at": "doctor",
+          "camera": {
+            "to": "doctor",
+            "zoom": "width",
+            "align": "top"
+          },
+          "highlight": "doctor"
+        },
+        {
+          "at": "end",
+          "highlight": false
+        }
+      ]
+    },
+    {
+      "id": "stage",
+      "stage": "stages-file",
+      "say": "[stage]Next, stage your real components. [fixtures]A stage renders them with fixture data, so there is no login, no database, and no running app. [focus]Wrap each part you will talk about in a data focus attribute. [selectors]For elements deep inside a component, name a CSS selector instead.",
+      "beats": [
+        {
+          "at": "stage",
+          "camera": {
+            "to": "heading",
+            "zoom": "fit"
+          }
+        },
+        {
+          "at": "fixtures",
+          "camera": {
+            "to": "imports",
+            "zoom": "width",
+            "align": "top"
+          },
+          "highlight": "imports"
+        },
+        {
+          "at": "focus",
+          "camera": {
+            "to": "focus-wrapper",
+            "zoom": "fit"
+          },
+          "highlight": "focus-wrapper"
+        },
+        {
+          "at": "selectors",
+          "camera": {
+            "to": "selectors",
+            "zoom": "fit"
+          },
+          "highlight": "selectors"
+        },
+        {
+          "at": "end",
+          "highlight": false
+        }
+      ]
+    },
+    {
+      "id": "script",
+      "stage": "script-file",
+      "say": "[script]Then write the script. [say]Put a cue in square brackets at the start of a sentence. [beat]A beat moves the camera or the highlight as that cue is spoken.",
+      "beats": [
+        {
+          "at": "script",
+          "camera": {
+            "to": "heading",
+            "zoom": "fit"
+          }
+        },
+        {
+          "at": "say",
+          "camera": {
+            "to": "say",
+            "zoom": "fit"
+          },
+          "highlight": "say"
+        },
+        {
+          "at": "beat",
+          "highlight": "beat"
+        },
+        {
+          "at": "end",
+          "highlight": false
+        }
+      ]
+    },
+    {
+      "id": "verify",
+      "stage": "verify",
+      "say": "[verify]Verify renders a still at every beat, and checks each one against the page. [sheet]It writes a contact sheet, so you or an agent can spot problems at a glance.",
+      "beats": [
+        {
+          "at": "verify",
+          "camera": {
+            "to": "all"
+          },
+          "highlight": "verify-command"
+        },
+        {
+          "at": "sheet",
+          "camera": {
+            "to": "contact-sheet",
+            "zoom": "fit"
+          },
+          "highlight": "contact-sheet"
+        },
+        {
+          "at": "end",
+          "camera": {
+            "to": "all"
+          },
+          "highlight": false
+        }
+      ]
+    },
+    {
+      "id": "make",
+      "stage": "make",
+      "say": "[make]Finally, make renders the video. [local]The voice runs on your machine, and nothing is uploaded.",
+      "beats": [
+        {
+          "at": "make",
+          "camera": {
+            "to": "all"
+          },
+          "highlight": "make"
+        },
+        {
+          "at": "local",
+          "camera": {
+            "to": "make",
+            "zoom": "width",
+            "align": "top"
+          },
+          "highlight": "make-result"
+        }
+      ]
+    },
+    {
+      "id": "result",
+      "stage": "dashboard",
+      "say": "[result]Change a sentence and make it again. [follow]Every camera move and highlight follows the new timing, with nothing to adjust by hand.",
+      "beats": [
+        {
+          "at": "result",
+          "camera": {
+            "to": "all"
+          }
+        },
+        {
+          "at": "follow",
+          "camera": {
+            "to": "tasks",
+            "zoom": "width",
+            "align": "top"
+          },
+          "highlight": "status-column"
+        },
+        {
+          "at": "end",
+          "camera": {
+            "to": "all"
+          },
+          "highlight": false
+        }
+      ]
+    }
+  ]
+}

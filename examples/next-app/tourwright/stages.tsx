@@ -2,6 +2,7 @@
 // in data-focus; point at elements inside a component with a selector in "targets".
 import { defineStages } from 'tourwright/stage';
 import '@/app/globals.css';
+import { explainerStages } from './explainer/stages';
 import { AppShell } from '@/components/AppShell';
 import { StatCards } from '@/components/StatCards';
 import { TaskTable } from '@/components/TaskTable';
@@ -24,4 +25,6 @@ export default defineStages({
       'status-column': '[data-testid^="status-"]',
     },
   },
+  // Stages for the "setup" walkthrough, which explains Tourwright itself.
+  ...explainerStages,
 });
