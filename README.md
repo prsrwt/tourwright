@@ -7,6 +7,9 @@ Everything runs locally: the voice is a model on your machine, and nothing is up
 
 > Status: pre-v0.1, in development. See `docs/ROADMAP.md`.
 
+**[Watch the setup walkthrough](docs/media/setup.mp4)** (1 min 47 s, with narration). It was made
+with Tourwright from `examples/next-app/tourwright/walkthroughs/setup/script.json`.
+
 ## First run
 
 In a React app (Next.js, or Vite with React), with Node 22.18 or later:
