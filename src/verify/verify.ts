@@ -10,6 +10,7 @@ import { isStageThrow } from '../runtime/messages.ts';
 import type { Rect } from '../runtime/motion.ts';
 import { sceneSeconds, settleFrame, type TimedBeat, type TimedScene, type Timeline } from '../timing/timeline.ts';
 import { contactSheet, imageStats } from './images.ts';
+import { pacingDiagnostics } from './pacing.ts';
 import { timingMarkdown } from './timing.ts';
 
 /** Screen text smaller than this is hard to read in a compressed 1080p video. */
@@ -149,7 +150,7 @@ export async function verifyWalkthrough(name: string, timeline: Timeline, player
     fix: 'fix the error in the stage or the component. Stages must render without console errors.',
   }));
 
-  const diagnostics = [...preflight, ...pageErrors, ...stills.flatMap((s) => s.diagnostics)];
+  const diagnostics = [...preflight, ...pageErrors, ...pacingDiagnostics(timeline), ...stills.flatMap((s) => s.diagnostics)];
   const errors = diagnostics.filter((d) => d.level === 'error').length;
   const files = {
     report: join(outDir, 'report.json'),
