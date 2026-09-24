@@ -6,10 +6,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Diagnostic } from '../check/diagnostic.ts';
-import type { StudioState, Note } from '../studio/protocol.ts';
+import type { NewNoteRequest, Note, NoteScope, NoteStatus, ReplyRequest, ReviewRequest, StudioState } from '../studio/protocol.ts';
 import type { TimedBeat, TimedScene, Timeline } from '../timing/timeline.ts';
 import type { Rect } from './motion.ts';
 import type { ReadyReport, TourApi } from './player.tsx';
+import type { ScreenDescription } from './screen.ts';
 
 const API = '/__tourwright/api';
 
@@ -211,6 +212,7 @@ function Studio() {
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 420px', height: '100%' }}>
       <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, padding: 16, gap: 12 }}>
         <Header state={state} message={message} />
+        <ReviewBar state={state} />
         {timeline ? (
           <Preview timeline={timeline} frameRef={frameRef} api={api} picking={picking} onPick={(t) => (picking?.(t), setPicking(undefined))} onCancelPick={() => setPicking(undefined)} frame={frame} />
         ) : (
@@ -222,7 +224,7 @@ function Studio() {
         <audio ref={audio} src={`${API}/soundtrack.wav?v=${state.version}`} preload="auto" onEnded={() => setPlaying(false)} />
       </div>
       <aside style={{ borderLeft: '1px solid #1e293b', overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
-        <Notes state={state} timeline={timeline} frame={frame} audio={audio} inputRef={noteInput} onSeek={seek} />
+        <Notes state={state} timeline={timeline} api={api} frame={frame} audio={audio} inputRef={noteInput} onSeek={seek} onPick={(done) => setPicking(() => done)} />
         <Problems diagnostics={state.diagnostics.filter((d) => !/^scenes\[/.test(d.path))} error={state.error} />
         {timeline && (
           <Scenes
@@ -275,7 +277,11 @@ function Preview(props: {
     return () => observer.disconnect();
   }, [timeline.layout.width, timeline.layout.height]);
 
-  const targets = useMemo<{ name: string; rect: Rect }[]>(() => (picking && api ? api.targetsOnScreen() : []), [picking, api, frame]);
+  // Largest first, so a target inside another (a card in a row of cards) is drawn on top and can be clicked.
+  const targets = useMemo<{ name: string; rect: Rect }[]>(
+    () => (picking && api ? api.targetsOnScreen().sort((a, b) => b.rect.w * b.rect.h - a.rect.w * a.rect.h) : []),
+    [picking, api, frame],
+  );
 
   return (
     <div ref={box} style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -365,10 +371,105 @@ function Segment({ left, width, label }: { left: string; width: string; label: s
 }
 
 // ---------------------------------------------------------------------------------------------
-// Notes for the agent, pinned to the millisecond.
+// The whole video's review: approve this exact version of script.json, or ask for changes.
 
-function Notes({ state, timeline, frame, audio, inputRef, onSeek }: { state: StudioState; timeline: Timeline | undefined; frame: number; audio: React.RefObject<HTMLAudioElement | null>; inputRef: React.RefObject<HTMLTextAreaElement | null>; onSeek: (f: number) => void }) {
+function ReviewBar({ state }: { state: StudioState }) {
+  const [asking, setAsking] = useState(false);
+  const [comment, setComment] = useState('');
+  const [error, setError] = useState<string>();
+  const review = state.review;
+  const current = review?.scriptHash === state.scriptHash;
+  const send = async (status: 'approved' | 'changes-requested') => {
+    const body: ReviewRequest = { base: state.scriptHash, status, ...(status === 'changes-requested' && comment.trim() && { comment: comment.trim() }) };
+    const res = await fetch(`${API}/review`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    setError(res.ok ? undefined : ((await res.json()) as { error: string }).error);
+    if (res.ok) {
+      setAsking(false);
+      setComment('');
+    }
+  };
+  const [text, color] = !review
+    ? ['Not reviewed yet', '#94a3b8']
+    : review.status === 'approved'
+      ? current
+        ? ['Approved', '#86efac']
+        : ['Edited since approval', '#fcd34d']
+      : current
+        ? ['Changes requested', '#fca5a5']
+        : ['Changes requested on an earlier version', '#fcd34d'];
+  // Reviewing a version that is still being voiced, or failed to prepare, would approve something unseen.
+  const busy = state.preparing || !!state.error;
+  return (
+    <div data-review="" data-script-hash={state.scriptHash} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '8px 10px', borderRadius: 6, background: '#1e293b' }}>
+      <span style={{ color, fontWeight: 600 }}>{text}</span>
+      {review && (
+        <span style={{ color: '#94a3b8' }}>
+          {new Date(review.at).toLocaleString('en-GB')}
+          {review.comment && `: "${review.comment}"`}
+        </span>
+      )}
+      {state.reviewError && <span style={{ color: '#fca5a5', whiteSpace: 'pre-wrap' }}>{state.reviewError}</span>}
+      <span style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
+        {asking ? (
+          <>
+            <input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="What should change?" style={{ ...input, width: 260 }} autoFocus />
+            <button style={button} disabled={!comment.trim()} onClick={() => void send('changes-requested')}>
+              Send
+            </button>
+            <button style={quiet} onClick={() => setAsking(false)}>
+              Cancel
+            </button>
+          </>
+        ) : (
+          <>
+            <button style={button} disabled={busy || (current && review?.status === 'approved')} onClick={() => void send('approved')}>
+              Approve this version
+            </button>
+            <button style={quiet} disabled={busy} onClick={() => setAsking(true)}>
+              Request changes
+            </button>
+          </>
+        )}
+      </span>
+      {error && <div style={{ width: '100%', color: '#fca5a5', whiteSpace: 'pre-wrap' }}>{error}</div>}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Notes for the agent, pinned to the millisecond, each a short thread with whoever's turn it is.
+
+const TURN: Record<NoteStatus, { text: string; color: string }> = {
+  open: { text: "Agent's turn", color: '#94a3b8' },
+  question: { text: 'Your turn: the agent has a question', color: '#fcd34d' },
+  fixed: { text: 'Your turn: approve or request changes', color: '#7dd3fc' },
+  closed: { text: 'Closed', color: '#64748b' },
+};
+
+const SCOPE: Record<NoteScope, string> = { moment: 'this moment', scene: 'the whole scene', all: 'the whole video' };
+
+function Notes({
+  state,
+  timeline,
+  api,
+  frame,
+  audio,
+  inputRef,
+  onSeek,
+  onPick,
+}: {
+  state: StudioState;
+  timeline: Timeline | undefined;
+  api: TourApi | undefined;
+  frame: number;
+  audio: React.RefObject<HTMLAudioElement | null>;
+  inputRef: React.RefObject<HTMLTextAreaElement | null>;
+  onSeek: (f: number) => void;
+  onPick: (done: (target: string) => void) => void;
+}) {
   const [text, setText] = useState('');
+  const [scope, setScope] = useState<NoteScope>('moment');
+  const [attached, setAttached] = useState<{ target: string; rect: Rect }>();
   // The playhead to the millisecond: the audio clock while it has one, else the frame.
   const ms = () => Math.round(audio.current && !audio.current.paused ? audio.current.currentTime * 1000 : (frame / (timeline?.fps ?? 30)) * 1000);
 
@@ -378,23 +479,38 @@ function Notes({ state, timeline, frame, audio, inputRef, onSeek }: { state: Stu
     const f = Math.min(timeline.frames - 1, Math.floor((at / 1000) * timeline.fps));
     const scene = sceneAt(timeline, f);
     const sentence = scene ? sentenceAt(scene, f) : undefined;
-    const note = {
+    // What is on screen at the note's frame, so the agent can read it rather than guess.
+    let screen: ScreenDescription | undefined;
+    if (api) {
+      api.setFrame(f, 'settle');
+      screen = api.describe();
+    }
+    const note: NewNoteRequest = {
       ms: at,
       frame: f,
       scene: scene?.id ?? 'title',
       sceneIndex: scene?.index ?? -1,
       ...(sentence && { sentence }),
       text: text.trim(),
+      scope,
+      ...(attached && { target: attached.target, rect: attached.rect }),
+      ...(screen && { screen }),
     };
     await fetch(`${API}/notes`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(note) });
     setText('');
+    setScope('moment');
+    setAttached(undefined);
   };
-  const update = (note: Note, change: Partial<Note>) =>
-    fetch(`${API}/notes/${note.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(change) });
-  const remove = (note: Note) => fetch(`${API}/notes/${note.id}`, { method: 'DELETE' });
+  // Where the target is on screen now, in layout pixels: the picker shows the current frame.
+  const attach = () =>
+    onPick((target) => {
+      const rect = api?.targetsOnScreen().find((t) => t.name === target)?.rect;
+      if (rect) setAttached({ target, rect: { x: Math.round(rect.x), y: Math.round(rect.y), w: Math.round(rect.w), h: Math.round(rect.h) } });
+    });
+  const waiting = state.notes.filter((n) => n.status === 'question' || n.status === 'fixed').length;
 
   return (
-    <Section title={`Notes for the agent (${state.notes.filter((n) => n.status === 'open').length} open)`}>
+    <Section title={`Notes for the agent (${state.notes.filter((n) => n.status === 'open').length} open, ${waiting} waiting on you)`}>
       {state.notesError && <div style={{ color: '#fca5a5', whiteSpace: 'pre-wrap', marginBottom: 8 }}>{state.notesError}</div>}
       <textarea
         ref={inputRef}
@@ -406,28 +522,107 @@ function Notes({ state, timeline, frame, audio, inputRef, onSeek }: { state: Stu
         placeholder={`Note at ${clock((frame / (timeline?.fps ?? 30)) * 1000)}, such as "zoom in more on the total". Ctrl+Enter to add. Press N anywhere to write one.`}
         style={{ ...input, width: '100%', minHeight: 56, resize: 'vertical' }}
       />
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginTop: 6 }}>
+        <span style={{ color: '#94a3b8' }}>about</span>
+        <select aria-label="Note scope" value={scope} onChange={(e) => setScope(e.target.value as NoteScope)} style={input}>
+          {(Object.keys(SCOPE) as NoteScope[]).map((s) => (
+            <option key={s} value={s}>
+              {SCOPE[s]}
+            </option>
+          ))}
+        </select>
+        {attached ? (
+          <span style={{ color: '#7dd3fc' }}>
+            on {attached.target}{' '}
+            <a onClick={() => setAttached(undefined)} style={{ ...link, color: '#94a3b8' }}>
+              (remove)
+            </a>
+          </span>
+        ) : (
+          <button style={quiet} onClick={attach} disabled={!api}>
+            Attach to a target
+          </button>
+        )}
+      </div>
       <button onClick={() => void add()} style={{ ...button, marginTop: 6 }} disabled={!text.trim()}>
         Add note at {clock((frame / (timeline?.fps ?? 30)) * 1000)}
       </button>
       {state.notes.map((note) => (
-        <div key={note.id} style={{ marginTop: 8, padding: 8, borderRadius: 4, background: '#1e293b', opacity: note.status === 'done' ? 0.6 : 1 }}>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
-            <a onClick={() => onSeek(note.frame)} style={link}>
-              {clock(note.ms)}
-            </a>
-            <span style={{ color: '#94a3b8' }}>{note.scene}</span>
-            <label style={{ marginLeft: 'auto', color: '#94a3b8' }}>
-              <input type="checkbox" checked={note.status === 'done'} onChange={(e) => void update(note, { status: e.target.checked ? 'done' : 'open' })} /> done
-            </label>
-            <a onClick={() => void remove(note)} style={{ ...link, color: '#fca5a5' }}>
-              delete
-            </a>
-          </div>
-          <div style={{ marginTop: 4, whiteSpace: 'pre-wrap' }}>{note.text}</div>
-          {note.resolution && <div style={{ marginTop: 4, color: '#86efac' }}>Agent: {note.resolution}</div>}
-        </div>
+        <NoteCard key={note.id} note={note} onSeek={onSeek} />
       ))}
     </Section>
+  );
+}
+
+function NoteCard({ note, onSeek }: { note: Note; onSeek: (f: number) => void }) {
+  const [reply, setReply] = useState('');
+  const [asking, setAsking] = useState(false);
+  const patch = (change: Partial<Note>) => fetch(`${API}/notes/${note.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(change) });
+  const send = async () => {
+    const body: ReplyRequest = { text: reply.trim(), status: 'open' };
+    await fetch(`${API}/notes/${note.id}/reply`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    setReply('');
+    setAsking(false);
+  };
+  const remove = () => fetch(`${API}/notes/${note.id}`, { method: 'DELETE' });
+  const turn = TURN[note.status];
+  const replyBox = (placeholder: string, action: string) => (
+    <div style={{ marginTop: 6 }}>
+      <textarea value={reply} onChange={(e) => setReply(e.target.value)} placeholder={placeholder} style={{ ...input, width: '100%', minHeight: 44, resize: 'vertical' }} />
+      <button style={button} disabled={!reply.trim()} onClick={() => void send()}>
+        {action}
+      </button>
+    </div>
+  );
+
+  return (
+    <div
+      data-note={note.id}
+      data-status={note.status}
+      style={{
+        marginTop: 8,
+        padding: 8,
+        borderRadius: 4,
+        background: note.status === 'question' ? '#422006' : '#1e293b',
+        border: `1px solid ${note.status === 'question' ? '#f59e0b' : 'transparent'}`,
+        opacity: note.status === 'closed' ? 0.6 : 1,
+      }}
+    >
+      <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
+        <a onClick={() => onSeek(note.frame)} style={link}>
+          {clock(note.ms)}
+        </a>
+        <span style={{ color: '#94a3b8' }}>
+          {note.scene}
+          {note.scope !== 'moment' && ` · ${SCOPE[note.scope]}`}
+          {note.target && ` · on ${note.target}`}
+        </span>
+        <span style={{ marginLeft: 'auto', color: turn.color }}>{turn.text}</span>
+        <a onClick={() => void remove()} style={{ ...link, color: '#fca5a5' }}>
+          delete
+        </a>
+      </div>
+      <div style={{ marginTop: 4, whiteSpace: 'pre-wrap' }}>{note.text}</div>
+      {note.replies.map((r, i) => (
+        <div key={i} style={{ marginTop: 4, whiteSpace: 'pre-wrap', color: r.from === 'agent' ? '#86efac' : '#cbd5e1' }}>
+          {r.from === 'agent' ? 'Agent' : 'You'}: {r.text}
+        </div>
+      ))}
+      {note.status === 'question' && replyBox('Answer the agent', 'Send answer')}
+      {note.status === 'fixed' &&
+        (asking ? (
+          replyBox('What still needs changing?', 'Send')
+        ) : (
+          <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+            <button style={button} onClick={() => void patch({ status: 'closed' })}>
+              Approve
+            </button>
+            <button style={quiet} onClick={() => setAsking(true)}>
+              Request changes
+            </button>
+          </div>
+        ))}
+    </div>
   );
 }
 

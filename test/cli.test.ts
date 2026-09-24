@@ -85,6 +85,62 @@ test('notes: a byte order mark is fine, and a broken file is an error rather tha
   assert.throws(() => readNotes(config, 'intro'), /is not valid JSON/);
 });
 
+test('notes: old files still read, questions come first, and the review is stated', async () => {
+  const { readNotes } = await import('../src/studio/server.ts');
+  const { runNotes } = await import('../src/cli/notes.ts');
+  const { writeReview, hashScript } = await import('../src/studio/review.ts');
+  const dir = tempApp({ dependencies: { react: '19.0.0' } });
+  silently(() => runInit(dir));
+  const config = resolveConfig({}, join(dir, 'tourwright.config.mts'), {});
+  const notes = join(config.walkthroughs, 'intro', 'notes.json');
+  const note = (id: string, status: string, extra: object = {}) => ({ id, ms: 1000, frame: 30, scene: 'welcome', sceneIndex: 0, text: `note ${id}`, status, created: '2026-01-01T00:00:00Z', ...extra });
+  writeFileSync(
+    notes,
+    JSON.stringify({
+      notes: [
+        note('old', 'done', { resolution: 'Zoomed in.' }),
+        note('todo', 'open', { scope: 'scene', target: 'stats', rect: { x: 10, y: 20, w: 300, h: 90 } }),
+        note('ask', 'question', { replies: [{ from: 'agent', text: 'Which card?', at: '2026-01-01T00:00:00Z' }] }),
+        note('shut', 'closed'),
+      ],
+    }),
+  );
+  // "done" was the old "fixed", and a resolution was the agent's reply.
+  const old = readNotes(config, 'intro')[0]!;
+  assert.equal(old.status, 'fixed');
+  assert.equal(old.scope, 'moment');
+  assert.deepEqual(old.replies, [{ from: 'agent', text: 'Zoomed in.', at: '2026-01-01T00:00:00Z' }]);
+  assert.equal('resolution' in old, false);
+
+  const lines: string[] = [];
+  const { log } = console;
+  console.log = (line: string) => lines.push(line);
+  try {
+    runNotes(config, 'intro', { json: false });
+  } finally {
+    console.log = log;
+  }
+  const out = lines.join('\n');
+  assert.match(out, /^Review: not reviewed yet\./);
+  const order = ['[ask]', '[todo]', '[old]', '[shut]'].map((id) => out.indexOf(id));
+  assert.deepEqual([...order].sort((a, b) => a - b), order, 'questions, then open, fixed and closed');
+  assert.match(out, /\[todo\] .*, about the whole scene\n {2}on target "stats", on screen at x 10, y 20, 300 by 90/);
+  assert.match(out, /Agent: Which card\?/);
+  assert.match(out, /Never set "closed"/);
+
+  // An approval counts only for the script it was given for.
+  const script = join(config.walkthroughs, 'intro', 'script.json');
+  writeReview(config, 'intro', { status: 'approved', scriptHash: hashScript(readFileSync(script, 'utf8')), at: '2026-01-02T09:30:00Z' });
+  const { reviewState, formatReview } = await import('../src/studio/review.ts');
+  assert.equal(reviewState(config, 'intro').approved, true);
+  writeFileSync(script, readFileSync(script, 'utf8').replace('"title"', '"subtitle": "Edited", "title"'));
+  assert.equal(reviewState(config, 'intro').approved, false);
+  assert.match(formatReview('intro', reviewState(config, 'intro')), /^Review: edited since approval\. It was approved on 2026-01-02 09:30 UTC/);
+
+  writeFileSync(notes, JSON.stringify({ notes: [note('bad', 'finished')] }));
+  assert.throws(() => readNotes(config, 'intro'), /has the status "finished"\.\nFix: use one of "open", "question", "fixed", "closed"\./);
+});
+
 test('ffmpeg-static installed without its binary gets the fix that works', async () => {
   const { ffmpegMissing } = await import('../src/render/ffmpeg.ts');
   const dir = tempApp({});

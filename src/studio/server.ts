@@ -2,7 +2,7 @@
 // page, and watches script.json so an edit from anywhere (the studio, an editor, an agent) shows
 // up at once. script.json stays the single source of truth.
 
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync, watch, writeFileSync, type FSWatcher } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { dirname, join } from 'node:path';
@@ -10,7 +10,8 @@ import type { ResolvedConfig } from '../config/config.ts';
 import { scriptPath } from '../config/walkthroughs.ts';
 import { prepare, PrepareError } from '../pipeline/prepare.ts';
 import { buildSoundtrack } from '../timing/audio.ts';
-import { API, type Note, type NotesFile, type SaveScriptRequest, type StudioState } from './protocol.ts';
+import { API, NOTE_SCOPES, NOTE_STATUSES, type NewNoteRequest, type Note, type NotesFile, type ReplyRequest, type ReviewRequest, type SaveScriptRequest, type StudioState } from './protocol.ts';
+import { hashScript as hash, readReview, reviewPath, writeReview } from './review.ts';
 
 export function notesPath(config: ResolvedConfig, name: string): string {
   return join(dirname(scriptPath(config, name)), 'notes.json');
@@ -35,7 +36,23 @@ export function readNotes(config: ResolvedConfig, name: string): Note[] {
   }
   const notes = (parsed as Partial<NotesFile>)?.notes;
   if (!Array.isArray(notes)) throw new NotesError(`${file} has no "notes" list.\nFix: it should look like { "notes": [ ... ] }.`);
-  return notes;
+  return notes.map((note: unknown, i) => upgradeNote(note, `${file}, notes[${i}]`));
+}
+
+/** An older note in the current shape: "done" was the old "fixed", and a resolution the agent's reply. */
+function upgradeNote(raw: unknown, where: string): Note {
+  const { resolution, ...note } = raw as Omit<Partial<Note>, 'status'> & { status?: string; resolution?: string };
+  const status = note.status === 'done' ? 'fixed' : note.status;
+  if (!NOTE_STATUSES.includes(status as Note['status'])) {
+    throw new NotesError(`${where} has the status ${JSON.stringify(note.status)}.\nFix: use one of ${NOTE_STATUSES.map((s) => `"${s}"`).join(', ')}.`);
+  }
+  const scope = note.scope ?? 'moment';
+  if (!NOTE_SCOPES.includes(scope)) {
+    throw new NotesError(`${where} has the scope ${JSON.stringify(note.scope)}.\nFix: use one of ${NOTE_SCOPES.map((s) => `"${s}"`).join(', ')}, or leave it out for "moment".`);
+  }
+  const replies = Array.isArray(note.replies) ? note.replies : [];
+  if (resolution && !replies.length) replies.push({ from: 'agent', text: resolution, at: note.created ?? '' });
+  return { ...note, scope, status: status as Note['status'], replies } as Note;
 }
 
 export interface Studio {
@@ -58,6 +75,17 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
     }
   };
   loadNotes();
+  const loadReview = () => {
+    try {
+      const review = readReview(config, name);
+      if (review) state.review = review;
+      else delete state.review;
+      delete state.reviewError;
+    } catch (error) {
+      state.reviewError = (error as Error).message;
+    }
+  };
+  loadReview();
   let soundtrack: Buffer | undefined;
   const listeners = new Set<ServerResponse>();
 
@@ -121,7 +149,7 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
     if (!existsSync(notesFile)) return;
     watchers.push(
       watch(notesFile, () => {
-        // The agent marks notes done here.
+        // The agent replies to notes, and marks them fixed, here.
         loadNotes();
         changed();
       }),
@@ -134,6 +162,21 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
     if (first) watchNotes();
     changed();
   };
+
+  // Only the studio writes a review, but one deleted or edited by hand should show at once.
+  const reviewFile = reviewPath(config, name);
+  let reviewWatched = false;
+  const watchReview = () => {
+    if (reviewWatched || !existsSync(reviewFile)) return;
+    reviewWatched = true;
+    watchers.push(
+      watch(reviewFile, () => {
+        loadReview();
+        changed();
+      }),
+    );
+  };
+  watchReview();
 
   const ready = reprepare();
 
@@ -179,20 +222,49 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
           await reprepare();
           return send(200, { scriptHash: state.scriptHash });
         }
+        if (route === 'PUT /review') {
+          const { base, status, comment } = body as ReviewRequest;
+          if (status !== 'approved' && status !== 'changes-requested') return send(400, { error: `The review status ${JSON.stringify(status)} is not one the studio knows.\nFix: send "approved" or "changes-requested".` });
+          const current = hash(readFileSync(file, 'utf8'));
+          if (base !== current) {
+            return send(409, { error: 'script.json changed since you started watching this version, so this review would be for a version you have not seen.\nFix: the studio has reloaded it; watch it again, then review.' });
+          }
+          const review = { status, scriptHash: current, at: new Date().toISOString(), ...(comment?.trim() && { comment: comment.trim() }) };
+          writeReview(config, name, review);
+          watchReview();
+          state.review = review;
+          delete state.reviewError;
+          changed();
+          return send(200, review);
+        }
         if (route === 'POST /notes') {
-          const input = body as Omit<Note, 'id' | 'status' | 'created'>;
-          const note: Note = { ...input, id: randomUUID().slice(0, 8), status: 'open', created: new Date().toISOString() };
+          const { scope = 'moment', ...input } = body as NewNoteRequest;
+          if (!NOTE_SCOPES.includes(scope)) return send(400, { error: badScope(scope) });
+          const note: Note = { ...input, scope, id: randomUUID().slice(0, 8), status: 'open', replies: [], created: new Date().toISOString() };
           state.notes.push(note);
           state.notes.sort((a, b) => a.ms - b.ms);
           saveNotes();
           return send(200, note);
         }
-        const noteRoute = /^(PATCH|DELETE) \/notes\/([\w-]+)$/.exec(route);
-        if (noteRoute) {
+        const noteRoute = /^(PATCH|DELETE|POST) \/notes\/([\w-]+)(\/reply)?$/.exec(route);
+        if (noteRoute && (noteRoute[1] === 'POST') === !!noteRoute[3]) {
           const index = state.notes.findIndex((n) => n.id === noteRoute[2]);
           if (index === -1) return send(404, { error: 'No such note.' });
-          if (noteRoute[1] === 'DELETE') state.notes.splice(index, 1);
-          else state.notes[index] = { ...state.notes[index]!, ...(body as Partial<Pick<Note, 'text' | 'status'>>) };
+          const note = state.notes[index]!;
+          const change = body as Partial<Pick<Note, 'text' | 'status' | 'scope'>> & ReplyRequest;
+          if (change.status !== undefined && !NOTE_STATUSES.includes(change.status)) {
+            return send(400, { error: `${JSON.stringify(change.status)} is not a note status.\nFix: use one of ${NOTE_STATUSES.join(', ')}.` });
+          }
+          if (change.scope !== undefined && !NOTE_SCOPES.includes(change.scope)) return send(400, { error: badScope(change.scope) });
+          if (noteRoute[1] === 'DELETE') {
+            state.notes.splice(index, 1);
+          } else if (noteRoute[3]) {
+            // A reply from the user hands the note back to the agent, unless it says otherwise.
+            if (!change.text?.trim()) return send(400, { error: 'The reply is empty.\nFix: write what you want the agent to know, then send it.' });
+            state.notes[index] = { ...note, status: change.status ?? 'open', replies: [...note.replies, { from: 'you', text: change.text.trim(), at: new Date().toISOString() }] };
+          } else {
+            state.notes[index] = { ...note, ...(change.text !== undefined && { text: change.text }), ...(change.status && { status: change.status }), ...(change.scope && { scope: change.scope }) };
+          }
           saveNotes();
           return send(200, {});
         }
@@ -202,8 +274,8 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
   };
 }
 
-function hash(text: string): string {
-  return createHash('sha256').update(text).digest('hex').slice(0, 16);
+function badScope(scope: unknown): string {
+  return `${JSON.stringify(scope)} is not a note scope.\nFix: use one of ${NOTE_SCOPES.join(', ')}.`;
 }
 
 function readBody(req: IncomingMessage): Promise<unknown> {

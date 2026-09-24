@@ -5,9 +5,10 @@ import { Component, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import type { Timeline } from '../timing/timeline.ts';
-import { buildMotion, toScreen, type Motion, type Rect, type StageMeasure, type View } from './motion.ts';
+import { buildMotion, highlightAt, toScreen, type Motion, type Rect, type StageMeasure, type View } from './motion.ts';
 import { stageThrew } from './messages.ts';
-import type { Stages, ValueDefinitions } from './stage.ts';
+import { clipText, type ScreenDescription, type ScreenTarget } from './screen.ts';
+import { isSteps, type Stages, type ValueDefinitions } from './stage.ts';
 import { buildValues, type StageValues } from './values.ts';
 
 export interface StageReport {
@@ -62,6 +63,11 @@ export interface TourApi {
   stageText(): { text: string; labels: string[] };
   /** Every target of the current stage and where it is on screen, for picking one by clicking. */
   targetsOnScreen(): { name: string; rect: Rect }[];
+  /**
+   * What a viewer sees at the current frame, read from the page: how much of the frame each
+   * target fills, the highlight and the text inside it, the caption and the stage's values.
+   */
+  describe(): ScreenDescription;
   errors: string[];
 }
 
@@ -72,6 +78,8 @@ declare global {
 }
 
 const FOCUS = 'data-focus';
+/** Sub-pixel rounding allowance when telling whether a target runs past an edge of the frame. */
+const EDGE = 1;
 
 export type AnimationMode = 'play' | 'settle';
 
@@ -135,7 +143,8 @@ export function mountPlayer(stages: Stages): void {
   let timeline: Timeline | undefined;
   let motion: Motion | undefined;
   let values: StageValues | undefined;
-  let current = { stage: '', view: { cx: 0, cy: 0, s: 1 } as View };
+  let definitions: Record<string, ValueDefinitions> = {};
+  let current = { stage: '', frame: 0, view: { cx: 0, cy: 0, s: 1 } as View };
 
   const worldEl = () => host.querySelector<HTMLElement>('[data-tour-world]');
 
@@ -150,7 +159,7 @@ export function mountPlayer(stages: Stages): void {
     const view = motion!.view(frame);
     const light = motion!.highlight(frame);
     const onScreen = light.opacity > 0 ? pad(toScreen(light.rect, view, video), t.settings.highlight.padding) : null;
-    current = { stage: scene?.stage ?? '', view };
+    current = { stage: scene?.stage ?? '', frame, view };
     const h = t.settings.highlight;
     flushSync(() =>
       root.render(
@@ -181,11 +190,23 @@ export function mountPlayer(stages: Stages): void {
     return { frame, scene: sceneIndex, view, highlight: onScreen, errors: [...errors] };
   };
 
+  const targetsOnScreen = (): { name: string; rect: Rect }[] => {
+    const world = worldEl();
+    if (!world || !timeline) return [];
+    const selectors = stages[current.stage]?.targets ?? {};
+    const names = new Set([...Object.keys(selectors), ...[...world.querySelectorAll(`[${FOCUS}]`)].map((el) => el.getAttribute(FOCUS)!)]);
+    const video = { w: timeline.layout.width, h: timeline.layout.height };
+    return [...names].flatMap((name) => {
+      const rect = measure(world, name, selectors);
+      return rect ? [{ name, rect: toScreen(rect, current.view, video) }] : [];
+    });
+  };
+
   window.__tour = {
     errors,
     async start(next) {
       timeline = next;
-      const definitions: Record<string, ValueDefinitions> = {};
+      definitions = {};
       for (const [name, stage] of Object.entries(stages)) definitions[name] = stage.values ?? {};
       const stageValues = buildValues(next, definitions);
       values = stageValues;
@@ -266,16 +287,62 @@ export function mountPlayer(stages: Stages): void {
     stageMarkup() {
       return worldEl()?.innerHTML ?? '';
     },
-    targetsOnScreen() {
+    targetsOnScreen: () => targetsOnScreen(),
+    describe() {
+      const t = timeline!;
+      const video = { w: t.layout.width, h: t.layout.height };
+      const frame = current.frame;
+      const title = frame < t.titleFrames;
+      const sceneIndex = findScene(t, frame);
+      const scene = t.scenes[sceneIndex];
+      const sentence = scene?.sentences.find((s) => frame >= s.from && frame < s.from + s.frames);
+
+      const targets: ScreenTarget[] = targetsOnScreen()
+        .flatMap(({ name, rect }) => {
+          const area = rect.w * rect.h;
+          const shown = intersect(rect, { x: 0, y: 0, ...video });
+          if (!area || !shown) return [];
+          const cut: ScreenTarget['cut'] = [];
+          if (rect.y < -EDGE) cut.push('top');
+          if (rect.y + rect.h > video.h + EDGE) cut.push('bottom');
+          if (rect.x < -EDGE) cut.push('left');
+          if (rect.x + rect.w > video.w + EDGE) cut.push('right');
+          const inView = shown.w * shown.h;
+          return [{ name, share: inView / (video.w * video.h), visible: inView / area, cut }];
+        })
+        .sort((a, b) => b.share - a.share || a.name.localeCompare(b.name));
+
+      // The highlight is on a target only while it shows; a faded-out one points at nothing.
+      const lit = !title && motion!.highlight(frame).opacity > 0 ? highlightAt(t, frame) : undefined;
       const world = worldEl();
-      if (!world || !timeline) return [];
-      const selectors = stages[current.stage]?.targets ?? {};
-      const names = new Set([...Object.keys(selectors), ...[...world.querySelectorAll(`[${FOCUS}]`)].map((el) => el.getAttribute(FOCUS)!)]);
-      const video = { w: timeline.layout.width, h: timeline.layout.height };
-      return [...names].flatMap((name) => {
-        const rect = measure(world, name, selectors);
-        return rect ? [{ name, rect: toScreen(rect, current.view, video) }] : [];
-      });
+      let highlight: ScreenDescription['highlight'] = null;
+      if (lit && world) {
+        const elements = lit.target === 'all' ? [world] : select(world, lit.target, stages[current.stage]?.targets ?? {});
+        highlight = { target: lit.target, text: clipText(visibleText(elements, host)) };
+      }
+
+      const caption = t.settings.captions.mode === 'burned' ? t.captions.find((c) => frame >= c.from && frame < c.to)?.text ?? null : null;
+      const counting = scene ? values!.counting(scene.stage, frame) : [];
+      const now = scene ? values!.at(scene.stage, frame) : {};
+      const screenValues = Object.entries(definitions[scene?.stage ?? ''] ?? {}).map(([name, def]) => ({
+        name,
+        text: isSteps(def) ? stepText(now[name]) : (now[name] as number).toLocaleString('en-GB', { minimumFractionDigits: def.decimals ?? 0, maximumFractionDigits: def.decimals ?? 0 }),
+        counting: counting.includes(name),
+      }));
+
+      return {
+        frame,
+        seconds: Math.round((frame / t.fps) * 1000) / 1000,
+        title,
+        scene: title || !scene ? 'title' : scene.id,
+        sceneIndex: title || !scene ? -1 : scene.index,
+        stage: current.stage,
+        sentence: title ? null : (sentence?.text ?? null),
+        targets,
+        highlight,
+        caption: title ? null : caption,
+        values: screenValues,
+      };
     },
     stageText() {
       const world = worldEl();
@@ -446,6 +513,52 @@ function measure(world: HTMLElement, target: string, selectors: Record<string, s
     }
   }
   return box && { x: box.l, y: box.t, w: box.r - box.l, h: box.b - box.t };
+}
+
+function intersect(a: Rect, b: Rect): Rect | null {
+  const x = Math.max(a.x, b.x);
+  const y = Math.max(a.y, b.y);
+  const w = Math.min(a.x + a.w, b.x + b.w) - x;
+  const h = Math.min(a.y + a.h, b.y + b.h) - y;
+  return w > 0 && h > 0 ? { x, y, w, h } : null;
+}
+
+/**
+ * The text inside some elements that is inside the frame. When they are wholly in view that is
+ * their innerText; otherwise each text node counts only if part of it is inside the frame.
+ */
+function visibleText(elements: Element[], host: HTMLElement): string {
+  const frame = host.getBoundingClientRect();
+  const inside = (r: DOMRect) => r.right > frame.left && r.left < frame.right && r.bottom > frame.top && r.top < frame.bottom;
+  const whole = (r: DOMRect) => r.left >= frame.left - EDGE && r.right <= frame.right + EDGE && r.top >= frame.top - EDGE && r.bottom <= frame.bottom + EDGE;
+  const parts: string[] = [];
+  for (const el of elements) {
+    if (whole(el.getBoundingClientRect())) {
+      parts.push((el as HTMLElement).innerText);
+      continue;
+    }
+    const range = document.createRange();
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (!node.textContent?.trim() || !node.parentElement) continue;
+      const style = getComputedStyle(node.parentElement);
+      if (style.visibility === 'hidden' || style.display === 'none') continue;
+      range.selectNodeContents(node);
+      if ([...range.getClientRects()].some(inside)) parts.push(node.textContent);
+    }
+  }
+  return parts.join(' ');
+}
+
+/** A step as text: booleans and numbers as they are, anything else as JSON where it can be. */
+function stepText(value: unknown): string {
+  if (typeof value === 'string') return JSON.stringify(value);
+  if (typeof value !== 'object' || value === null) return String(value);
+  try {
+    return clipText(JSON.stringify(value) ?? String(value), 60);
+  } catch {
+    return '(not text)';
+  }
 }
 
 function pad(rect: Rect, padding: number): Rect {

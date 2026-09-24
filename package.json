@@ -30,7 +30,7 @@
     "examples/*"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node -e \"require('node:fs').chmodSync('dist/cli/index.js', 0o755)\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "schema": "node src/schema/emit.ts",
     "test": "node --test \"test/**/*.test.ts\"",

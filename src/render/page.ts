@@ -52,7 +52,11 @@ export async function openPlayer(url: string, timeline: Timeline): Promise<Playe
 
     // Freeze Date and timers before any app code runs. Timers never fire, so nothing can animate
     // on the wall clock; CSS animations are set by the player from the frame number instead.
-    await page.clock.install({ time: FROZEN_TIME });
+    // Installed a minute early because the installed clock runs until it is paused: pausing at
+    // the very time it was installed at fails ("Cannot fast-forward to the past") on a machine
+    // slow enough for a millisecond to pass in between. No page has loaded yet, so no timer
+    // fires on the way, and every render still sees exactly FROZEN_TIME.
+    await page.clock.install({ time: FROZEN_TIME.getTime() - 60_000 });
     await page.clock.pauseAt(FROZEN_TIME);
 
     await page.goto(url, { waitUntil: 'load' });

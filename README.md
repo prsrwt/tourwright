@@ -77,12 +77,13 @@ npm install --no-save tourwright ffmpeg-static
 | `init` | Set up Tourwright in this app. Never overwrites a file. |
 | `new <name>` | Create a walkthrough from a template |
 | `check <name>` | Validate a script: schema, cues, beats, writing rules. No browser. |
-| `verify <name>` | Render a still at every beat and check each against the live page. Writes a report, a timing table and a contact sheet. |
+| `verify <name>` | Render a still at every beat and check each against the live page. Writes a report, a timing table, a description of each still and a contact sheet. |
+| `describe <name>` | Say in words what is on screen at every beat, or at one moment with `--at <seconds>`: what the camera shows, the highlight and its text, the caption and the stage's values |
 | `render <name>` | Render the MP4 |
 | `make <name>` | Check and verify, then render only if every still passes |
 | `doctor` | Report ffmpeg, the browser and the voice. `--voice` downloads the model and speaks a test sentence. |
-| `studio <name>` | Open the walkthrough in a browser tab: play it with narration and captions, click a target to move the camera or highlight to it, edit beats and narration, and leave notes for the agent pinned to the millisecond |
-| `notes <name>` | List the open studio notes, for you or the agent |
+| `studio <name>` | Open the walkthrough in a browser tab: play it with narration and captions, click a target to move the camera or highlight to it, edit beats and narration, leave notes for the agent pinned to the millisecond (or on a clicked target), talk each one through with the agent, and approve the video |
+| `notes <name>` | List the studio notes by status, questions first, with their threads, and whether the current version is approved |
 | `inspect <stage>` | List a stage's targets, its components' props with their real types, and which could move in a video |
 | `scaffold <page-file>` | Draft a stage from a page component's own sections, with typed placeholder fixtures |
 

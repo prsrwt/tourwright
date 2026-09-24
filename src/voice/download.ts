@@ -4,10 +4,8 @@
 // written under a temporary name, and is only moved into place once its size matches what the
 // server said. A manifest records the files known to be complete.
 
-import { createWriteStream, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, statSync, writeFileSync, writeSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { Readable } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
 
 export interface DownloadOptions {
   /** Base URL of the model, ending in "/", such as https://huggingface.co/<model>/resolve/main/. */
@@ -110,17 +108,24 @@ async function downloadFile(file: string, path: string, options: DownloadOptions
 
       if (response.status !== 416 && response.body) {
         const start = append ? have : 0;
-        const body = Readable.fromWeb(response.body as import('node:stream/web').ReadableStream<Uint8Array>);
         let received = start;
-        body.on('data', (chunk: Buffer) => {
-          received += chunk.length;
-          const percent = Math.floor((received / total) * 100);
-          if (total > 5_000_000 && percent >= reported + 10) {
-            reported = percent - (percent % 10);
-            log(`  ${file}: ${reported}%`);
+        // Each chunk is on disk before the next is read, so a connection cut mid-file keeps
+        // everything that arrived before it. A write stream opens its file asynchronously, and
+        // pipeline discards what is still queued for it when the source fails, losing progress.
+        const fd = openSync(partial, append ? 'a' : 'w');
+        try {
+          for await (const chunk of response.body as AsyncIterable<Uint8Array>) {
+            writeSync(fd, chunk);
+            received += chunk.length;
+            const percent = Math.floor((received / total) * 100);
+            if (total > 5_000_000 && percent >= reported + 10) {
+              reported = percent - (percent % 10);
+              log(`  ${file}: ${reported}%`);
+            }
           }
-        });
-        await pipeline(body, createWriteStream(partial, { flags: append ? 'a' : 'w' }));
+        } finally {
+          closeSync(fd);
+        }
       }
 
       const size = statSync(partial).size;
