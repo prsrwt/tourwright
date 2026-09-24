@@ -19,7 +19,7 @@ Reference files, read when you reach the step that needs them:
 
 | Path | What it is |
 | --- | --- |
-| `tourwright.config.mts` (or `.ts`) | Config: preset, folders, voice backend |
+| `tourwright.config.mts` (or `.ts`) | Config: preset, folders, voice backend, and `review` (open Muse after make; default true) |
 | `tourwright/stages.tsx` | Stages: the app's real components with fixture data, and their targets |
 | `tourwright/walkthroughs/<name>/script.json` | One walkthrough |
 | `tourwright/out/<name>.mp4` | The rendered video |
@@ -34,7 +34,7 @@ Reference files, read when you reach the step that needs them:
 | `npx tourwright verify <name>` | Voice the narration, render a still at every beat, and check each against the live page |
 | `npx tourwright describe <name>` | Say in words what is on screen once each beat has settled, or at one moment with `--at <seconds>`: how much of the frame each target fills and whether it is cut off, the highlight and the text inside it, the caption and the stage's values |
 | `npx tourwright render <name>` | Render the MP4 |
-| `npx tourwright make <name>` | Check and verify, then render only if every still passes |
+| `npx tourwright make <name>` | Check and verify, then render only if every still passes, then open Muse in the user's browser to review it (`--no-review` to skip) |
 | `npx tourwright doctor` | Report ffmpeg, the browser and the voice, with the fix for anything missing |
 | `npx tourwright inspect <stage>` | List a stage's targets, every component it renders with each prop's type and what the stage passes, and the props that could move |
 | `npx tourwright muse <name>` | Open Muse, the review page, in the browser: play the walkthrough with narration, edit beats and narration, leave notes pinned to moments, and approve it. `studio` is the old name and still works |
@@ -56,15 +56,17 @@ Work through these in order. Each step says how you know it is done.
 7. **Mark cues and add beats.** Put a `[cue]` at the start of the sentence where something should happen on screen, then add a beat for it. See "Placing cues and beats".
 8. **Check:** `npx tourwright check <name>`. Fix every error. Read every warning and fix it unless you can say why it is fine.
 9. **Verify:** `npx tourwright verify <name>`. Fix every error, then do the checks in "Verifying" below, including coverage. Repeat from step 6 or 7 as needed.
-10. **Make:** `npx tourwright make <name>` with the real voice. It verifies again, then renders.
-11. **Hand over** the MP4 path, the script path, the total duration and anything you were unsure about, such as a pronunciation you worked around with the lexicon. Ask the user to review it in Muse: it is not finished until `review.json` approves the current script (see "Muse: notes and review").
+10. **Make:** `npx tourwright make <name>` with the real voice. It verifies again, renders, and then opens Muse in the user's browser by itself and returns: the last lines of its output say whether Muse opened, was already open, or (with no screen, or in CI) only printed a link or the command to open it.
+11. **Hand over** the MP4 path, the script path, the total duration and anything you were unsure about, such as a pronunciation you worked around with the lexicon. Then tell the user, in plain words, that Muse has opened in their browser (or give them the link or command make printed); that there they can watch the video, leave notes pinned to any moment, and approve it; and that you will handle their notes whenever they ask. The video is not finished until they approve it (see "Muse: notes and review").
 
 ## Muse: notes and review
 
-The user reviews a walkthrough in Muse, a page in their browser (`npx tourwright muse <name>`). They leave notes pinned to exact
-moments, and approve the whole video (or ask for changes) once they are happy with it. Notes live in
-`tourwright/walkthroughs/<name>/notes.json` and the video's review in `review.json`, both beside the
-script.
+The user reviews a walkthrough in Muse, a page in their browser. `make` opens it by itself after a
+successful render, and `npx tourwright muse <name>` opens it at any time. A Muse that make started
+closes itself 10 minutes after its tab is closed, and make reuses one that is still open. There the
+user leaves notes pinned to exact moments, and approves the whole video (or asks for changes) once
+they are happy with it. Notes live in `tourwright/walkthroughs/<name>/notes.json` and the video's
+review in `review.json`, both beside the script.
 
 Each note has a `"status"` that says whose turn it is:
 

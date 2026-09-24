@@ -120,6 +120,13 @@ agent can read and write:
   `closed` is approved. Only Muse closes a note, so an agent cannot mark its own work as
   accepted. A note can cover its moment, its scene or the whole video, and can name a target the
   user clicked in the preview.
+- Muse opens by itself. Most people who get a video never open a terminal: they ask an agent,
+  so they would never learn the page exists. After a successful render, `make` starts Muse as a
+  detached background process and opens the browser to it, then returns as usual. The process
+  records itself in `out/<name>/muse.json`, so the next make reopens it rather than starting a
+  second one, and it closes itself once no tab has had its event stream open for 10 minutes. It
+  never opens a browser where nobody would see it: in CI it starts nothing and prints the
+  command, and on a Linux machine with no display it prints the link.
 - `review.json`: the user's verdict on the whole video, with a hash of the `script.json` it was
   given for. The approval counts only while the hash matches, so any later edit, however small,
   asks for another look. `notes` and `make` print where it stands.

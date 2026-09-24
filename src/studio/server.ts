@@ -60,6 +60,8 @@ export interface Studio {
   close(): void;
   /** Resolves once the first preparation has finished, whether or not it succeeded. */
   ready: Promise<void>;
+  /** How many Muse tabs are connected now, by their live event streams. */
+  connections(): number;
 }
 
 export function createStudio(config: ResolvedConfig, name: string, log: (line: string) => void): Studio {
@@ -182,6 +184,7 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
 
   return {
     ready,
+    connections: () => listeners.size,
     close() {
       for (const w of watchers) w.close();
       for (const res of listeners) res.end();

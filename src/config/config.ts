@@ -19,6 +19,7 @@ const ConfigInput = z.strictObject({
   walkthroughs: z.string().min(1).optional().describe('Folder holding one folder per walkthrough. Default "tourwright/walkthroughs".'),
   out: z.string().min(1).optional().describe('Folder for rendered videos and reports. Default "tourwright/out".'),
   voice: z.strictObject({ backend: z.enum(VOICE_BACKENDS).optional() }).optional(),
+  review: z.boolean().optional().describe('Open Muse in the browser to review the video after each successful make. Default true.'),
 });
 
 export type UserConfig = z.infer<typeof ConfigInput>;
@@ -37,6 +38,8 @@ export interface ResolvedConfig {
   walkthroughs: string;
   out: string;
   voice: { backend: VoiceBackend };
+  /** Open Muse after each successful make. */
+  review: boolean;
 }
 
 export class ConfigError extends Error {}
@@ -90,6 +93,7 @@ export function resolveConfig(input: UserConfig, configFile: string, env: NodeJS
     walkthroughs: resolve(root, input.walkthroughs ?? 'tourwright/walkthroughs'),
     out: resolve(root, input.out ?? 'tourwright/out'),
     voice: { backend: (envBackend as VoiceBackend | undefined) ?? input.voice?.backend ?? 'kokoro' },
+    review: input.review ?? true,
   };
 }
 

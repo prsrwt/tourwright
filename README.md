@@ -80,7 +80,7 @@ npm install --no-save tourwright ffmpeg-static
 | `verify <name>` | Render a still at every beat and check each against the live page. Writes a report, a timing table, a description of each still and a contact sheet. |
 | `describe <name>` | Say in words what is on screen at every beat, or at one moment with `--at <seconds>`: what the camera shows, the highlight and its text, the caption and the stage's values |
 | `render <name>` | Render the MP4 |
-| `make <name>` | Check and verify, then render only if every still passes |
+| `make <name>` | Check and verify, then render only if every still passes, then open Muse in the browser to review it. `--no-review`, or `"review": false` in the config, leaves it closed; in CI, or with no screen, it prints the link or command instead |
 | `doctor` | Report ffmpeg, the browser and the voice. `--voice` downloads the model and speaks a test sentence. |
 | `muse <name>` | Open Muse, the review page, in a browser tab (`studio` works too): play it with narration and captions, click a target to move the camera or highlight to it, edit beats and narration, leave notes for the agent pinned to the millisecond (or on a clicked target), talk each one through with the agent, and approve the video |
 | `notes <name>` | List the notes left in Muse by status, questions first, with their threads, and whether the current version is approved |
