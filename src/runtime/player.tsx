@@ -56,6 +56,8 @@ export interface TourApi {
   captionRect(): Rect | null;
   /** The stage's markup at the current frame, to tell whether animating a value changed anything. */
   stageMarkup(): string;
+  /** The stage's visible text at the current frame, and the labels of its controls and headings. */
+  stageText(): { text: string; labels: string[] };
   errors: string[];
 }
 
@@ -255,6 +257,13 @@ export function mountPlayer(stages: Stages): void {
     },
     stageMarkup() {
       return worldEl()?.innerHTML ?? '';
+    },
+    stageText() {
+      const world = worldEl();
+      if (!world) return { text: '', labels: [] };
+      const controls = world.querySelectorAll('button, a, label, summary, [role=button], [role=tab], [role=switch], [role=menuitem], h1, h2, h3, h4, th');
+      const labels = [...new Set([...controls].map((el) => (el as HTMLElement).innerText.replace(/\s+/g, ' ').trim()).filter((t) => t && t.length <= 60))];
+      return { text: world.innerText, labels };
     },
     captionRect() {
       const el = host.querySelector('[data-tour-caption]');

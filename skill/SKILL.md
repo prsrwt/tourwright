@@ -35,6 +35,8 @@ Reference files, read when you reach the step that needs them:
 | `npx tourwright render <name>` | Render the MP4 |
 | `npx tourwright make <name>` | Check and verify, then render only if every still passes |
 | `npx tourwright doctor` | Report ffmpeg, the browser and the voice, with the fix for anything missing |
+| `npx tourwright inspect <stage>` | List a stage's targets, every component it renders with each prop's type and what the stage passes, and the props that could move |
+| `npx tourwright scaffold <page-file>` | Draft a stage from a page component: its sections in order, each a target, with typed placeholder fixtures, in `tourwright/scaffold/` |
 
 Add `--json` to `check` or `verify` for machine-readable output. Add `--fake-voice` to `verify`, `render` or `make` to iterate without the voice model: narration is silent, but its timing is realistic, so stills and timing reports are still meaningful. Use the real voice for the final render.
 
@@ -43,9 +45,9 @@ Add `--json` to `check` or `verify` for machine-readable output. Add `--fake-voi
 Work through these in order. Each step says how you know it is done.
 
 1. **Pin down the brief.** One screen per video, one job per video ("how to read the weekly dashboard", not "everything on the dashboard"). Establish who is watching, what they already know, and the features the video must show. Done when you can say in one sentence what the viewer will be able to do afterwards, and you have the list of must-show features. Ask the user for anything you cannot tell from the code.
-2. **Understand the screen and classify every part.** Read the screen's components and, where they exist, their tests and docs, then sort every section into **Explain**, **Mention** or **Skip** (see "Deciding what to explain"). For each Explain part, look for what can move: a quantity that can count up or fill a meter, a status that can advance, a switch that can flip (see `references/stages.md`, "Making parts move"). Done when each part has a level and a one-line reason, and each Explain part has its animation or a reason it has none.
+2. **Understand the screen and classify every part.** If a stage exists, run `npx tourwright inspect <stage>`: it lists every component with its props' real types and flags what could move, so plan from that rather than guessing. Read the components themselves and, where they exist, their tests and docs, then sort every section into **Explain**, **Mention** or **Skip** (see "Deciding what to explain"). For each Explain part, look for what can move: a quantity that can count up or fill a meter, a status that can advance, a switch that can flip (see `references/stages.md`, "Making parts move"). Done when each part has a level and a one-line reason, and each Explain part has its animation or a reason it has none.
 3. **Draft the storyboard, and get it approved. Do not write beats before this.** Show the user a table: for each scene, what it shows, why it matters to the viewer, its level, what moves (if anything), and roughly how many seconds. Wait for their answer and apply their corrections. This is where a misunderstanding of the product is cheapest to fix. Done when the user has approved it.
-4. **Find or build the stage.** Open `tourwright/stages.tsx`. If a stage renders the screen, use it. If not, read `references/stages.md` and add one. Done when the stage renders the real components with fixtures and every part the storyboard shows is a target.
+4. **Find or build the stage.** Open `tourwright/stages.tsx`. If a stage renders the screen, use it. If not, start from `npx tourwright scaffold <the page component's file>`, which drafts one from the page's own sections, then replace its placeholders with fictional fixtures and read `references/stages.md`. Done when the stage renders the real components with fixtures and every part the storyboard shows is a target.
 5. **Scaffold:** `npx tourwright new <name>` with a short kebab-case name, such as `weekly-dashboard`.
 6. **Write the narration** as plain `say` text first, with no cues or beats, following the storyboard's scenes and seconds. Aim for about 140 words a minute. Done when every sentence passes `references/narration.md`.
 7. **Mark cues and add beats.** Put a `[cue]` at the start of the sentence where something should happen on screen, then add a beat for it. See "Placing cues and beats".
@@ -131,6 +133,7 @@ And its pacing warnings, each of which has legitimate exceptions, so fix it or s
 | `highlight on "x" stays on through 3 more sentences` | The narration moved on but the screen is still dimmed around the old target. Clear or move the highlight. |
 | `zooms to "x" straight away` | The video never showed the whole screen, so the viewer does not know where they are. Open wide. |
 | `the caption covers 35% of target "x"` | Frame the target higher, or move captions to the top. |
+| `The narration names "Export report", but no such text is on screen` | A label named in quotes or after "use", "select", "open" and similar is not on the page while it is said. Say what the screen says; the fix suggests the nearest real label. |
 
 ## Things not to do
 

@@ -71,6 +71,8 @@ run `npm approve-scripts ffmpeg-static` and then `npm rebuild ffmpeg-static`.
 | `render <name>` | Render the MP4 |
 | `make <name>` | Check and verify, then render only if every still passes |
 | `doctor` | Report ffmpeg, the browser and the voice. `--voice` downloads the model and speaks a test sentence. |
+| `inspect <stage>` | List a stage's targets, its components' props with their real types, and which could move in a video |
+| `scaffold <page-file>` | Draft a stage from a page component's own sections, with typed placeholder fixtures |
 
 ## Why
 

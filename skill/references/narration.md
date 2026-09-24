@@ -6,7 +6,7 @@ Narration is heard once, at the pace of speech, while the viewer is also looking
 
 - **Plain words, short sentences.** One idea per sentence, 8 to 20 words. Check warns above 25. Active voice. Talk to the viewer as "you".
 - **Say what the screen is for, then show it.** The first scene says what the screen does. The last says what to do next.
-- **Use the words on the screen.** If the button says "Export report", say "Export report", not "download the file". Viewers match what they hear to what they see.
+- **Use the words on the screen.** If the button says "Export report", say "Export report", not "download the file". Viewers match what they hear to what they see. Name a label either in double quotes (`Open "Claim history"`) or straight after an action verb (use, select, choose, open, click, press, turn on), capitalised as on screen (`use Prepare claim to...`). Verify checks each one is on the page while it is said.
 - **Say what things mean, not where they are.** "This is the total you can claim" beats "In the top right is a number".
 - **No em dashes or en dashes**, anywhere in the script. Check rejects them. Use a full stop or a comma.
 - **Avoid** "simply", "just", "easily", "seamless", "click here", exclamation marks, and openers such as "In this video we will".

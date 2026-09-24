@@ -4,7 +4,7 @@
 
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Diagnostic } from '../check/diagnostic.ts';
+import { closest, type Diagnostic } from '../check/diagnostic.ts';
 import type { PlayerPage } from '../render/page.ts';
 import { isStageThrow } from '../runtime/messages.ts';
 import type { Rect } from '../runtime/motion.ts';
@@ -12,6 +12,7 @@ import { sceneSeconds, settleFrame, type TimedBeat, type TimedScene, type Timeli
 import { contactSheet, imageStats } from './images.ts';
 import { pacingDiagnostics } from './pacing.ts';
 import { timingMarkdown } from './timing.ts';
+import { namedLabels, normalise } from './words.ts';
 
 /** Screen text smaller than this is hard to read in a compressed 1080p video. */
 export const MIN_TEXT_PX = 12;
@@ -146,6 +147,28 @@ export async function verifyWalkthrough(name: string, timeline: Timeline, player
     stills.push({ file, label, scene: shot.scene.id, cue: shot.cue, frame: shot.frame, time: sceneSeconds(timeline, shot.scene, shot.frame), diagnostics });
   }
 
+  // Labels the narration names must be on screen, spelt the same, while the sentence is spoken.
+  const wordDiagnostics: Diagnostic[] = [];
+  for (const scene of timeline.scenes) {
+    for (const sentence of scene.sentences) {
+      const labels = namedLabels(sentence.text);
+      if (!labels.length) continue;
+      await player.page.evaluate((f) => window.__tour.setFrame(f), sentence.from + Math.floor(sentence.frames / 2));
+      const screen = await player.page.evaluate(() => window.__tour.stageText());
+      const visible = normalise(screen.text);
+      for (const label of labels) {
+        if (visible.includes(normalise(label))) continue;
+        const guess = closest(label, screen.labels);
+        wordDiagnostics.push({
+          level: 'warning',
+          path: `scenes[${scene.index}].say`,
+          message: `The narration names "${label}", but no such text is on screen while it is said: "${sentence.text}". Viewers match what they hear to what they see.`,
+          fix: guess ? `say "${guess}", as the screen does, or check that the fixtures render "${label}".` : `use the words on the screen, or check that the fixtures render "${label}".`,
+        });
+      }
+    }
+  }
+
   // Errors the player caught itself (clean, one per stage) plus anything the console saw.
   const inPage = await player.page.evaluate(() => [...window.__tour.errors]);
   const pageMessages = [...new Set([...inPage, ...player.errors])];
@@ -174,7 +197,7 @@ export async function verifyWalkthrough(name: string, timeline: Timeline, player
     fix: 'fix the error in the stage or the component. Stages must render without console errors.',
   }));
 
-  const diagnostics = [...preflight, ...pageErrors, ...pacingDiagnostics(timeline), ...stills.flatMap((s) => s.diagnostics)];
+  const diagnostics = [...preflight, ...pageErrors, ...pacingDiagnostics(timeline), ...wordDiagnostics, ...stills.flatMap((s) => s.diagnostics)];
   const errors = diagnostics.filter((d) => d.level === 'error').length;
   const files = {
     report: join(outDir, 'report.json'),

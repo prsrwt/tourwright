@@ -6,6 +6,7 @@ import { StagesMissingError } from '../bundle/server.ts';
 import { PrepareError } from '../pipeline/prepare.ts';
 import { BrowserMissingError } from '../render/page.ts';
 import { RenderError } from '../render/render.ts';
+import { AnalyzeError } from '../analyze/program.ts';
 import { runCheck } from './check.ts';
 
 const USAGE = `Usage: tourwright <command> [options]
@@ -18,9 +19,11 @@ Commands:
   render <name>   Render the MP4
   make <name>     Check and verify, then render if every still passes
   doctor          Check ffmpeg, the browser and the voice
+  inspect <stage> List a stage's targets, its components' props, and what could move
+  scaffold <page> Draft a stage from a page component's sections (--stage <name>)
 
 Options:
-  --json          Machine-readable output (check, verify)
+  --json          Machine-readable output (check, verify, inspect)
   --fake-voice    Silent narration with realistic timing: no voice model (verify, render, make)
   --voice         Download the voice model if needed and test it (doctor)
   -h, --help      Show this help
@@ -35,6 +38,7 @@ async function main(argv: string[]): Promise<number> {
       json: { type: 'boolean', default: false },
       voice: { type: 'boolean', default: false },
       'fake-voice': { type: 'boolean', default: false },
+      stage: { type: 'string' },
       help: { type: 'boolean', short: 'h', default: false },
     },
   });
@@ -77,6 +81,20 @@ async function main(argv: string[]): Promise<number> {
         return runDoctor(undefined, error.message, { voice: values.voice });
       }
     }
+    case 'inspect': {
+      const n = needName();
+      if (!n) return 1;
+      const { runInspect } = await import('./inspect.ts');
+      return runInspect(await config(), n, { json: values.json });
+    }
+    case 'scaffold': {
+      if (!name) {
+        console.error('Usage: tourwright scaffold <page-file> [--stage <name>]');
+        return 1;
+      }
+      const { runScaffold } = await import('./scaffold.ts');
+      return runScaffold(await config(), name, values.stage === undefined ? {} : { stage: values.stage });
+    }
     case 'init': {
       const { runInit } = await import('./init.ts');
       return runInit(process.cwd());
@@ -100,7 +118,7 @@ async function main(argv: string[]): Promise<number> {
 }
 
 /** Errors whose message already says what is wrong and how to fix it, so no stack trace. */
-const EXPECTED = [ConfigError, PrepareError, StagesMissingError, BrowserMissingError, RenderError];
+const EXPECTED = [ConfigError, PrepareError, StagesMissingError, BrowserMissingError, RenderError, AnalyzeError];
 
 main(process.argv.slice(2)).then(
   (code) => {

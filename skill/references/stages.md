@@ -4,6 +4,24 @@ A stage renders the app's real components with fixture data. Because it is live 
 
 The golden rule: **stages compose real components; they never copy them.** If you find yourself re-creating markup, stop. You are drifting from the real app, and the next UI change will make the video lie.
 
+## Starting a stage from a page
+
+`npx tourwright scaffold src/views/admin/GasdsManagement.tsx` reads the page component with the
+app's own TypeScript and drafts a stage in `tourwright/scaffold/`: the page's own section
+components in page order, each wrapped in `data-focus`, layout wrappers kept around them, a typed
+props object per component with placeholders of the right types, no-ops for handlers, a note of
+what the page passes each prop, and the props that could move. UI primitives (buttons, dialogs)
+and components defined inside the page are left out and listed. It then type-checks the draft and
+lists the placeholders still to fill in.
+
+The draft is a starting point, never a finished stage: replace every placeholder with fictional
+data that tells the story, delete the sections the video does not need (conditional ones, such as
+loading states, are marked with the condition the page shows them under), and add it to the
+stages file. `npx tourwright inspect <stage>` then shows what you have.
+
+Reading types needs the TypeScript compiler API, which TypeScript 7 (the native compiler) does not
+have yet. An app on TypeScript 7 alone needs `npm install -D typescript@5` for these two commands.
+
 ## The stages file
 
 `tourwright/stages.tsx` default-exports every stage:

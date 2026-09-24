@@ -87,6 +87,7 @@ export default defineStages({
           { id: 'offscreen', stage: 'dashboard', say: '[table]This is the task table.', beats: [{ at: 'table', camera: { to: 'tasks', zoom: 2.5 } }] },
           { id: 'empty', stage: 'blank', say: 'Nothing is here.' },
           { id: 'throws', stage: 'broken', say: 'This stage throws.' },
+          { id: 'words', stage: 'dashboard', say: 'Use Export report to download it. Open "This week\'s tasks" to see them.' },
         ],
       },
     },
@@ -116,6 +117,13 @@ export default defineStages({
   const thrown = find(/fixtures are missing a team/);
   assert.ok(thrown, 'the thrown error is reported');
   assert.match(thrown!.fix!, /fix the error/);
+
+  // A label the narration names must be on screen; one that is, passes.
+  const words = report.diagnostics.filter((d) => /The narration names/.test(d.message));
+  assert.deepEqual(
+    words.map((d) => [d.path, d.message.split(',')[0]]),
+    [['scenes[4].say', 'The narration names "Export report"']],
+  );
 
   assert.equal(report.ok, false);
 });
