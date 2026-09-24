@@ -92,8 +92,12 @@ test('make starts one background Muse and returns, and a second make reuses it',
   assert.deepEqual(opened, [url, url]);
   assert.match(second.message, /^Muse was already open for it; showed it again: /);
 
+  // Killed outright (on Windows, process.kill gives it no chance to tidy up), it may leave its
+  // record behind: a record whose process has gone counts as no Muse. Muse removing its own record
+  // when it stops normally is covered by the idle test.
   process.kill(pid);
-  await until(() => !existsSync(musePath(config, 'intro')), 'Muse to remove its record when stopped');
+  await until(() => !alive(pid), 'the stopped Muse to exit');
+  assert.equal(await liveMuse(config, 'intro'), undefined);
 });
 
 test('a background Muse closes itself once no tab has been open for its idle time', async () => {
