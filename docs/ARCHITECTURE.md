@@ -109,6 +109,20 @@ The skill is documentation for that loop.
 Output goes to `tourwright/out/` rather than `out/`, because a Next.js static export also writes to
 `out/`.
 
+### Review belongs to the user, and names a version
+
+Verify can say a video is correct; only the person who asked for it can say it is right. The
+studio keeps that conversation beside the script, as files an agent can read and write:
+
+- `notes.json`: each note is a short thread with a status that says whose turn it is. `open`
+  waits on the agent, `question` on the user's answer, `fixed` on the user's approval, and
+  `closed` is approved. Only the studio closes a note, so an agent cannot mark its own work as
+  accepted. A note can cover its moment, its scene or the whole video, and can name a target the
+  user clicked in the preview.
+- `review.json`: the user's verdict on the whole video, with a hash of the `script.json` it was
+  given for. The approval counts only while the hash matches, so any later edit, however small,
+  asks for another look. `notes` and `make` print where it stands.
+
 ### Cue timing
 
 Narration is synthesised sentence by sentence, so each sentence's start is known exactly. A cue

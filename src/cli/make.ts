@@ -7,6 +7,7 @@ import { prepare } from '../pipeline/prepare.ts';
 import { openSession } from '../pipeline/session.ts';
 import { findFfmpeg, ffmpegMissing } from '../render/ffmpeg.ts';
 import { renderVideo } from '../render/render.ts';
+import { formatReview, reviewState } from '../studio/review.ts';
 import { verifyWalkthrough } from '../verify/verify.ts';
 import { videoPath } from './render.ts';
 import { printVerifyReport } from './verify.ts';
@@ -32,6 +33,8 @@ export async function runMake(config: ResolvedConfig, name: string): Promise<num
     log(`\nRendering ${t.frames} frames (${(t.frames / t.fps).toFixed(1)} s at ${t.fps} fps)...`);
     const result = await renderVideo(t, session.player, { ffmpeg, file: videoPath(config, name), workDir: prepared.outDir, log });
     console.log(`Wrote ${relative(process.cwd(), result.file) || result.file} (${result.seconds.toFixed(1)} s).`);
+    // Rendered is not finished: the video is done only once the user approves this version.
+    console.log(formatReview(name, reviewState(config, name)));
     return 0;
   } finally {
     await session.close();

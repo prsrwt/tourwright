@@ -8,6 +8,7 @@ import { BrowserMissingError } from '../render/page.ts';
 import { RenderError } from '../render/render.ts';
 import { AnalyzeError } from '../analyze/program.ts';
 import { NotesError } from '../studio/server.ts';
+import { ReviewError } from '../studio/review.ts';
 import { DescribeError } from './describe.ts';
 import { runCheck } from './check.ts';
 
@@ -25,7 +26,7 @@ Commands:
   inspect <stage> List a stage's targets, its components' props, and what could move
   scaffold <page> Draft a stage from a page component's sections (--stage <name>)
   studio <name>   Watch, edit and leave notes on a walkthrough in the browser (--no-open)
-  notes <name>    List the open studio notes for a walkthrough
+  notes <name>    List the studio notes by status, questions first, and the review
 
 Options:
   --json          Machine-readable output (check, verify, describe, inspect, notes)
@@ -146,7 +147,7 @@ async function main(argv: string[]): Promise<number> {
 }
 
 /** Errors whose message already says what is wrong and how to fix it, so no stack trace. */
-const EXPECTED = [ConfigError, PrepareError, StagesMissingError, BrowserMissingError, RenderError, AnalyzeError, NotesError, DescribeError];
+const EXPECTED = [ConfigError, PrepareError, StagesMissingError, BrowserMissingError, RenderError, AnalyzeError, NotesError, ReviewError, DescribeError];
 
 main(process.argv.slice(2)).then(
   (code) => {

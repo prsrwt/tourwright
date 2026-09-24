@@ -38,7 +38,7 @@ Reference files, read when you reach the step that needs them:
 | `npx tourwright doctor` | Report ffmpeg, the browser and the voice, with the fix for anything missing |
 | `npx tourwright inspect <stage>` | List a stage's targets, every component it renders with each prop's type and what the stage passes, and the props that could move |
 | `npx tourwright studio <name>` | Open the walkthrough in the browser: play it with narration, edit beats and narration, and leave notes pinned to moments |
-| `npx tourwright notes <name>` | List the open notes left in the studio, each with its time, scene and the sentence being spoken |
+| `npx tourwright notes <name>` | List the studio notes by status, questions first, each with its time, scene, scope, target, the sentence being spoken, its replies and what was on screen; and whether the user has approved the current version |
 | `npx tourwright scaffold <page-file>` | Draft a stage from a page component: its sections in order, each a target, with typed placeholder fixtures, in `tourwright/scaffold/` |
 
 Add `--json` to `check`, `verify`, `describe` or `notes` for machine-readable output. Add `--fake-voice` to `verify`, `describe`, `render` or `make` to iterate without the voice model: narration is silent, but its timing is realistic, so stills and timing reports are still meaningful. Use the real voice for the final render.
@@ -57,26 +57,65 @@ Work through these in order. Each step says how you know it is done.
 8. **Check:** `npx tourwright check <name>`. Fix every error. Read every warning and fix it unless you can say why it is fine.
 9. **Verify:** `npx tourwright verify <name>`. Fix every error, then do the checks in "Verifying" below, including coverage. Repeat from step 6 or 7 as needed.
 10. **Make:** `npx tourwright make <name>` with the real voice. It verifies again, then renders.
-11. **Hand over** the MP4 path, the script path, the total duration and anything you were unsure about, such as a pronunciation you worked around with the lexicon.
+11. **Hand over** the MP4 path, the script path, the total duration and anything you were unsure about, such as a pronunciation you worked around with the lexicon. Ask the user to review it in the studio: it is not finished until `review.json` approves the current script (see "Studio notes and review").
 
-## Studio notes
+## Studio notes and review
 
-The user can review a walkthrough in `npx tourwright studio <name>` and leave notes pinned to exact
-moments. They live in `tourwright/walkthroughs/<name>/notes.json` beside the script. When the user
-asks you to handle them ("check the studio notes", "fix my notes"):
+The user reviews a walkthrough in `npx tourwright studio <name>`. They leave notes pinned to exact
+moments, and approve the whole video (or ask for changes) once they are happy with it. Notes live in
+`tourwright/walkthroughs/<name>/notes.json` and the video's review in `review.json`, both beside the
+script.
 
-1. Run `npx tourwright notes <name>`. Each open note has its time to the millisecond, its frame,
-   the scene (with its index in `script.json`) and the sentence being spoken, so you know exactly
-   which beat or sentence it is about.
+Each note has a `"status"` that says whose turn it is:
+
+| Status | Meaning | Whose turn |
+| --- | --- | --- |
+| `open` | The user wants something changed, or has answered your question | Yours |
+| `question` | You asked the user something in a reply | The user's |
+| `fixed` | You made the change and said what you did | The user's: they approve it or send it back |
+| `closed` | The user approved the fix | Nobody's |
+
+A note also has a `"scope"`: `moment` (the time it is pinned to, the default), `scene` (the whole
+scene) or `all` (the whole video). It may name a `"target"` the user clicked in the preview, with
+its `"rect"` on screen in layout pixels, so you know exactly which element they meant. Its
+`"replies"` are the conversation so far, oldest first.
+
+When the user asks you to handle notes ("check the studio notes", "fix my notes"):
+
+1. Run `npx tourwright notes <name>`. It lists the notes by status: questions still waiting on the
+   user first, then the open notes (yours to handle), then fixed and closed ones. Each has its time
+   to the millisecond, its frame, the scene (with its index in `script.json`), its scope and target,
+   the sentence being spoken and its replies. The top line says where the video's review stands.
 2. **Understand the moment before you change anything.** Under each note is what was on screen
    when it was written: what the camera showed, the highlight and the text inside it, the caption
    and the stage's values. Read it to see what the user was looking at. For a note without one, run
    `npx tourwright describe <name> --at <seconds>` with the note's time.
-3. Make the change in `script.json` (or the stage, if the note is about what is on screen), then
-   verify, and check in `screen.md` that the still nearest the note now shows what the note asked for.
-4. In `notes.json`, set that note's `"status"` to `"done"` and add a one-line `"resolution"` saying
-   what you changed. The studio shows it to the user straight away. If you disagree with a note,
-   leave it open and say why in the `"resolution"`.
+3. **Handle each `open` note.** Read the whole thread: the latest reply from the user may change
+   what the note asks for. A `scene` or `all` note may need the same change in several places.
+4. **If you are unsure what the user wants, ask rather than guess.** Add a reply asking one clear
+   question and set the status to `"question"`. Do not change the script for that note yet.
+5. Otherwise make the change in `script.json` (or the stage, if the note is about what is on
+   screen), then verify, and check in `screen.md` that the still nearest the note now shows what the
+   note asked for.
+6. **Record what you did.** Add a reply saying in one line what you changed, and set the status to
+   `"fixed"`:
+
+   ```json
+   { "status": "fixed", "replies": [ { "from": "agent", "text": "Zoomed to 2x on the stat cards at the cards cue.", "at": "2026-01-15T10:00:00Z" } ] }
+   ```
+
+   Append to `"replies"`; never edit or remove earlier ones. The studio shows your reply at once.
+7. **Never set `"closed"`.** Only the user approves a fix. Leave `fixed`, `question` and `closed`
+   notes alone unless the user replies again, which moves the note back to `open`. If you disagree
+   with a note, say why in a reply and set it to `"question"`.
+
+**The video is finished only when the user has approved it.** `review.json` records the user's
+verdict with a `scriptHash` of the `script.json` it was given for, and it counts only while that
+hash matches the current script: any edit afterwards, yours included, means the user must look
+again. `notes` and `make` print where it stands. Never write `review.json` yourself, and never call
+a video finished, or hand it over as final, until it says the current script is approved. If the
+review asks for changes, its comment is a note about the whole video: handle it like one, then ask
+the user to review again.
 
 Edits made in the studio are written to `script.json` too. If the user has the studio open, it
 reloads when you change the file, so you both always see the same script.
