@@ -133,3 +133,13 @@ test('the soundtrack places each sentence at its first frame', () => {
   assert.equal(at(two!.from * spf), 1);
   assert.equal(at(two!.from * spf + 500), 0);
 });
+
+test('the title card lasts settings.title.seconds, and 0 leaves it out', () => {
+  const s: Script = { title: 'T', scenes: [{ stage: 'a', say: 'One.' }] };
+  const one = audio([[1]]);
+  assert.equal(buildTimeline(s, resolveSettings({ title: { seconds: 4 } }), one).titleFrames, 120);
+  const none = buildTimeline(s, resolveSettings({ title: { seconds: 0, background: '#064e3b' } }), one);
+  assert.equal(none.titleFrames, 0);
+  assert.equal(none.scenes[0]!.from, 0, 'the first scene starts the video');
+  assert.equal(none.settings.title.background, '#064e3b');
+});

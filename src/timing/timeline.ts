@@ -7,11 +7,11 @@
 // rate, a frame is a whole number of samples and audio placed by frame never drifts.
 
 import { sceneId, type Script } from '../schema/script.ts';
-import type { EaseName, Settings } from '../schema/settings.ts';
+import { DEFAULT_SETTINGS, type EaseName, type Settings } from '../schema/settings.ts';
 import { SAMPLE_RATE } from '../voice/backend.ts';
 
-/** Seconds the silent title card is shown before the first scene. */
-export const TITLE_SECONDS = 2.5;
+/** Seconds the silent title card is shown before the first scene, unless settings.title changes it. */
+export const TITLE_SECONDS = DEFAULT_SETTINGS.title.seconds;
 
 export interface TimedSentence {
   text: string;
@@ -116,7 +116,7 @@ export function buildTimeline(script: Script, settings: Settings, audio: readonl
   const gap = toFrames(settings.voice.sentenceGap);
   const lead = toFrames(settings.camera.lead);
 
-  const titleFrames = toFrames(TITLE_SECONDS);
+  const titleFrames = toFrames(settings.title.seconds);
   let cursor = titleFrames;
   const scenes = script.scenes.map((scene, index): TimedScene => {
     const from = cursor;

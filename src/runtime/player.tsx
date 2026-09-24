@@ -171,7 +171,7 @@ export function mountPlayer(stages: Stages): void {
             />
           )}
           {t.settings.captions.mode === 'burned' && <CaptionView timeline={t} frame={frame} />}
-          {frame < t.titleFrames && <TitleCard title={t.title} subtitle={t.subtitle} />}
+          {frame < t.titleFrames && <TitleCard title={t.title} subtitle={t.subtitle} background={t.settings.title.background} color={t.settings.title.color} />}
         </Frame>,
       ),
     );
@@ -383,7 +383,7 @@ function CaptionView({ timeline, frame }: { timeline: Timeline; frame: number })
   );
 }
 
-function TitleCard({ title, subtitle }: { title: string; subtitle: string | undefined }) {
+function TitleCard({ title, subtitle, background, color }: { title: string; subtitle: string | undefined; background: string; color: string }) {
   return (
     <div
       style={{
@@ -394,8 +394,8 @@ function TitleCard({ title, subtitle }: { title: string; subtitle: string | unde
         alignItems: 'center',
         justifyContent: 'center',
         gap: 24,
-        background: '#0f172a',
-        color: '#fff',
+        background,
+        color,
         fontFamily: 'ui-sans-serif, system-ui, sans-serif',
         textAlign: 'center',
         padding: '0 10%',

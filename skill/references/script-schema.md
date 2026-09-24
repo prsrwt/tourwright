@@ -100,7 +100,8 @@ Put only what you are changing in `script.json`. These are the defaults:
   "camera":    { "ease": "inOutCubic", "duration": 0.9, "lead": 0.4, "padding": 48, "maxZoom": 2.5 },
   "highlight": { "color": "#2563eb", "stroke": 3, "radius": 12, "padding": 10, "dim": 0.5, "slide": 0.5, "fade": 0.3 },
   "captions":  { "mode": "burned", "size": 40, "position": "bottom" },
-  "animate":   { "duration": 1.2, "ease": "outCubic" }
+  "animate":   { "duration": 1.2, "ease": "outCubic" },
+  "title":     { "background": "#0f172a", "color": "#ffffff", "seconds": 2.5 }
 }
 ```
 
@@ -109,6 +110,7 @@ Put only what you are changing in `script.json`. These are the defaults:
 - `camera.padding` is pixels of space kept around a framed target. `maxZoom` limits how close the camera gets, as a multiple of the whole-stage width.
 - `highlight.color` is any CSS colour. `dim` is the opacity of the darkening outside the highlight, from 0 to 1. `slide` and `fade` are seconds.
 - `captions`: the narration, one sentence at a time, each shown from when it starts until the next sentence starts. They show the written words, not the lexicon's respellings. `mode` is `"burned"` (drawn into the video, so they show everywhere, including Slack and GitHub), `"soft"` (a subtitle track inside the MP4, which players show and viewers can turn off) or `"off"`. `burned` and `soft` both write `<name>.vtt` next to the MP4, for web pages that add subtitles with a `<track>`. `size` is pixels at 1080p. Verify warns when a caption covers more than 10% of a target; frame the target higher, or use `"position": "top"`.
+- `title`: the card that opens the video with `title` and `subtitle`. Set `background` to the app's brand colour, taken from its own colour tokens (for example the `--brand` value in its global CSS), and `color` to the text colour that goes on it. `"seconds": 0` leaves the card out and opens on the first scene.
 - Easing presets: `linear`, `inOutSine`, `inOutCubic`, `outCubic`, `outExpo`. Use `inOutCubic` for camera moves.
 
 Audio is cached one file per sentence, keyed by the spoken text and the voice settings, so changing a sentence or a voice setting only re-voices what changed.

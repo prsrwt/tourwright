@@ -193,6 +193,28 @@
             }
           },
           "additionalProperties": false
+        },
+        "title": {
+          "description": "The title card that opens the video.",
+          "type": "object",
+          "properties": {
+            "background": {
+              "description": "The title card's background: any CSS colour, such as the app's brand colour.",
+              "type": "string",
+              "minLength": 1
+            },
+            "color": {
+              "description": "The colour of the title and subtitle text.",
+              "type": "string",
+              "minLength": 1
+            },
+            "seconds": {
+              "description": "How long the title card shows. 0 leaves it out and opens on the first scene.",
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false,

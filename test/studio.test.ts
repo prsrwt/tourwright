@@ -38,7 +38,10 @@ test('the studio plays back, edits script.json, and pins notes to the millisecon
     const bar = page.locator('div[style*="height: 36px"]');
     const box = (await bar.boundingBox())!;
     await page.mouse.click(box.x + box.width / 2, box.y + 10);
-    const frame = Number((await page.locator('span', { hasText: /^frame / }).first().textContent())!.replace('frame ', ''));
+    // Wait for the redraw: under load, reading at once can still see frame 0.
+    const counter = page.locator('span', { hasText: /^frame / }).first();
+    await page.waitForFunction((el) => el?.textContent !== 'frame 0', await counter.elementHandle());
+    const frame = Number((await counter.textContent())!.replace('frame ', ''));
     assert.ok(frame > 300 && frame < 450, `seeking halfway should land mid-video, not frame ${frame}`);
 
     // Edit the first beat: pick its camera target by clicking it on the preview.

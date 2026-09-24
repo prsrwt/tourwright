@@ -29,6 +29,7 @@ export interface Settings {
   };
   captions: { mode: (typeof CAPTION_MODES)[number]; size: number; position: 'bottom' | 'top' };
   animate: { duration: number; ease: EaseName };
+  title: { background: string; color: string; seconds: number };
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -38,6 +39,7 @@ export const DEFAULT_SETTINGS: Settings = {
   highlight: { color: '#2563eb', stroke: 3, radius: 12, padding: 10, dim: 0.5, slide: 0.5, fade: 0.3 },
   captions: { mode: 'burned', size: 40, position: 'bottom' },
   animate: { duration: 1.2, ease: 'outCubic' },
+  title: { background: '#0f172a', color: '#ffffff', seconds: 2.5 },
 };
 
 const seconds = z.number().min(0);
@@ -101,6 +103,14 @@ export const SettingsInput = z
         ease: z.enum(EASE_NAMES).optional(),
       })
       .optional(),
+    title: z
+      .strictObject({
+        background: z.string().min(1).optional().describe("The title card's background: any CSS colour, such as the app's brand colour."),
+        color: z.string().min(1).optional().describe('The colour of the title and subtitle text.'),
+        seconds: seconds.optional().describe('How long the title card shows. 0 leaves it out and opens on the first scene.'),
+      })
+      .optional()
+      .describe('The title card that opens the video.'),
   })
   .describe('Overrides for this walkthrough. Anything left out uses the default.');
 
@@ -116,5 +126,6 @@ export function resolveSettings(input: SettingsInput | undefined): Settings {
     highlight: { ...d.highlight, ...input?.highlight },
     captions: { ...d.captions, ...input?.captions },
     animate: { ...d.animate, ...input?.animate },
+    title: { ...d.title, ...input?.title },
   };
 }
