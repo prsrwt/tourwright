@@ -21,6 +21,8 @@ Commands:
   doctor          Check ffmpeg, the browser and the voice
   inspect <stage> List a stage's targets, its components' props, and what could move
   scaffold <page> Draft a stage from a page component's sections (--stage <name>)
+  studio <name>   Watch, edit and leave notes on a walkthrough in the browser (--no-open)
+  notes <name>    List the open studio notes for a walkthrough
 
 Options:
   --json          Machine-readable output (check, verify, inspect)
@@ -34,11 +36,14 @@ async function main(argv: string[]): Promise<number> {
   const { values, positionals } = parseArgs({
     args: argv,
     allowPositionals: true,
+    // So "--no-open" turns off a flag that defaults to on.
+    allowNegative: true,
     options: {
       json: { type: 'boolean', default: false },
       voice: { type: 'boolean', default: false },
       'fake-voice': { type: 'boolean', default: false },
       stage: { type: 'string' },
+      open: { type: 'boolean', default: true },
       help: { type: 'boolean', short: 'h', default: false },
     },
   });
@@ -86,6 +91,18 @@ async function main(argv: string[]): Promise<number> {
       if (!n) return 1;
       const { runInspect } = await import('./inspect.ts');
       return runInspect(await config(), n, { json: values.json });
+    }
+    case 'studio': {
+      const n = needName();
+      if (!n) return 1;
+      const { runStudio } = await import('./studio.ts');
+      return runStudio(await config(), n, { open: values.open });
+    }
+    case 'notes': {
+      const n = needName();
+      if (!n) return 1;
+      const { runNotes } = await import('./notes.ts');
+      return runNotes(await config(), n, { json: values.json });
     }
     case 'scaffold': {
       if (!name) {

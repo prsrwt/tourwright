@@ -71,6 +71,8 @@ run `npm approve-scripts ffmpeg-static` and then `npm rebuild ffmpeg-static`.
 | `render <name>` | Render the MP4 |
 | `make <name>` | Check and verify, then render only if every still passes |
 | `doctor` | Report ffmpeg, the browser and the voice. `--voice` downloads the model and speaks a test sentence. |
+| `studio <name>` | Open the walkthrough in a browser tab: play it with narration and captions, click a target to move the camera or highlight to it, edit beats and narration, and leave notes for the agent pinned to the millisecond |
+| `notes <name>` | List the open studio notes, for you or the agent |
 | `inspect <stage>` | List a stage's targets, its components' props with their real types, and which could move in a video |
 | `scaffold <page-file>` | Draft a stage from a page component's own sections, with typed placeholder fixtures |
 

@@ -58,6 +58,8 @@ export interface TourApi {
   stageMarkup(): string;
   /** The stage's visible text at the current frame, and the labels of its controls and headings. */
   stageText(): { text: string; labels: string[] };
+  /** Every target of the current stage and where it is on screen, for picking one by clicking. */
+  targetsOnScreen(): { name: string; rect: Rect }[];
   errors: string[];
 }
 
@@ -257,6 +259,17 @@ export function mountPlayer(stages: Stages): void {
     },
     stageMarkup() {
       return worldEl()?.innerHTML ?? '';
+    },
+    targetsOnScreen() {
+      const world = worldEl();
+      if (!world || !timeline) return [];
+      const selectors = stages[current.stage]?.targets ?? {};
+      const names = new Set([...Object.keys(selectors), ...[...world.querySelectorAll(`[${FOCUS}]`)].map((el) => el.getAttribute(FOCUS)!)]);
+      const video = { w: timeline.width, h: timeline.height };
+      return [...names].flatMap((name) => {
+        const rect = measure(world, name, selectors);
+        return rect ? [{ name, rect: toScreen(rect, current.view, video) }] : [];
+      });
     },
     stageText() {
       const world = worldEl();

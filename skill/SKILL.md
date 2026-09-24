@@ -36,6 +36,8 @@ Reference files, read when you reach the step that needs them:
 | `npx tourwright make <name>` | Check and verify, then render only if every still passes |
 | `npx tourwright doctor` | Report ffmpeg, the browser and the voice, with the fix for anything missing |
 | `npx tourwright inspect <stage>` | List a stage's targets, every component it renders with each prop's type and what the stage passes, and the props that could move |
+| `npx tourwright studio <name>` | Open the walkthrough in the browser: play it with narration, edit beats and narration, and leave notes pinned to moments |
+| `npx tourwright notes <name>` | List the open notes left in the studio, each with its time, scene and the sentence being spoken |
 | `npx tourwright scaffold <page-file>` | Draft a stage from a page component: its sections in order, each a target, with typed placeholder fixtures, in `tourwright/scaffold/` |
 
 Add `--json` to `check` or `verify` for machine-readable output. Add `--fake-voice` to `verify`, `render` or `make` to iterate without the voice model: narration is silent, but its timing is realistic, so stills and timing reports are still meaningful. Use the real voice for the final render.
@@ -55,6 +57,24 @@ Work through these in order. Each step says how you know it is done.
 9. **Verify:** `npx tourwright verify <name>`. Fix every error, then do the checks in "Verifying" below, including coverage. Repeat from step 6 or 7 as needed.
 10. **Make:** `npx tourwright make <name>` with the real voice. It verifies again, then renders.
 11. **Hand over** the MP4 path, the script path, the total duration and anything you were unsure about, such as a pronunciation you worked around with the lexicon.
+
+## Studio notes
+
+The user can review a walkthrough in `npx tourwright studio <name>` and leave notes pinned to exact
+moments. They live in `tourwright/walkthroughs/<name>/notes.json` beside the script. When the user
+asks you to handle them ("check the studio notes", "fix my notes"):
+
+1. Run `npx tourwright notes <name>`. Each open note has its time to the millisecond, its frame,
+   the scene (with its index in `script.json`) and the sentence being spoken, so you know exactly
+   which beat or sentence it is about.
+2. Make the change in `script.json` (or the stage, if the note is about what is on screen), then
+   verify.
+3. In `notes.json`, set that note's `"status"` to `"done"` and add a one-line `"resolution"` saying
+   what you changed. The studio shows it to the user straight away. If you disagree with a note,
+   leave it open and say why in the `"resolution"`.
+
+Edits made in the studio are written to `script.json` too. If the user has the studio open, it
+reloads when you change the file, so you both always see the same script.
 
 ## Deciding what to explain
 

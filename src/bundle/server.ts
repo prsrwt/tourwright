@@ -4,11 +4,13 @@
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Plugin, ViteDevServer } from 'vite';
+import type { Connect, Plugin, ViteDevServer } from 'vite';
 import type { ResolvedConfig } from '../config/config.ts';
 
 const ENTRY = 'virtual:tourwright/entry';
+const STUDIO_ENTRY = 'virtual:tourwright/studio';
 export const PLAYER_PATH = '/__tourwright/';
+export const STUDIO_PATH = '/__tourwright/studio';
 
 // When running from source the runtime is TypeScript that Vite compiles; when installed it is the
 // compiled JavaScript in dist. Either way it is compiled by the app's Vite with the app's React.
@@ -38,7 +40,12 @@ export interface StageServer {
 
 export class StagesMissingError extends Error {}
 
-export async function startStageServer(config: ResolvedConfig): Promise<StageServer> {
+export interface StageServerOptions {
+  /** Extra routes, served before the player's. The studio uses this for its API. */
+  middleware?: Connect.NextHandleFunction;
+}
+
+export async function startStageServer(config: ResolvedConfig, options: StageServerOptions = {}): Promise<StageServer> {
   if (!existsSync(config.stages)) {
     throw new StagesMissingError(`The stages file ${config.stages} does not exist.\nFix: run "npx tourwright init" to create one, or set "stages" in the tourwright config.`);
   }
@@ -61,9 +68,14 @@ export async function startStageServer(config: ResolvedConfig): Promise<StageSer
   const plugin: Plugin = {
     name: 'tourwright',
     resolveId(id) {
-      return id === ENTRY ? `\0${ENTRY}` : undefined;
+      return id === ENTRY || id === STUDIO_ENTRY ? `\0${id}` : undefined;
     },
     load(id) {
+      // The studio page is Tourwright's own UI. It shows the player in an iframe, so the app's
+      // styles and code never reach it.
+      if (id === `\0${STUDIO_ENTRY}`) {
+        return [`import { mountStudio } from ${JSON.stringify(posix(runtimeFile('studio', true)))};`, 'mountStudio();'].join('\n');
+      }
       if (id !== `\0${ENTRY}`) return undefined;
       return [
         `import stages from ${JSON.stringify(posix(config.stages))};`,
@@ -73,6 +85,27 @@ export async function startStageServer(config: ResolvedConfig): Promise<StageSer
       ].join('\n');
     },
     configureServer(server) {
+      if (options.middleware) server.middlewares.use(options.middleware);
+      server.middlewares.use(async (req, res, next) => {
+        if (req.url?.split('?')[0] !== STUDIO_PATH) return next();
+        const html = await server.transformIndexHtml(
+          STUDIO_PATH,
+          `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Tourwright studio</title>
+    <style>html, body { margin: 0; height: 100%; background: #0f172a; color: #e2e8f0; font: 14px ui-sans-serif, system-ui, sans-serif; }</style>
+  </head>
+  <body>
+    <div id="tourwright-studio" style="height: 100%"></div>
+    <script type="module" src="/@id/__x00__${STUDIO_ENTRY}"></script>
+  </body>
+</html>`,
+        );
+        res.setHeader('Content-Type', 'text/html');
+        res.end(html);
+      });
       server.middlewares.use(async (req, res, next) => {
         if (req.url?.split('?')[0] !== PLAYER_PATH) return next();
         const html = await server.transformIndexHtml(
