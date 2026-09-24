@@ -38,10 +38,18 @@ test('the studio plays back, edits script.json, and pins notes to the millisecon
     page.on('console', (m) => void (m.type() === 'error' && errors.push(m.text())));
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(new URL(STUDIO_PATH, origin).href);
-    await page.getByText('Scenes and beats').waitFor();
+    await page.locator('[data-scrubber]').waitFor();
+    await page.getByRole('banner').getByText('Muse', { exact: true }).waitFor();
+
+    // A first visit shows three steps; dismissing them is remembered.
+    const guide = page.locator('[data-guide]');
+    await guide.getByText('3. Approve when it\'s right.').waitFor();
+    await guide.getByRole('button', { name: 'Got it' }).click();
+    await guide.waitFor({ state: 'detached' });
+    assert.equal(await page.evaluate(() => localStorage.getItem('tourwright.muse.guide-dismissed')), '1');
 
     // Seek halfway along the scrubber.
-    const bar = page.locator('div[style*="height: 36px"]');
+    const bar = page.locator('[data-scrubber]');
     const box = (await bar.boundingBox())!;
     await page.mouse.click(box.x + box.width / 2, box.y + 10);
     // Wait for the redraw: under load, reading at once can still see frame 0.
@@ -50,8 +58,11 @@ test('the studio plays back, edits script.json, and pins notes to the millisecon
     const frame = Number((await counter.textContent())!.replace('frame ', ''));
     assert.ok(frame > 300 && frame < 450, `seeking halfway should land mid-video, not frame ${frame}`);
 
-    // Edit the first beat: pick its camera target by clicking it on the preview.
-    await page.getByText('edit').first().click();
+    // Edit the first beat, on the Scenes tab: pick its camera target by clicking it on the preview.
+    const tab = (name: RegExp) => page.getByRole('tab', { name });
+    await tab(/Scenes/).click();
+    assert.equal(await tab(/Scenes/).getAttribute('aria-selected'), 'true');
+    await page.getByText('edit', { exact: true }).first().click();
     await page.getByRole('button', { name: 'pick' }).first().click();
     assert.deepEqual((await page.locator('button[title]').allTextContents()).sort(), ['stat-overdue', 'stats', 'status-column', 'tasks']);
     await page.locator('button[title="stats"]').click();
@@ -59,7 +70,11 @@ test('the studio plays back, edits script.json, and pins notes to the millisecon
     await page.getByText('camera to stats (fit)').first().waitFor();
     assert.deepEqual(JSON.parse(readFileSync(scriptFile, 'utf8')).scenes[0].beats[0], { at: 'open', camera: { to: 'stats' } });
 
-    // A note records where the playhead is.
+    // A note records where the playhead is, and the note box says where that is.
+    await tab(/Notes/).click();
+    const playhead = Math.round((frame / 30) * 1000);
+    const shown = `${String(Math.floor(playhead / 60000)).padStart(2, '0')}:${String(Math.floor(playhead / 1000) % 60).padStart(2, '0')}.${String(playhead % 1000).padStart(3, '0')}`;
+    assert.equal((await page.locator('label[for="new-note"]').textContent())?.replace(/\s+/g, ' '), `New note at ${shown}`);
     await page.locator('textarea').first().fill('Zoom in more on the total here');
     await page.getByRole('button', { name: /Add note at/ }).click();
     await page.getByText('Zoom in more on the total here').waitFor();
@@ -81,7 +96,8 @@ test('the studio plays back, edits script.json, and pins notes to the millisecon
     await page.getByText('Agent: Zoomed to 2x on the stats.').waitFor();
     const readNotesFile = () => (JSON.parse(readFileSync(notesFile, 'utf8')) as NotesFile).notes;
     const card = (id: string) => page.locator(`[data-note="${id}"]`);
-    await card(note!.id).getByText('Your turn: approve or request changes').waitFor();
+    await card(note!.id).getByText('Your turn', { exact: true }).waitFor();
+    await card(note!.id).getByText('The agent says it is fixed: approve it, or request changes').waitFor();
     await card(note!.id).getByRole('button', { name: 'Approve', exact: true }).click();
     await card(note!.id).getByText('Closed', { exact: true }).waitFor();
     assert.equal(readNotesFile()[0]?.status, 'closed');
@@ -96,8 +112,12 @@ test('the studio plays back, edits script.json, and pins notes to the millisecon
     ];
     writeFileSync(notesFile, JSON.stringify({ notes: [...readNotesFile(), ...agentNotes] }, null, 2));
 
+    // The Notes tab counts what is waiting on the user: one question and two fixes.
+    await tab(/Notes/).getByLabel('3 waiting on you').waitFor();
+
     // A question stands out with a reply box; answering hands the note back to the agent.
-    await card('ask').getByText('Your turn: the agent has a question').waitFor();
+    await card('ask').getByText('The agent has a question').waitFor();
+    await card('ask').getByText('Your turn', { exact: true }).waitFor();
     assert.equal(await card('ask').getAttribute('data-status'), 'question');
     await card('ask').getByText('Agent: All three cards, or only Overdue?').waitFor();
     await card('ask').locator('textarea').fill('All three, please.');

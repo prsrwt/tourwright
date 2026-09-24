@@ -95,7 +95,13 @@ export async function startStageServer(config: ResolvedConfig, options: StageSer
   <head>
     <meta charset="utf-8" />
     <title>Muse</title>
-    <style>html, body { margin: 0; height: 100%; background: #0f172a; color: #e2e8f0; font: 14px ui-sans-serif, system-ui, sans-serif; }</style>
+    <!-- Muse's page colour, text colour and accent, as in the style constants in runtime/studio.tsx. -->
+    <style>
+      html, body { margin: 0; height: 100%; background: #FBF8F6; color: #1F2328; font: 14px/1.4 ui-sans-serif, system-ui, sans-serif; }
+      button:disabled { opacity: 0.5; cursor: default; }
+      :focus-visible { outline: 2px solid #1F5FCC; outline-offset: 2px; }
+      [hidden] { display: none !important; }
+    </style>
   </head>
   <body>
     <div id="tourwright-studio" style="height: 100%"></div>
