@@ -1,4 +1,4 @@
-// The studio: watch a walkthrough with its narration, change it, and leave notes for the agent,
+// Muse, the studio: watch a walkthrough with its narration, change it, and leave notes for the agent,
 // all pinned to the exact moment. The player runs in an iframe (the same page renders use), so the
 // preview is the video, and the app's styles never reach the studio's own controls. Every change
 // is written to script.json, which stays the single source of truth for the agent too.
@@ -206,7 +206,7 @@ function Studio() {
     [state],
   );
 
-  if (!state) return <Centered>Loading the studio...</Centered>;
+  if (!state) return <Centered>Loading Muse...</Centered>;
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 420px', height: '100%' }}>
@@ -246,7 +246,7 @@ function Header({ state, message }: { state: StudioState; message: string | unde
   return (
     <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
       <strong style={{ fontSize: 16 }}>{state.name}</strong>
-      <span style={{ color: '#94a3b8' }}>{state.preparing ? 'Voicing changes...' : 'Tourwright studio'}</span>
+      <span style={{ color: '#94a3b8' }}>{state.preparing ? 'Voicing changes...' : 'Muse'}</span>
       {message && <span style={{ marginLeft: 'auto', color: message === 'Saving...' ? '#94a3b8' : '#fca5a5' }}>{message}</span>}
     </div>
   );

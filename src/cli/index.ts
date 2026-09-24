@@ -25,8 +25,9 @@ Commands:
   doctor          Check ffmpeg, the browser and the voice
   inspect <stage> List a stage's targets, its components' props, and what could move
   scaffold <page> Draft a stage from a page component's sections (--stage <name>)
-  studio <name>   Watch, edit and leave notes on a walkthrough in the browser (--no-open)
-  notes <name>    List the studio notes by status, questions first, and the review
+  muse <name>     Open Muse: watch, edit, leave notes on and approve a walkthrough in the browser
+                  (--no-open; "studio" still works)
+  notes <name>    List the notes left in Muse by status, questions first, and the review
 
 Options:
   --json          Machine-readable output (check, verify, describe, inspect, notes)
@@ -104,6 +105,7 @@ async function main(argv: string[]): Promise<number> {
       const { runInspect } = await import('./inspect.ts');
       return runInspect(await config(), n, { json: values.json });
     }
+    case 'muse':
     case 'studio': {
       const n = needName();
       if (!n) return 1;

@@ -37,8 +37,8 @@ Reference files, read when you reach the step that needs them:
 | `npx tourwright make <name>` | Check and verify, then render only if every still passes |
 | `npx tourwright doctor` | Report ffmpeg, the browser and the voice, with the fix for anything missing |
 | `npx tourwright inspect <stage>` | List a stage's targets, every component it renders with each prop's type and what the stage passes, and the props that could move |
-| `npx tourwright studio <name>` | Open the walkthrough in the browser: play it with narration, edit beats and narration, and leave notes pinned to moments |
-| `npx tourwright notes <name>` | List the studio notes by status, questions first, each with its time, scene, scope, target, the sentence being spoken, its replies and what was on screen; and whether the user has approved the current version |
+| `npx tourwright muse <name>` | Open Muse, the review page, in the browser: play the walkthrough with narration, edit beats and narration, leave notes pinned to moments, and approve it. `studio` is the old name and still works |
+| `npx tourwright notes <name>` | List the notes left in Muse by status, questions first, each with its time, scene, scope, target, the sentence being spoken, its replies and what was on screen; and whether the user has approved the current version |
 | `npx tourwright scaffold <page-file>` | Draft a stage from a page component: its sections in order, each a target, with typed placeholder fixtures, in `tourwright/scaffold/` |
 
 Add `--json` to `check`, `verify`, `describe` or `notes` for machine-readable output. Add `--fake-voice` to `verify`, `describe`, `render` or `make` to iterate without the voice model: narration is silent, but its timing is realistic, so stills and timing reports are still meaningful. Use the real voice for the final render.
@@ -57,11 +57,11 @@ Work through these in order. Each step says how you know it is done.
 8. **Check:** `npx tourwright check <name>`. Fix every error. Read every warning and fix it unless you can say why it is fine.
 9. **Verify:** `npx tourwright verify <name>`. Fix every error, then do the checks in "Verifying" below, including coverage. Repeat from step 6 or 7 as needed.
 10. **Make:** `npx tourwright make <name>` with the real voice. It verifies again, then renders.
-11. **Hand over** the MP4 path, the script path, the total duration and anything you were unsure about, such as a pronunciation you worked around with the lexicon. Ask the user to review it in the studio: it is not finished until `review.json` approves the current script (see "Studio notes and review").
+11. **Hand over** the MP4 path, the script path, the total duration and anything you were unsure about, such as a pronunciation you worked around with the lexicon. Ask the user to review it in Muse: it is not finished until `review.json` approves the current script (see "Muse: notes and review").
 
-## Studio notes and review
+## Muse: notes and review
 
-The user reviews a walkthrough in `npx tourwright studio <name>`. They leave notes pinned to exact
+The user reviews a walkthrough in Muse, a page in their browser (`npx tourwright muse <name>`). They leave notes pinned to exact
 moments, and approve the whole video (or ask for changes) once they are happy with it. Notes live in
 `tourwright/walkthroughs/<name>/notes.json` and the video's review in `review.json`, both beside the
 script.
@@ -80,7 +80,7 @@ scene) or `all` (the whole video). It may name a `"target"` the user clicked in 
 its `"rect"` on screen in layout pixels, so you know exactly which element they meant. Its
 `"replies"` are the conversation so far, oldest first.
 
-When the user asks you to handle notes ("check the studio notes", "fix my notes"):
+When the user asks you to handle notes ("check my notes in Muse", "fix my notes"):
 
 1. Run `npx tourwright notes <name>`. It lists the notes by status: questions still waiting on the
    user first, then the open notes (yours to handle), then fixed and closed ones. Each has its time
@@ -104,7 +104,7 @@ When the user asks you to handle notes ("check the studio notes", "fix my notes"
    { "status": "fixed", "replies": [ { "from": "agent", "text": "Zoomed to 2x on the stat cards at the cards cue.", "at": "2026-01-15T10:00:00Z" } ] }
    ```
 
-   Append to `"replies"`; never edit or remove earlier ones. The studio shows your reply at once.
+   Append to `"replies"`; never edit or remove earlier ones. Muse shows your reply at once.
 7. **Never set `"closed"`.** Only the user approves a fix. Leave `fixed`, `question` and `closed`
    notes alone unless the user replies again, which moves the note back to `open`. If you disagree
    with a note, say why in a reply and set it to `"question"`.
@@ -117,7 +117,7 @@ a video finished, or hand it over as final, until it says the current script is 
 review asks for changes, its comment is a note about the whole video: handle it like one, then ask
 the user to review again.
 
-Edits made in the studio are written to `script.json` too. If the user has the studio open, it
+Edits made in Muse are written to `script.json` too. If the user has Muse open, it
 reloads when you change the file, so you both always see the same script.
 
 ## Deciding what to explain

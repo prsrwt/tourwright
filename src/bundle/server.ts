@@ -94,7 +94,7 @@ export async function startStageServer(config: ResolvedConfig, options: StageSer
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>Tourwright studio</title>
+    <title>Muse</title>
     <style>html, body { margin: 0; height: 100%; background: #0f172a; color: #e2e8f0; font: 14px ui-sans-serif, system-ui, sans-serif; }</style>
   </head>
   <body>

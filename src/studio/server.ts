@@ -216,7 +216,7 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
           const { base, script } = body as SaveScriptRequest;
           const current = hash(readFileSync(file, 'utf8'));
           if (base !== current) {
-            return send(409, { error: 'script.json changed since this edit began (in an editor, or by the agent). The studio has reloaded it; make the edit again.' });
+            return send(409, { error: 'script.json changed since this edit began (in an editor, or by the agent). Muse has reloaded it; make the edit again.' });
           }
           writeFileSync(file, JSON.stringify(script, null, 2) + '\n');
           await reprepare();
@@ -224,10 +224,10 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
         }
         if (route === 'PUT /review') {
           const { base, status, comment } = body as ReviewRequest;
-          if (status !== 'approved' && status !== 'changes-requested') return send(400, { error: `The review status ${JSON.stringify(status)} is not one the studio knows.\nFix: send "approved" or "changes-requested".` });
+          if (status !== 'approved' && status !== 'changes-requested') return send(400, { error: `The review status ${JSON.stringify(status)} is not one Muse knows.\nFix: send "approved" or "changes-requested".` });
           const current = hash(readFileSync(file, 'utf8'));
           if (base !== current) {
-            return send(409, { error: 'script.json changed since you started watching this version, so this review would be for a version you have not seen.\nFix: the studio has reloaded it; watch it again, then review.' });
+            return send(409, { error: 'script.json changed since you started watching this version, so this review would be for a version you have not seen.\nFix: Muse has reloaded it; watch it again, then review.' });
           }
           const review = { status, scriptHash: current, at: new Date().toISOString(), ...(comment?.trim() && { comment: comment.trim() }) };
           writeReview(config, name, review);

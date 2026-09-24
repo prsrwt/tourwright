@@ -10,7 +10,7 @@ export interface StudioOptions {
   open: boolean;
 }
 
-/** Serves the studio until Ctrl+C. */
+/** Serves Muse, the studio, until Ctrl+C. */
 export async function runStudio(config: ResolvedConfig, name: string, options: StudioOptions): Promise<number> {
   if (!existsSync(scriptPath(config, name))) {
     const known = listWalkthroughs(config);
@@ -21,7 +21,7 @@ export async function runStudio(config: ResolvedConfig, name: string, options: S
   const studio = createStudio(config, name, log);
   const server = await startStageServer(config, { middleware: (req, res, next) => studio.handle(req, res, next) });
   const url = new URL(STUDIO_PATH, server.url).href;
-  console.log(`Studio for "${name}": ${url}`);
+  console.log(`Muse for "${name}": ${url}`);
   console.log('Edits save to script.json, and notes to notes.json beside it. Press Ctrl+C to stop.');
   if (options.open) openBrowser(url);
   await studio.ready;

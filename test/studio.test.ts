@@ -5,6 +5,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import { cpSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -180,5 +181,35 @@ test('the studio plays back, edits script.json, and pins notes to the millisecon
     await browser.close();
     studio.close();
     await server.close();
+  }
+});
+
+test('"tourwright muse" starts Muse, and "tourwright studio" still does', async () => {
+  const cli = fileURLToPath(new URL('../src/cli/index.ts', import.meta.url));
+  for (const command of ['muse', 'studio']) {
+    const child = spawn(process.execPath, [cli, command, 'intro', '--no-open'], { cwd: app, env: { ...process.env, TOURWRIGHT_VOICE: 'fake' } });
+    try {
+      // It prints its address once the page is being served.
+      const url = await new Promise<string>((done, fail) => {
+        let out = '';
+        const timer = setTimeout(() => fail(new Error(`"${command}" printed no address:\n${out}`)), 120_000);
+        child.stdout.on('data', (chunk: Buffer) => {
+          out += chunk.toString();
+          const found = /Muse for "intro": (\S+)/.exec(out);
+          if (found) {
+            clearTimeout(timer);
+            done(found[1]!);
+          }
+        });
+        child.on('exit', (code) => fail(new Error(`"${command}" exited with ${code}:\n${out}`)));
+      });
+      const page = await fetch(url);
+      assert.equal(page.status, 200);
+      assert.match(await page.text(), /<title>Muse<\/title>/);
+      const state = (await (await fetch(new URL(`${API}/state`, url))).json()) as { name: string };
+      assert.equal(state.name, 'intro');
+    } finally {
+      child.kill();
+    }
   }
 });
