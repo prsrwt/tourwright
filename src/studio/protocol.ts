@@ -48,6 +48,8 @@ export interface StudioState {
   /** Set when the current script.json could not be prepared. */
   error?: string;
   notes: Note[];
+  /** Why notes.json could not be read, when it could not. */
+  notesError?: string;
 }
 
 export interface SaveScriptRequest {

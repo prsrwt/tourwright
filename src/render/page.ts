@@ -32,8 +32,10 @@ export async function openPlayer(url: string, timeline: Timeline): Promise<Playe
   }
   try {
     const context = await browser.newContext({
-      viewport: { width: timeline.width, height: timeline.height },
-      deviceScaleFactor: 1,
+      // Laid out at the layout size and scaled up to the video, like a high-resolution screen, so
+      // screenshots come out at exactly the video's size.
+      viewport: { width: timeline.layout.width, height: timeline.layout.height },
+      deviceScaleFactor: timeline.layout.scale,
       colorScheme: 'light',
       // Not "reduce": apps that honour it would skip the transitions a demo should show. The
       // player drives every CSS animation by the frame, so they stay deterministic.

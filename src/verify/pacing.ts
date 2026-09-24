@@ -16,6 +16,17 @@ export const MAX_HIGHLIGHT_SENTENCES = 2;
 /** The opening wide shot should last at least this long before the first zoom. */
 export const MIN_OPENING_SECONDS = 2;
 
+/** Consecutive scenes on the same stage: the camera and highlight carry over within a run. */
+function stageRuns(timeline: Timeline): TimedScene[][] {
+  const runs: TimedScene[][] = [];
+  for (const scene of timeline.scenes) {
+    const run = runs[runs.length - 1];
+    if (run && run[0]!.stage === scene.stage) run.push(scene);
+    else runs.push([scene]);
+  }
+  return runs;
+}
+
 export function pacingDiagnostics(timeline: Timeline): Diagnostic[] {
   const out: Diagnostic[] = [];
   const seconds = (frames: number) => frames / timeline.fps;
@@ -62,25 +73,29 @@ export function pacingDiagnostics(timeline: Timeline): Diagnostic[] {
     }
   }
 
-  // A highlight should last while the narration is about its target. Count the sentences that
-  // start after it lands and before it is moved or cleared.
-  for (const scene of timeline.scenes) {
-    const lights = scene.beats.filter((b) => b.highlight?.to).sort((a, b) => a.highlight!.from - b.highlight!.from);
-    for (const beat of lights) {
-      const ends = scene.beats
-        .filter((b) => b.highlight && b.highlight.from > beat.highlight!.from)
-        .map((b) => b.highlight!.from)
-        .sort((a, b) => a - b)[0] ?? scene.from + scene.frames;
-      const after = scene.sentences.filter((s) => s.from > beat.cue && s.from < ends).length;
-      if (after > MAX_HIGHLIGHT_SENTENCES) {
+  // A highlight should last while the narration is about its target. It carries into the next
+  // scene when that scene is on the same stage, so count across scenes: the sentences that start
+  // after it lands and before it is moved, cleared, or cut away from with a change of stage.
+  for (const run of stageRuns(timeline)) {
+    const lights = run.flatMap((scene) => scene.beats.filter((b) => b.highlight).map((beat) => ({ scene, beat })));
+    lights.sort((a, b) => a.beat.highlight!.from - b.beat.highlight!.from);
+    const last = run[run.length - 1]!;
+    const runEnd = last.from + last.frames;
+    const sentences = run.flatMap((scene) => scene.sentences);
+    lights.forEach(({ scene, beat }, i) => {
+      if (!beat.highlight!.to) return; // Clearing is never lingering.
+      const ends = lights[i + 1]?.beat.highlight!.from ?? runEnd;
+      const after = sentences.filter((s) => s.from > beat.cue && s.from < ends);
+      if (after.length > MAX_HIGHLIGHT_SENTENCES) {
+        const into = after.some((s) => s.from >= scene.from + scene.frames) ? ', into the next scene' : '';
         out.push({
           level: 'warning',
           path: beatPath(scene, beat, 'highlight'),
-          message: `The highlight on "${beat.highlight!.to}" stays on through ${after} more sentences. A highlight that lingers after the narration moves on dims the screen for no reason.`,
+          message: `The highlight on "${beat.highlight!.to}" stays on through ${after.length} more sentences${into}, up to "${after[after.length - 1]!.text}". A highlight that lingers after the narration moves on points at the wrong thing.`,
           fix: `clear it with { "at": "<cue>", "highlight": false } where the narration moves on, or move it to what is being talked about.`,
         });
       }
-    }
+    });
   }
 
   const first = timeline.scenes[0];

@@ -5,7 +5,7 @@ import { relative } from 'node:path';
 import type { ResolvedConfig } from '../config/config.ts';
 import { prepare } from '../pipeline/prepare.ts';
 import { openSession } from '../pipeline/session.ts';
-import { findFfmpeg, FFMPEG_MISSING } from '../render/ffmpeg.ts';
+import { findFfmpeg, ffmpegMissing } from '../render/ffmpeg.ts';
 import { renderVideo } from '../render/render.ts';
 import { verifyWalkthrough } from '../verify/verify.ts';
 import { videoPath } from './render.ts';
@@ -15,7 +15,7 @@ export async function runMake(config: ResolvedConfig, name: string): Promise<num
   const log = (line: string) => console.log(line);
   const ffmpeg = findFfmpeg(config.root);
   if (!ffmpeg) {
-    console.error(FFMPEG_MISSING);
+    console.error(ffmpegMissing(config.root));
     return 1;
   }
   const prepared = await prepare(config, name, { log });

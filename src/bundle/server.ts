@@ -147,7 +147,11 @@ export async function startStageServer(config: ResolvedConfig, options: StageSer
     },
     server: {
       host: '127.0.0.1',
-      port: 0,
+      // Not port 0: the operating system can hand out a port Chromium refuses to load pages from
+      // (6566, 6665 and others on its unsafe list). None of those is at or above 20000; if this one
+      // is taken, Vite tries the next.
+      port: 20000 + Math.floor(Math.random() * 40000),
+      strictPort: false,
       // The Vite client loads anyway (CSS is injected through it), so let its websocket connect
       // rather than log errors. With no file watcher it never reloads the page.
       watch: null,

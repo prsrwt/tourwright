@@ -268,23 +268,23 @@ function Preview(props: {
   useEffect(() => {
     const el = box.current;
     if (!el) return;
-    const fit = () => setScale(Math.min(el.clientWidth / timeline.width, el.clientHeight / timeline.height));
+    const fit = () => setScale(Math.min(el.clientWidth / timeline.layout.width, el.clientHeight / timeline.layout.height));
     fit();
     const observer = new ResizeObserver(fit);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [timeline.width, timeline.height]);
+  }, [timeline.layout.width, timeline.layout.height]);
 
   const targets = useMemo<{ name: string; rect: Rect }[]>(() => (picking && api ? api.targetsOnScreen() : []), [picking, api, frame]);
 
   return (
     <div ref={box} style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ position: 'relative', width: timeline.width * scale, height: timeline.height * scale, boxShadow: '0 0 0 1px #334155' }}>
+      <div style={{ position: 'relative', width: timeline.layout.width * scale, height: timeline.layout.height * scale, boxShadow: '0 0 0 1px #334155' }}>
         <iframe
           ref={frameRef}
           src="/__tourwright/"
           title="Preview"
-          style={{ border: 0, width: timeline.width, height: timeline.height, transform: `scale(${scale})`, transformOrigin: '0 0', pointerEvents: 'none', background: '#fff' }}
+          style={{ border: 0, width: timeline.layout.width, height: timeline.layout.height, transform: `scale(${scale})`, transformOrigin: '0 0', pointerEvents: 'none', background: '#fff' }}
         />
         {picking && (
           <div style={{ position: 'absolute', inset: 0, background: 'rgba(15, 23, 42, 0.35)', cursor: 'crosshair' }} onClick={props.onCancelPick}>
@@ -395,6 +395,7 @@ function Notes({ state, timeline, frame, audio, inputRef, onSeek }: { state: Stu
 
   return (
     <Section title={`Notes for the agent (${state.notes.filter((n) => n.status === 'open').length} open)`}>
+      {state.notesError && <div style={{ color: '#fca5a5', whiteSpace: 'pre-wrap', marginBottom: 8 }}>{state.notesError}</div>}
       <textarea
         ref={inputRef}
         value={text}

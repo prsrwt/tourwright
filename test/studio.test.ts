@@ -28,6 +28,9 @@ test('the studio plays back, edits script.json, and pins notes to the millisecon
     await studio.ready;
     const origin = new URL(server.url).origin;
     const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
+    // The first load optimises dependencies into a fresh cache, which is slow while the other test
+    // files run in parallel; Playwright's 30 s default is too tight for that.
+    page.setDefaultTimeout(120_000);
     const errors: string[] = [];
     page.on('console', (m) => void (m.type() === 'error' && errors.push(m.text())));
     page.on('pageerror', (e) => errors.push(e.message));

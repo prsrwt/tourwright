@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { checkScript } from '../src/check/check.ts';
@@ -71,4 +71,26 @@ test('no em or en dashes anywhere in the repo', () => {
     return existsSync(path) && !/\.(png|jpg|mp4|wav|ico)$/i.test(file) && dashes.test(readFileSync(path, 'utf8'));
   });
   assert.deepEqual(offenders, []);
+});
+
+test('notes: a byte order mark is fine, and a broken file is an error rather than "no notes"', async () => {
+  const { readNotes } = await import('../src/studio/server.ts');
+  const dir = tempApp({ dependencies: { react: '19.0.0' } });
+  silently(() => runInit(dir));
+  const config = resolveConfig({}, join(dir, 'tourwright.config.mts'), {});
+  const notes = join(config.walkthroughs, 'intro', 'notes.json');
+  writeFileSync(notes, String.fromCharCode(0xfeff) + JSON.stringify({ notes: [{ id: 'a', ms: 1000, frame: 30, scene: 'welcome', sceneIndex: 0, text: 'zoom', status: 'open', created: '' }] }));
+  assert.equal(readNotes(config, 'intro')[0]?.text, 'zoom');
+  writeFileSync(notes, '{ "notes": [ { "id": "a", ');
+  assert.throws(() => readNotes(config, 'intro'), /is not valid JSON/);
+});
+
+test('ffmpeg-static installed without its binary gets the fix that works', async () => {
+  const { ffmpegMissing } = await import('../src/render/ffmpeg.ts');
+  const dir = tempApp({});
+  assert.match(ffmpegMissing(dir), /npm install -D ffmpeg-static/);
+  mkdirSync(join(dir, 'node_modules', 'ffmpeg-static'), { recursive: true });
+  writeFileSync(join(dir, 'node_modules', 'ffmpeg-static', 'package.json'), JSON.stringify({ name: 'ffmpeg-static', main: 'index.js' }));
+  writeFileSync(join(dir, 'node_modules', 'ffmpeg-static', 'index.js'), `module.exports = ${JSON.stringify(join(dir, 'missing', 'ffmpeg.exe'))};`);
+  assert.match(ffmpegMissing(dir), /npm approve-scripts ffmpeg-static.*npm rebuild ffmpeg-static/);
 });

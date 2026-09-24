@@ -15,7 +15,13 @@ export const FRAME_RATES = [24, 25, 30, 50, 60] as const;
 export const CAPTION_MODES = ['burned', 'soft', 'off'] as const;
 
 export interface Settings {
-  video: { width: number; height: number; fps: (typeof FRAME_RATES)[number]; crf: number };
+  /**
+   * width and height are the video's pixels. layoutWidth is how wide the page is laid out, in CSS
+   * pixels, as on the screen the app is used on; the height follows the video's shape. The page
+   * is then scaled up to the video's size, like a high-resolution screen, so an app built for
+   * 1280 wide looks as it does in use, with sharp text. Left out, it is the video's width.
+   */
+  video: { width: number; height: number; fps: (typeof FRAME_RATES)[number]; crf: number; layoutWidth?: number };
   voice: { voice: string; speed: number; dtype: 'fp32' | 'fp16' | 'q8' | 'q4'; sentenceGap: number; tail: number };
   camera: { ease: EaseName; duration: number; lead: number; padding: number; maxZoom: number };
   highlight: {
@@ -58,6 +64,13 @@ export const SettingsInput = z
         height: evenPixels.optional(),
         fps: z.literal(FRAME_RATES).optional(),
         crf: z.number().int().min(0).max(51).optional(),
+        layoutWidth: z
+          .number()
+          .int()
+          .min(320)
+          .max(7680)
+          .optional()
+          .describe('How wide the page is laid out, as on the screen the app is used on, such as 1280. Scaled up to the video width.'),
       })
       .optional(),
     voice: z

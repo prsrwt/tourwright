@@ -84,8 +84,14 @@ export interface Timeline {
   title: string;
   subtitle?: string;
   fps: number;
+  /** The video's pixels. */
   width: number;
   height: number;
+  /**
+   * The page's size in CSS pixels, which everything on the page (camera, highlight, captions) is
+   * positioned in, and how many video pixels each CSS pixel becomes.
+   */
+  layout: { width: number; height: number; scale: number };
   /** Frames of the title card, which comes first. */
   titleFrames: number;
   frames: number;
@@ -171,6 +177,7 @@ export function buildTimeline(script: Script, settings: Settings, audio: readonl
     fps,
     width: settings.video.width,
     height: settings.video.height,
+    layout: layoutOf(settings),
     titleFrames,
     frames: cursor,
     settings,
@@ -178,6 +185,12 @@ export function buildTimeline(script: Script, settings: Settings, audio: readonl
     scenes,
     captions: scenes.flatMap((scene) => captionsFor(scene, gap)),
   };
+}
+
+/** The page's CSS size: layoutWidth wide, the video's shape. check rejects a width that gives a fractional height. */
+export function layoutOf(settings: Settings): Timeline['layout'] {
+  const { width, height, layoutWidth = width } = settings.video;
+  return { width: layoutWidth, height: Math.round((height * layoutWidth) / width), scale: width / layoutWidth };
 }
 
 /**

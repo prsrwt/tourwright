@@ -27,9 +27,26 @@ export function findFfmpeg(appRoot: string): FfmpegLocation | undefined {
   return undefined;
 }
 
-export const FFMPEG_MISSING =
-  'ffmpeg was not found on the PATH or as ffmpeg-static in this app.\n' +
-  'Fix: install ffmpeg (winget install ffmpeg, brew install ffmpeg or apt install ffmpeg), or run "npm install -D ffmpeg-static" in your app (about 80 MB, GPL-3.0).';
+const INSTALL = 'install ffmpeg (winget install ffmpeg, brew install ffmpeg or apt install ffmpeg)';
+
+/** Why ffmpeg could not be found, and the fix that will actually work on this machine. */
+export function ffmpegMissing(appRoot: string): string {
+  let staticPath: string | null | undefined;
+  try {
+    staticPath = createRequire(join(appRoot, 'package.json'))('ffmpeg-static') as string | null;
+  } catch {
+    staticPath = undefined;
+  }
+  if (staticPath !== undefined) {
+    // The package is there but its binary is not: its install script, which downloads it, did not
+    // run. npm 11 blocks install scripts until they are approved.
+    return (
+      'ffmpeg-static is installed but its ffmpeg binary is not, because its install script (which downloads it) did not run.\n' +
+      `Fix: run "npm approve-scripts ffmpeg-static" and then "npm rebuild ffmpeg-static" in your app, or ${INSTALL}.`
+    );
+  }
+  return `ffmpeg was not found on the PATH or as ffmpeg-static in this app.\nFix: ${INSTALL}, or run "npm install -D ffmpeg-static" in your app (about 80 MB, GPL-3.0).`;
+}
 
 function probe(command: string): string | undefined {
   const result = spawnSync(command, ['-version'], { encoding: 'utf8', windowsHide: true });

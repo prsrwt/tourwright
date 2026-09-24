@@ -16,14 +16,26 @@ export function notesPath(config: ResolvedConfig, name: string): string {
   return join(dirname(scriptPath(config, name)), 'notes.json');
 }
 
+export class NotesError extends Error {}
+
+/**
+ * The notes, or none if there is no file yet. A file that cannot be read is an error, never "no
+ * notes": silently finding none is how a note gets missed.
+ */
 export function readNotes(config: ResolvedConfig, name: string): Note[] {
   const file = notesPath(config, name);
   if (!existsSync(file)) return [];
+  // Windows tools often start a file with a byte order mark, which JSON.parse rejects.
+  const text = readFileSync(file, 'utf8').replace(/^\uFEFF/, '');
+  let parsed: unknown;
   try {
-    return (JSON.parse(readFileSync(file, 'utf8')) as NotesFile).notes ?? [];
-  } catch {
-    return [];
+    parsed = JSON.parse(text);
+  } catch (error) {
+    throw new NotesError(`${file} is not valid JSON: ${(error as Error).message}\nFix: correct it by hand; each note needs "id", "ms", "text" and "status".`);
   }
+  const notes = (parsed as Partial<NotesFile>)?.notes;
+  if (!Array.isArray(notes)) throw new NotesError(`${file} has no "notes" list.\nFix: it should look like { "notes": [ ... ] }.`);
+  return notes;
 }
 
 export interface Studio {
@@ -35,7 +47,17 @@ export interface Studio {
 
 export function createStudio(config: ResolvedConfig, name: string, log: (line: string) => void): Studio {
   const file = scriptPath(config, name);
-  const state: StudioState = { name, version: 0, scriptHash: '', script: undefined, diagnostics: [], preparing: false, notes: readNotes(config, name) };
+  const state: StudioState = { name, version: 0, scriptHash: '', script: undefined, diagnostics: [], preparing: false, notes: [] };
+  // A notes file that cannot be read keeps the last good notes on screen, and says why.
+  const loadNotes = () => {
+    try {
+      state.notes = readNotes(config, name);
+      delete state.notesError;
+    } catch (error) {
+      state.notesError = (error as Error).message;
+    }
+  };
+  loadNotes();
   let soundtrack: Buffer | undefined;
   const listeners = new Set<ServerResponse>();
 
@@ -100,7 +122,7 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
     watchers.push(
       watch(notesFile, () => {
         // The agent marks notes done here.
-        state.notes = readNotes(config, name);
+        loadNotes();
         changed();
       }),
     );

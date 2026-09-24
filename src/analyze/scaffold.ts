@@ -23,11 +23,15 @@ interface Section {
   importLine: string;
   focus: string;
   condition?: string;
+  /** The condition chooses between branches (a ? b : c) rather than showing extra content (a && b). */
+  branch?: boolean;
   props: PropInfo[];
   /** What the page passes each prop, as written, so fixtures can be modelled on it. */
   passed: Map<string, string>;
   /** Sections the page nests inside this one: it is a wrapper, such as a layout shell. */
   children: Section[];
+  /** Shown by the page instead of its main content (loading, not set up): drafted, but commented out. */
+  leftOut?: boolean;
 }
 
 /** Writes the draft to a scaffold folder next to the configured stages file, which it refers to. */
@@ -47,17 +51,29 @@ export function scaffoldStage(root: string, pageFile: string, stage: string, sta
 
   // Sections in page order. One nested inside another (a page inside a layout shell) becomes its
   // child, so the draft keeps the page's structure.
-  const collect = (node: TS.Node, into: Section[]) => {
+  //
+  // Where the page chooses between branches (loading ? A : notSetUp ? B : main), the branch with
+  // the most components is the page itself; the others are alternative states, drafted but left
+  // out. Sections shown with && (behind a toggle, say) stay in: they are what "animate" reveals.
+  const components = (node: TS.Node) => jsxElements(app, node).filter((e) => isComponentTag(app, e.tagName)).length;
+  const collect = (node: TS.Node, into: Section[], leftOut = false) => {
+    if (ts.isConditionalExpression(node)) {
+      const trueIsMain = components(node.whenTrue) >= components(node.whenFalse);
+      collect(node.whenTrue, into, leftOut || !trueIsMain);
+      collect(node.whenFalse, into, leftOut || trueIsMain);
+      return;
+    }
     if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) {
       const opening = ts.isJsxElement(node) ? node.openingElement : node;
       const section = isComponentTag(app, opening.tagName) ? sectionFor(app, opening, out, prefix, skipped) : undefined;
       if (section) {
-        if (ts.isJsxElement(node)) for (const child of node.children) collect(child, section.children);
+        if (leftOut) section.leftOut = true;
+        if (ts.isJsxElement(node)) for (const child of node.children) collect(child, section.children, leftOut);
         into.push(section);
         return;
       }
     }
-    ts.forEachChild(node, (child) => collect(child, into));
+    ts.forEachChild(node, (child) => collect(child, into, leftOut));
   };
   const sections: Section[] = [];
   collect(jsx, sections);
@@ -80,14 +96,13 @@ function mainJsx(app: AppProgram, source: TS.SourceFile): TS.Node | undefined {
   let best: TS.Node | undefined;
   let size = 0;
   const visit = (node: TS.Node) => {
+    // Any return with JSX in it, including "return loading ? <Spinner /> : <Page />".
     if (ts.isReturnStatement(node) && node.expression) {
       const expression = unwrap(app, node.expression);
-      if (ts.isJsxElement(expression) || ts.isJsxFragment(expression) || ts.isJsxSelfClosingElement(expression)) {
-        const count = jsxElements(app, expression).length;
-        if (count > size) {
-          best = expression;
-          size = count;
-        }
+      const count = jsxElements(app, expression).length;
+      if (count > size) {
+        best = expression;
+        size = count;
       }
     }
     ts.forEachChild(node, visit);
@@ -137,24 +152,32 @@ function sectionFor(app: AppProgram, opening: TS.JsxOpeningElement | TS.JsxSelfC
   }
   const focus = kebab(name.startsWith(prefix) && name.length > prefix.length ? name.slice(prefix.length) : name);
   const condition = conditionOf(app, opening);
-  return { name, importLine, focus, ...(condition && { condition }), props: componentProps(app, opening.tagName) ?? [], passed, children: [] };
+  return {
+    name,
+    importLine,
+    focus,
+    ...(condition && { condition: condition.text, branch: condition.branch }),
+    props: componentProps(app, opening.tagName) ?? [],
+    passed,
+    children: [],
+  };
 }
 
 /**
  * When the page shows this element only under a condition, the nearest one, as written. Outer
  * conditions (usually "not loading") repeat for every section and say nothing new.
  */
-function conditionOf(app: AppProgram, node: TS.Node): string | undefined {
+function conditionOf(app: AppProgram, node: TS.Node): { text: string; branch: boolean } | undefined {
   const { ts } = app;
   let child = node;
   let parent = node.parent;
   while (parent && !ts.isFunctionLike(parent)) {
     if (ts.isConditionalExpression(parent) && child !== parent.condition) {
       const condition = parent.condition.getText().replace(/\s+/g, ' ');
-      return child === parent.whenTrue ? condition : `not (${condition})`;
+      return { text: child === parent.whenTrue ? condition : `not (${condition})`, branch: true };
     }
     if (ts.isBinaryExpression(parent) && parent.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken && child === parent.right) {
-      return parent.left.getText().replace(/\s+/g, ' ');
+      return { text: parent.left.getText().replace(/\s+/g, ' '), branch: false };
     }
     child = parent;
     parent = parent.parent;
@@ -181,7 +204,8 @@ function render(stage: string, pageFile: string, stagesFile: string, sections: S
     '// placeholder of the right type: replace each with fictional data that tells the story (made-up',
     '// names, round amounts, never real records), delete sections the video does not need, and add',
     `// this stage to ${stagesFile}. "What the page passes" comments show where each value comes`,
-    '// from in the real page.',
+    '// from in the real page. Lay the walkthrough out at the width the app is used at, usually',
+    '// "settings": { "video": { "layoutWidth": 1280 } } in its script, so small text stays readable.',
     ...(movable.length ? ['//', '// Could move in a video (declare a value, pass it, and animate it from a beat):', ...movable] : []),
     '',
     "import type { ComponentProps } from 'react';",
@@ -204,13 +228,23 @@ function render(stage: string, pageFile: string, stagesFile: string, sections: S
     lines.push('};', '');
   }
 
-  const jsx = (section: Section, indent: string): string[] => {
+  const condition = (section: Section) => oneLine(section.condition ?? '').replace(/\*\//g, '* /');
+  const jsx = (section: Section, indent: string, commented = false): string[] => {
     const out: string[] = [];
-    if (section.condition) out.push(`${indent}{/* The page shows this only when: ${oneLine(section.condition).replace(/\*\//g, '* /')} */}`);
+    if (section.leftOut && !commented) {
+      // One comment around the whole section, so uncommenting it brings it back as it was.
+      out.push(`${indent}{/* Left out: the page shows this instead of its main content${section.condition ? `, when ${condition(section)}` : ''}.`);
+      out.push(`${indent}   Delete this comment's first and last lines to include it.`);
+      out.push(...jsx(section, indent, true));
+      out.push(`${indent}*/}`);
+      return out;
+    }
+    // A branch condition on kept content is just the page itself ("not loading"); say nothing.
+    if (section.condition && !section.branch && !commented) out.push(`${indent}{/* The page shows this only when: ${condition(section)} */}`);
     if (section.children.length) {
       // A wrapper (a layout shell, say) is not a target itself; the sections inside it are.
       out.push(`${indent}<${section.name} {...${names.get(section)}}>`);
-      for (const child of section.children) out.push(...jsx(child, indent + '  '));
+      for (const child of section.children) out.push(...jsx(child, indent + '  ', commented));
       out.push(`${indent}</${section.name}>`);
     } else {
       out.push(`${indent}<div data-focus="${section.focus}">`, `${indent}  <${section.name} {...${names.get(section)}} />`, `${indent}</div>`);

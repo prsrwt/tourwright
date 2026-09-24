@@ -58,7 +58,17 @@ npm 11 lists packages whose install scripts it has not been told to trust. Insta
 names `onnxruntime-node`, `sharp` and `protobufjs` (from the voice model's runtime), and
 `ffmpeg-static` if you add it. The voice runs without any of them being approved. `ffmpeg-static`
 downloads its binary in its install script; if `doctor` reports ffmpeg missing after installing it,
-run `npm approve-scripts ffmpeg-static` and then `npm rebuild ffmpeg-static`.
+run `npm approve-scripts ffmpeg-static` and then `npm rebuild ffmpeg-static`, or install ffmpeg
+itself.
+
+### Trying it without changing package.json
+
+To try Tourwright in an app without adding it to `package.json`, install everything in **one**
+command: `npm install --no-save` removes anything an earlier `--no-save` install added.
+
+```bash
+npm install --no-save tourwright ffmpeg-static
+```
 
 ## Commands
 

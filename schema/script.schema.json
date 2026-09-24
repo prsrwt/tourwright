@@ -42,6 +42,12 @@
               "type": "integer",
               "minimum": 0,
               "maximum": 51
+            },
+            "layoutWidth": {
+              "description": "How wide the page is laid out, as on the screen the app is used on, such as 1280. Scaled up to the video width.",
+              "type": "integer",
+              "minimum": 320,
+              "maximum": 7680
             }
           },
           "additionalProperties": false

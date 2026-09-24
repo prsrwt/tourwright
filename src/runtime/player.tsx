@@ -20,8 +20,10 @@ export interface StageReport {
    * steps value (a toggle, say) changes what is on the page.
    */
   states: Record<string, StageMeasure>;
-  /** Every target the stage offers: data-focus names and registered selectors. */
+  /** Every target the stage offers, in any state: data-focus names and registered selectors. */
   available: string[];
+  /** The targets on the page in each measured state, keyed like `states`. */
+  availableIn: Record<string, string[]>;
   /** Why a registered selector could not be used. */
   invalid: Record<string, string>;
 }
@@ -142,7 +144,7 @@ export function mountPlayer(stages: Stages): void {
 
   const draw = (frame: number, mode: AnimationMode = 'settle'): FrameReport => {
     const t = timeline!;
-    const video = { w: t.width, h: t.height };
+    const video = { w: t.layout.width, h: t.layout.height };
     const sceneIndex = findScene(t, frame);
     const scene = t.scenes[sceneIndex];
     const view = motion!.view(frame);
@@ -152,7 +154,7 @@ export function mountPlayer(stages: Stages): void {
     const h = t.settings.highlight;
     flushSync(() =>
       root.render(
-        <Frame width={t.width} height={t.height} view={view} stage={scene && <StageView key={scene.stage} stages={stages} name={scene.stage} values={values!.at(scene.stage, frame)} onError={record} />}>
+        <Frame width={t.layout.width} height={t.layout.height} view={view} stage={scene && <StageView key={scene.stage} stages={stages} name={scene.stage} values={values!.at(scene.stage, frame)} onError={record} />}>
           {onScreen && (
             <div
               style={{
@@ -164,14 +166,14 @@ export function mountPlayer(stages: Stages): void {
                 boxSizing: 'border-box',
                 border: `${h.stroke}px solid ${h.color}`,
                 borderRadius: h.radius,
-                boxShadow: `0 0 0 ${2 * Math.max(t.width, t.height)}px rgba(0, 0, 0, ${h.dim})`,
+                boxShadow: `0 0 0 ${2 * Math.max(t.layout.width, t.layout.height)}px rgba(0, 0, 0, ${h.dim})`,
                 opacity: light.opacity,
                 pointerEvents: 'none',
               }}
             />
           )}
           {t.settings.captions.mode === 'burned' && <CaptionView timeline={t} frame={frame} />}
-          {frame < t.titleFrames && <TitleCard title={t.title} subtitle={t.subtitle} background={t.settings.title.background} color={t.settings.title.color} />}
+          {frame < t.titleFrames && <TitleCard title={t.title} subtitle={t.subtitle} background={t.settings.title.background} color={t.settings.title.color} scale={t.layout.height / 1080} />}
         </Frame>,
       ),
     );
@@ -215,15 +217,15 @@ export function mountPlayer(stages: Stages): void {
       for (const [name, { targets, layouts }] of needed) {
         const registered = name in stages;
         const selectors = stages[name]?.targets ?? {};
-        const stage: StageReport = { registered, values: JSON.parse(JSON.stringify(definitions[name] ?? {})), states: {}, available: [], invalid: {} };
+        const stage: StageReport = { registered, values: JSON.parse(JSON.stringify(definitions[name] ?? {})), states: {}, available: [], availableIn: {}, invalid: {} };
         const available = new Set<string>(Object.keys(selectors));
         for (const [state, frame] of layouts) {
           flushSync(() =>
             root.render(
               <Frame
-                width={next.width}
-                height={next.height}
-                view={{ cx: next.width / 2, cy: next.height / 2, s: 1 }}
+                width={next.layout.width}
+                height={next.layout.height}
+                view={{ cx: next.layout.width / 2, cy: next.layout.height / 2, s: 1 }}
                 stage={registered && <StageView key={name} stages={stages} name={name} values={stageValues.forLayout(name, frame)} onError={record} />}
               />,
             ),
@@ -238,7 +240,11 @@ export function mountPlayer(stages: Stages): void {
               stage.invalid[target] = `"${selector}" is not a valid CSS selector.`;
             }
           }
-          for (const el of world.querySelectorAll(`[${FOCUS}]`)) available.add(el.getAttribute(FOCUS)!);
+          const here = [...world.querySelectorAll(`[${FOCUS}]`)].map((el) => el.getAttribute(FOCUS)!);
+          for (const target of here) available.add(target);
+          // Selector targets count only where they match something in this state.
+          const matched = Object.keys(selectors).filter((t) => measure(world, t, selectors));
+          stage.availableIn[state] = [...new Set([...here, ...matched])].sort();
           const boxes: Record<string, Rect | null> = {};
           for (const target of targets) boxes[target] = registered ? measure(world, target, selectors) : null;
           stage.states[state] = { world: { w: world.scrollWidth, h: world.scrollHeight }, targets: boxes };
@@ -255,7 +261,7 @@ export function mountPlayer(stages: Stages): void {
       const world = worldEl();
       if (!world || current.stage !== stage) return null;
       const rect = measure(world, target, stages[stage]?.targets ?? {});
-      return rect && timeline ? toScreen(rect, current.view, { w: timeline.width, h: timeline.height }) : null;
+      return rect && timeline ? toScreen(rect, current.view, { w: timeline.layout.width, h: timeline.layout.height }) : null;
     },
     stageMarkup() {
       return worldEl()?.innerHTML ?? '';
@@ -265,7 +271,7 @@ export function mountPlayer(stages: Stages): void {
       if (!world || !timeline) return [];
       const selectors = stages[current.stage]?.targets ?? {};
       const names = new Set([...Object.keys(selectors), ...[...world.querySelectorAll(`[${FOCUS}]`)].map((el) => el.getAttribute(FOCUS)!)]);
-      const video = { w: timeline.width, h: timeline.height };
+      const video = { w: timeline.layout.width, h: timeline.layout.height };
       return [...names].flatMap((name) => {
         const rect = measure(world, name, selectors);
         return rect ? [{ name, rect: toScreen(rect, current.view, video) }] : [];
@@ -296,7 +302,8 @@ export function mountPlayer(stages: Stages): void {
           if (!node.textContent?.trim() || !node.parentElement) continue;
           const style = getComputedStyle(node.parentElement);
           if (style.visibility === 'hidden' || style.display === 'none') continue;
-          const size = parseFloat(style.fontSize) * current.view.s;
+          // In video pixels: the camera's scale, then the page's scale up to the video.
+          const size = parseFloat(style.fontSize) * current.view.s * (timeline?.layout.scale ?? 1);
           if (smallest === null || size < smallest) smallest = size;
         }
       }
@@ -346,8 +353,9 @@ function CaptionView({ timeline, frame }: { timeline: Timeline; frame: number })
   const caption = timeline.captions.find((c) => frame >= c.from && frame < c.to);
   if (!caption) return null;
   const { size, position } = timeline.settings.captions;
-  const scale = timeline.height / 1080;
-  const margin = Math.round(timeline.height * 0.06);
+  // Sizes are given for a 1080-high video; the page is laid out at layout.height.
+  const scale = timeline.layout.height / 1080;
+  const margin = Math.round(timeline.layout.height * 0.06);
   return (
     <div
       style={{
@@ -383,7 +391,7 @@ function CaptionView({ timeline, frame }: { timeline: Timeline; frame: number })
   );
 }
 
-function TitleCard({ title, subtitle, background, color }: { title: string; subtitle: string | undefined; background: string; color: string }) {
+function TitleCard({ title, subtitle, background, color, scale }: { title: string; subtitle: string | undefined; background: string; color: string; scale: number }) {
   return (
     <div
       style={{
@@ -393,7 +401,7 @@ function TitleCard({ title, subtitle, background, color }: { title: string; subt
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 24,
+        gap: 24 * scale,
         background,
         color,
         fontFamily: 'ui-sans-serif, system-ui, sans-serif',
@@ -401,8 +409,8 @@ function TitleCard({ title, subtitle, background, color }: { title: string; subt
         padding: '0 10%',
       }}
     >
-      <div style={{ fontSize: 72, fontWeight: 600, lineHeight: 1.1 }}>{title}</div>
-      {subtitle && <div style={{ fontSize: 36, opacity: 0.75 }}>{subtitle}</div>}
+      <div style={{ fontSize: 72 * scale, fontWeight: 600, lineHeight: 1.1 }}>{title}</div>
+      {subtitle && <div style={{ fontSize: 36 * scale, opacity: 0.75 }}>{subtitle}</div>}
     </div>
   );
 }

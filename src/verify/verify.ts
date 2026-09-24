@@ -18,6 +18,8 @@ import { namedLabels, normalise } from './words.ts';
 export const MIN_TEXT_PX = 12;
 /** A frame where this share of pixels is one colour shows nothing. */
 export const BLANK_SHARE = 0.995;
+/** A highlight that is mostly off screen points at nothing the viewer can see. */
+export const MIN_HIGHLIGHT_IN_VIEW = 0.5;
 /** A caption may clip the edge of a big target, but should not hide much of it. */
 export const MAX_CAPTION_COVER = 0.1;
 /** Sub-pixel rounding allowance when checking that a target is inside the frame. */
@@ -71,22 +73,28 @@ export async function verifyWalkthrough(name: string, timeline: Timeline, player
     if (scene.beats.length === 0) shots.push({ scene, cue: 'hold', frame: scene.from + Math.floor(scene.frames / 2) });
   }
 
-  const video = { w: timeline.width, h: timeline.height };
+  // Screen rects are in the page's CSS pixels; screenshots are in video pixels.
+  const video = { w: timeline.layout.width, h: timeline.layout.height };
   const stills: Still[] = [];
   const images: Buffer[] = [];
   // Where the caption sits in each still, so the blank check judges the stage, not the caption.
   const masks: (Rect | null)[] = [];
+  const pixelMasks: (Rect | null)[] = [];
   const beforeMarkup = new Map<TimedBeat, string>();
   for (const shot of shots) {
     const at = `scenes[${shot.scene.index}]`;
     const diagnostics: Diagnostic[] = [];
-    await player.page.evaluate((f) => window.__tour.setFrame(f), shot.frame);
+    const frameReport = await player.page.evaluate((f) => window.__tour.setFrame(f), shot.frame);
     const png = await player.page.screenshot({ type: 'png', animations: 'disabled', caret: 'hide' });
     const label = `${shot.scene.id}-${shot.cue}`;
     const file = join(stillsDir, `${label}.png`);
     writeFileSync(file, png);
     images.push(png);
     masks.push(await player.page.evaluate(() => window.__tour.captionRect()));
+    const k = timeline.layout.scale;
+    const caption = masks[masks.length - 1];
+    const pixelMask = caption ? { x: caption.x * k, y: caption.y * k, w: caption.w * k, h: caption.h * k } : null;
+    pixelMasks.push(pixelMask);
 
     if (shot.beat?.animate) {
       const markup = await player.page.evaluate(() => window.__tour.stageMarkup());
@@ -106,6 +114,21 @@ export async function verifyWalkthrough(name: string, timeline: Timeline, player
       continue;
     }
 
+    // A highlight left on while the camera moved elsewhere: it outlines something mostly out of view.
+    const lit = frameReport.highlight;
+    if (lit && !shot.before) {
+      const shown = visibleShare(lit, video);
+      if (shown < MIN_HIGHLIGHT_IN_VIEW) {
+        const on = highlightAt(timeline, shot.frame);
+        diagnostics.push({
+          level: 'warning',
+          path: on ? `scenes[${on.scene}].beats[${on.beat}].highlight` : at,
+          message: `In still ${label}, the highlight${on ? ` on "${on.target}"` : ''} is still on but only ${Math.round(shown * 100)}% of it is in view: the camera has moved on without it.`,
+          fix: 'clear the highlight ({ "highlight": false }) or move it, in the beat that moves the camera away.',
+        });
+      }
+    }
+
     const targets = new Map<string, string>();
     if (shot.beat?.camera && shot.beat.camera.to !== 'all') targets.set(shot.beat.camera.to, `${at}.beats[${shot.beat.index}].camera.to`);
     if (shot.beat?.highlight?.to && shot.beat.highlight.to !== 'all') targets.set(shot.beat.highlight.to, `${at}.beats[${shot.beat.index}].highlight`);
@@ -123,14 +146,13 @@ export async function verifyWalkthrough(name: string, timeline: Timeline, player
             : `move the camera to "${target}" (or something that contains it) before highlighting it.`,
         });
       }
-      const caption = masks[masks.length - 1];
       const covered = caption && overlap(rect, caption);
       if (covered && covered > MAX_CAPTION_COVER) {
         diagnostics.push({
           level: 'warning',
           path,
           message: `In still ${label}, the caption covers ${Math.round(covered * 100)}% of target "${target}".`,
-          fix: `frame "${target}" higher (for example "align": "top" or a smaller zoom), or move captions with "settings": { "captions": { "position": "top" } }.`,
+          fix: captionFixes(rect, caption!, video, timeline.settings.captions, target),
         });
       }
       const text = await player.page.evaluate(([s, t]) => window.__tour.minTextSize(s, t), [shot.scene.stage, target] as const);
@@ -139,7 +161,10 @@ export async function verifyWalkthrough(name: string, timeline: Timeline, player
           level: 'warning',
           path,
           message: `In still ${label}, the smallest text in "${target}" renders at ${text.toFixed(1)} px, below ${MIN_TEXT_PX} px, which is hard to read in a video.`,
-          fix: `zoom in on "${target}", or on a smaller part of it.`,
+          fix:
+            timeline.layout.scale === 1 && timeline.layout.width >= 1600
+              ? `the page is laid out ${timeline.layout.width} pixels wide, wider than most apps are used at, so their small text renders smaller than in use. Set "settings": { "video": { "layoutWidth": 1280 } }, or zoom in on "${target}".`
+              : `zoom in on "${target}", or on a smaller part of it.`,
         });
       }
     }
@@ -177,7 +202,7 @@ export async function verifyWalkthrough(name: string, timeline: Timeline, player
 
   // Pixel checks run on a separate page, so they cannot disturb the player.
   const browser = player.page.context().browser()!;
-  const stats = await imageStats(browser, images, masks);
+  const stats = await imageStats(browser, images, pixelMasks);
   stats.forEach((s, i) => {
     const still = stills[i]!;
     if (s.dominantShare >= BLANK_SHARE && !failed(shots[i]!.scene.stage)) {
@@ -221,6 +246,44 @@ export async function verifyWalkthrough(name: string, timeline: Timeline, player
   };
   writeFileSync(files.report, JSON.stringify(report, null, 2) + '\n');
   return report;
+}
+
+/**
+ * Only the fixes that can work for this target: framing it higher needs room above the caption,
+ * moving captions to the top needs the target clear of the top, and smaller captions always help.
+ */
+function captionFixes(target: Rect, caption: Rect, frame: { w: number; h: number }, captions: Timeline['settings']['captions'], name: string): string {
+  const fixes: string[] = [];
+  const room = captions.position === 'bottom' ? caption.y : frame.h - (caption.y + caption.h);
+  if (target.h < room) fixes.push(`frame "${name}" so it sits clear of the caption, for example with "align": "top"`);
+  else fixes.push(`zoom out a little, since "${name}" is taller than the space the caption leaves`);
+  const otherEdge = captions.position === 'bottom' ? target.y > frame.h * 0.25 : target.y + target.h < frame.h * 0.75;
+  if (otherEdge) fixes.push(`move captions to the ${captions.position === 'bottom' ? 'top' : 'bottom'} with "settings": { "captions": { "position": "${captions.position === 'bottom' ? 'top' : 'bottom'}" } }, but check other stills do not then clash`);
+  fixes.push(`make captions smaller with "settings": { "captions": { "size": ${Math.max(24, captions.size - 8)} } }`);
+  return `${fixes.join('; or ')}.`;
+}
+
+/** How much of a rect, from 0 to 1, is inside the frame. */
+function visibleShare(rect: Rect, frame: { w: number; h: number }): number {
+  return overlap(rect, { x: 0, y: 0, w: frame.w, h: frame.h });
+}
+
+/** The highlight in force at a frame: the last highlight beat before it, within the same stage. */
+function highlightAt(timeline: Timeline, frame: number): { target: string; scene: number; beat: number } | undefined {
+  let found: { target: string; scene: number; beat: number } | undefined;
+  let stage: string | undefined;
+  for (const scene of timeline.scenes) {
+    if (scene.from > frame) break;
+    if (scene.stage !== stage) {
+      found = undefined; // A cut to another stage clears the highlight.
+      stage = scene.stage;
+    }
+    for (const beat of [...scene.beats].sort((a, b) => (a.highlight?.from ?? 0) - (b.highlight?.from ?? 0))) {
+      if (!beat.highlight || beat.highlight.from > frame) continue;
+      found = beat.highlight.to ? { target: beat.highlight.to, scene: scene.index, beat: beat.index } : undefined;
+    }
+  }
+  return found;
 }
 
 /** The share of `target`'s area, from 0 to 1, that `cover` hides. */

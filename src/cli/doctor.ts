@@ -4,7 +4,7 @@
 import { existsSync } from 'node:fs';
 import { modelCacheDir } from '../cache.ts';
 import type { ResolvedConfig } from '../config/config.ts';
-import { findFfmpeg, FFMPEG_MISSING } from '../render/ffmpeg.ts';
+import { findFfmpeg, ffmpegMissing } from '../render/ffmpeg.ts';
 import { DEFAULT_SETTINGS } from '../schema/settings.ts';
 import { KOKORO_DOWNLOAD_MB, kokoroModelCached, kokoroModelDir } from '../voice/kokoro.ts';
 
@@ -37,7 +37,7 @@ export async function runDoctor(config: ResolvedConfig | undefined, configError:
   }
 
   const ffmpeg = findFfmpeg(config?.root ?? process.cwd());
-  add(Boolean(ffmpeg), 'ffmpeg', ffmpeg ? `${ffmpeg.version} from ${ffmpeg.source === 'PATH' ? 'the PATH' : `ffmpeg-static (${ffmpeg.path})`}` : FFMPEG_MISSING);
+  add(Boolean(ffmpeg), 'ffmpeg', ffmpeg ? `${ffmpeg.version} from ${ffmpeg.source === 'PATH' ? 'the PATH' : `ffmpeg-static (${ffmpeg.path})`}` : ffmpegMissing(config?.root ?? process.cwd()));
 
   const browser = await findBrowser();
   add(browser.ok, 'browser', browser.detail);

@@ -155,7 +155,7 @@ const NONE: HighlightState = { rect: { x: 0, y: 0, w: 0, h: 0 }, opacity: 0 };
  */
 export function buildMotion(timeline: Timeline, measured: Measurements | MeasureLookup): Motion {
   const lookup: MeasureLookup = typeof measured === 'function' ? measured : (stage) => measured[stage];
-  const video = { w: timeline.width, h: timeline.height };
+  const video = { w: timeline.layout.width, h: timeline.layout.height };
   const { camera } = timeline.settings;
   const first = timeline.scenes[0];
   const firstWorld = (first && lookup(first.stage, first.from)?.world) || video;

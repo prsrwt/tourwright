@@ -1,6 +1,6 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inspectStage } from '../src/analyze/inspect.ts';
@@ -61,4 +61,30 @@ test('scaffold drafts a stage from a page: its sections in order, wrappers kept,
   // The shell wraps the sections; each section is a target.
   assert.match(draft, /<AppShell \{\.\.\.appShellProps\}>\n\s+<div data-focus="stat-cards">\n\s+<StatCards \{\.\.\.statCardsProps\} \/>/);
   assert.match(draft, /StatCards\.stats: a list with number fields "value"/);
+});
+
+test('scaffold keeps the page\'s main branch, comments out alternative states, and keeps toggled sections', () => {
+  const page = join(scratch, 'Page.tsx');
+  mkdirSync(scratch, { recursive: true });
+  writeFileSync(
+    page,
+    `import { StatCards } from '@/components/StatCards';
+import { TaskTable } from '@/components/TaskTable';
+import { AppShell } from '@/components/AppShell';
+export default function Page({ loading, details }: { loading: boolean; details: boolean }) {
+  return loading ? (
+    <AppShell team="" active="/">loading</AppShell>
+  ) : (
+    <div>
+      <StatCards stats={[]} />
+      {details && <TaskTable tasks={[]} />}
+    </div>
+  );
+}
+`,
+  );
+  const draft = readFileSync(scaffoldStage(app, page, 'branches', join(scratch, 'b', 'stages.tsx')).file, 'utf8');
+  assert.match(draft, /\{\/\* Left out: the page shows this instead of its main content, when loading\.\n.*\n\s+<div data-focus="app-shell">\n\s+<AppShell \{\.\.\.appShellProps\} \/>\n\s+<\/div>\n\s+\*\/\}/);
+  assert.match(draft, /\n {6}<div data-focus="stat-cards">/, 'the main content is kept, with no condition noted');
+  assert.match(draft, /The page shows this only when: details \*\/\}\n\s+<div data-focus="task-table">/);
 });

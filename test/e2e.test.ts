@@ -250,6 +250,28 @@ export default defineStages({
   assert.ok(sliding.size > 5, `the switch should move over several frames, but only ${sliding.size} distinct frames were seen`);
 });
 
+test('inspect lists targets behind a toggle with the state they need', async () => {
+  const config = setup(
+    {},
+    `
+import { defineStage, defineStages } from 'tourwright/stage';
+export default defineStages({
+  toggles: defineStage({
+    values: { details: { steps: [false, true] } },
+    render: ({ details }) => (
+      <main style={{ padding: 24 }}>
+        <div data-focus="summary">Summary</div>
+        {details && <div data-focus="method-card">Method</div>}
+      </main>
+    ),
+  }),
+});
+`,
+  );
+  const { stageTargets } = await import('../src/cli/inspect.ts');
+  assert.deepEqual(await stageTargets(config, 'toggles'), { always: ['summary'], sometimes: [{ target: 'method-card', when: ['details = true'] }] });
+});
+
 function streamsOf(ffmpeg: string, file: string): string {
   return spawnSync(ffmpeg, ['-hide_banner', '-i', file], { encoding: 'utf8' }).stderr;
 }

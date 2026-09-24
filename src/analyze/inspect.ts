@@ -151,9 +151,20 @@ function shorten(text: string): string {
   return flat.length > 70 ? `${flat.slice(0, 67)}...` : flat;
 }
 
-export function formatInspection(inspection: StageInspection, targets: readonly string[] | undefined): string {
+/** The targets a stage offers: those always on the page, and those only in some states of its values. */
+export interface StageTargets {
+  always: string[];
+  sometimes: { target: string; when: string[] }[];
+}
+
+export function formatInspection(inspection: StageInspection, targets: StageTargets | undefined): string {
   const lines = [`Stage "${inspection.stage}" (${inspection.file})`, ''];
-  if (targets) lines.push(`Targets: ${targets.length ? targets.join(', ') : 'none yet. Wrap sections in <div data-focus="name">.'}`, '');
+  if (targets) {
+    const none = !targets.always.length && !targets.sometimes.length;
+    lines.push(`Targets: ${none ? 'none yet. Wrap sections in <div data-focus="name">.' : targets.always.join(', ')}`);
+    for (const { target, when } of targets.sometimes) lines.push(`  ${target}  (only when ${when.join(', or ')})`);
+    lines.push('');
+  }
   lines.push(inspection.values.length ? 'Values:' : 'Values: none declared.');
   for (const v of inspection.values) lines.push(`  ${v.replace(/\s+/g, ' ')}`);
   lines.push('', 'Components, in the order the stage renders them:');

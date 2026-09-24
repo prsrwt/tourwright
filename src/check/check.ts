@@ -2,6 +2,7 @@
 // app's stages (stage and target names) run later, against the bundle.
 
 import { Script, sceneId, type Scene } from '../schema/script.ts';
+import { resolveSettings } from '../schema/settings.ts';
 import { isValidCueName, parseNarration, RESERVED_CUES } from '../narration/parse.ts';
 import { closest, formatPath, type Diagnostic } from './diagnostic.ts';
 import { issuesToDiagnostics } from './zodIssues.ts';
@@ -22,8 +23,23 @@ export function checkScript(raw: unknown): CheckResult {
     return { diagnostics };
   }
   const script = parsed.data;
-  diagnostics.push(...checkSceneIds(script), ...script.scenes.flatMap((scene, i) => checkScene(scene, i)));
+  diagnostics.push(...checkSceneIds(script), ...checkLayout(script), ...script.scenes.flatMap((scene, i) => checkScene(scene, i)));
   return { script, diagnostics };
+}
+
+/** The page is laid out at layoutWidth by the video's shape; the height must be a whole number of pixels. */
+function checkLayout(script: Script): Diagnostic[] {
+  const { width, height, layoutWidth } = resolveSettings(script.settings).video;
+  if (layoutWidth === undefined || Number.isInteger((height * layoutWidth) / width)) return [];
+  const fits = [960, 1024, 1152, 1280, 1366, 1440, 1536, 1600, 1920].filter((w) => Number.isInteger((height * w) / width));
+  return [
+    {
+      level: 'error',
+      path: 'settings.video.layoutWidth',
+      message: `A layout ${layoutWidth} wide in a ${width} by ${height} video would be ${((height * layoutWidth) / width).toFixed(2)} pixels high. It must be a whole number.`,
+      fix: `use one of ${fits.map(String).join(', ')}.`,
+    },
+  ];
 }
 
 function checkSceneIds(script: Script): Diagnostic[] {

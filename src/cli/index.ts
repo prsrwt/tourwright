@@ -7,6 +7,7 @@ import { PrepareError } from '../pipeline/prepare.ts';
 import { BrowserMissingError } from '../render/page.ts';
 import { RenderError } from '../render/render.ts';
 import { AnalyzeError } from '../analyze/program.ts';
+import { NotesError } from '../studio/server.ts';
 import { runCheck } from './check.ts';
 
 const USAGE = `Usage: tourwright <command> [options]
@@ -135,7 +136,7 @@ async function main(argv: string[]): Promise<number> {
 }
 
 /** Errors whose message already says what is wrong and how to fix it, so no stack trace. */
-const EXPECTED = [ConfigError, PrepareError, StagesMissingError, BrowserMissingError, RenderError, AnalyzeError];
+const EXPECTED = [ConfigError, PrepareError, StagesMissingError, BrowserMissingError, RenderError, AnalyzeError, NotesError];
 
 main(process.argv.slice(2)).then(
   (code) => {

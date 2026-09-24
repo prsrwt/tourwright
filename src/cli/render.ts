@@ -4,7 +4,7 @@ import { formatDiagnostics } from '../check/diagnostic.ts';
 import type { ResolvedConfig } from '../config/config.ts';
 import { prepare, type Prepared } from '../pipeline/prepare.ts';
 import { openSession } from '../pipeline/session.ts';
-import { findFfmpeg, FFMPEG_MISSING } from '../render/ffmpeg.ts';
+import { findFfmpeg, ffmpegMissing } from '../render/ffmpeg.ts';
 import { renderVideo, type RenderResult } from '../render/render.ts';
 
 export function videoPath(config: ResolvedConfig, name: string): string {
@@ -15,7 +15,7 @@ export function videoPath(config: ResolvedConfig, name: string): string {
 export async function renderWalkthrough(config: ResolvedConfig, prepared: Prepared, log: (line: string) => void): Promise<RenderResult | undefined> {
   const ffmpeg = findFfmpeg(config.root);
   if (!ffmpeg) {
-    console.error(FFMPEG_MISSING);
+    console.error(ffmpegMissing(config.root));
     return undefined;
   }
   const session = await openSession(config, prepared, log);

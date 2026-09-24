@@ -18,7 +18,7 @@ export function listWalkthroughs(config: ResolvedConfig): string[] {
 
 /** Reads a script.json as plain JSON. A syntax error comes back as a diagnostic with its line and column. */
 export function readScriptJson(file: string): { raw?: unknown; diagnostics: Diagnostic[] } {
-  const text = readFileSync(file, 'utf8').replace(/^﻿/, '');
+  const text = readFileSync(file, 'utf8').replace(/^\uFEFF/, '');
   try {
     return { raw: JSON.parse(text), diagnostics: [] };
   } catch (error) {

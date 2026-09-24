@@ -82,3 +82,19 @@ test('zooming in before the viewer has seen the whole screen is flagged', () => 
     ['scenes[0].beats[0].camera.to'],
   );
 });
+
+test('a highlight carried into the next scene on the same stage is counted there too', () => {
+  const found = pacing([
+    { stage: 'a', say: '[warn]These need attention. Check them.', beats: [{ at: 'start', camera: { to: 'all' } }, { at: 'warn', highlight: 'attention' }] },
+    { stage: 'a', say: '[more]There is more behind that figure. It comes from the method. Each has a pot.', beats: [{ at: 'more', animate: 'details' }] },
+  ]);
+  const lingering = found.find((d) => /stays on/.test(d.message));
+  assert.equal(lingering?.path, 'scenes[0].beats[1].highlight');
+  assert.match(lingering!.message, /through 4 more sentences, into the next scene, up to "Each has a pot\."/);
+  // A cut to another stage clears it, so nothing lingers there.
+  const cut = pacing([
+    { stage: 'a', say: '[warn]These need attention.', beats: [{ at: 'start', camera: { to: 'all' } }, { at: 'warn', highlight: 'attention' }] },
+    { stage: 'b', say: 'One. Two. Three. Four.' },
+  ]);
+  assert.equal(cut.filter((d) => /stays on/.test(d.message)).length, 0);
+});

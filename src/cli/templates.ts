@@ -48,6 +48,8 @@ export function introScript(schema: string): string {
         $schema: schema,
         title: 'Welcome to Tourwright',
         subtitle: 'A first walkthrough',
+        // Laid out like a typical laptop screen, then scaled to the video: the app looks as in use.
+        settings: { video: { layoutWidth: 1280 } },
         scenes: [
           {
             id: 'welcome',
@@ -73,6 +75,7 @@ export function newScript(schema: string, title: string, stage: string): string 
       {
         $schema: schema,
         title,
+        settings: { video: { layoutWidth: 1280 } },
         scenes: [
           {
             id: 'overview',
