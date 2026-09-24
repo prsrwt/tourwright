@@ -14,7 +14,7 @@ const GROUPS: { status: NoteStatus; title: string }[] = [
 ];
 
 /**
- * Prints the studio notes by status, questions first: where each is in the video, what was being
+ * Prints the notes left in Muse by status, questions first: where each is in the video, what was being
  * said and shown, the note and its thread. Then where the whole video's review stands.
  */
 export function runNotes(config: ResolvedConfig, name: string, options: { json: boolean }): number {

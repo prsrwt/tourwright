@@ -99,7 +99,7 @@ An agent cannot watch a video, so every quality worth having becomes a number or
   from the page) and one labelled contact sheet of all the stills, so a model can look at one image.
 - `describe` prints the same description of the screen for any moment. The player reads it from
   the DOM, not the image: each target's share of the frame and whether it is cut off, the
-  highlight and the text inside it, the caption and the stage's values. Studio notes save it too,
+  highlight and the text inside it, the caption and the stage's values. Notes left in Muse save it too,
   so a note says what was on screen when it was written.
 - `make` runs `verify` before `render`, and renders only if every still passes, so a broken script
   fails in seconds rather than after a full render.
@@ -111,14 +111,22 @@ Output goes to `tourwright/out/` rather than `out/`, because a Next.js static ex
 
 ### Review belongs to the user, and names a version
 
-Verify can say a video is correct; only the person who asked for it can say it is right. The
-studio keeps that conversation beside the script, as files an agent can read and write:
+Verify can say a video is correct; only the person who asked for it can say it is right. Muse,
+the review page (once called the studio), keeps that conversation beside the script, as files an
+agent can read and write:
 
 - `notes.json`: each note is a short thread with a status that says whose turn it is. `open`
   waits on the agent, `question` on the user's answer, `fixed` on the user's approval, and
-  `closed` is approved. Only the studio closes a note, so an agent cannot mark its own work as
+  `closed` is approved. Only Muse closes a note, so an agent cannot mark its own work as
   accepted. A note can cover its moment, its scene or the whole video, and can name a target the
   user clicked in the preview.
+- Muse opens by itself. Most people who get a video never open a terminal: they ask an agent,
+  so they would never learn the page exists. After a successful render, `make` starts Muse as a
+  detached background process and opens the browser to it, then returns as usual. The process
+  records itself in `out/<name>/muse.json`, so the next make reopens it rather than starting a
+  second one, and it closes itself once no tab has had its event stream open for 10 minutes. It
+  never opens a browser where nobody would see it: in CI it starts nothing and prints the
+  command, and on a Linux machine with no display it prints the link.
 - `review.json`: the user's verdict on the whole video, with a hash of the `script.json` it was
   given for. The approval counts only while the hash matches, so any later edit, however small,
   asks for another look. `notes` and `make` print where it stands.

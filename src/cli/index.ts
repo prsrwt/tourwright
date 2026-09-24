@@ -21,12 +21,14 @@ Commands:
   verify <name>   Render a still per beat and check them against the page
   describe <name> Say what is on screen at every beat, or at one moment (--at <seconds>)
   render <name>   Render the MP4
-  make <name>     Check and verify, then render if every still passes
+  make <name>     Check and verify, then render if every still passes, and open Muse to review it
+                  (--no-review, or "review": false in the config, to leave Muse closed)
   doctor          Check ffmpeg, the browser and the voice
   inspect <stage> List a stage's targets, its components' props, and what could move
   scaffold <page> Draft a stage from a page component's sections (--stage <name>)
-  studio <name>   Watch, edit and leave notes on a walkthrough in the browser (--no-open)
-  notes <name>    List the studio notes by status, questions first, and the review
+  muse <name>     Open Muse: watch, edit, leave notes on and approve a walkthrough in the browser
+                  (--no-open; "studio" still works)
+  notes <name>    List the notes left in Muse by status, questions first, and the review
 
 Options:
   --json          Machine-readable output (check, verify, describe, inspect, notes)
@@ -50,6 +52,10 @@ async function main(argv: string[]): Promise<number> {
       stage: { type: 'string' },
       at: { type: 'string' },
       open: { type: 'boolean', default: true },
+      review: { type: 'boolean', default: true },
+      // Set by make when it starts Muse in the background; not for typing.
+      background: { type: 'boolean', default: false },
+      idle: { type: 'string' },
       help: { type: 'boolean', short: 'h', default: false },
     },
   });
@@ -104,11 +110,12 @@ async function main(argv: string[]): Promise<number> {
       const { runInspect } = await import('./inspect.ts');
       return runInspect(await config(), n, { json: values.json });
     }
+    case 'muse':
     case 'studio': {
       const n = needName();
       if (!n) return 1;
       const { runStudio } = await import('./studio.ts');
-      return runStudio(await config(), n, { open: values.open });
+      return runStudio(await config(), n, { open: values.open, background: values.background, ...(values.idle !== undefined && { idleSeconds: Number(values.idle) }) });
     }
     case 'notes': {
       const n = needName();
@@ -138,7 +145,7 @@ async function main(argv: string[]): Promise<number> {
       const n = needName();
       if (!n) return 1;
       const { runMake } = await import('./make.ts');
-      return runMake(await config(), n);
+      return runMake(await config(), n, { review: values.review });
     }
     default:
       console.error(`Unknown command "${command}".\n\n${USAGE}`);

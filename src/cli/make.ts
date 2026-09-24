@@ -8,11 +8,12 @@ import { openSession } from '../pipeline/session.ts';
 import { findFfmpeg, ffmpegMissing } from '../render/ffmpeg.ts';
 import { renderVideo } from '../render/render.ts';
 import { formatReview, reviewState } from '../studio/review.ts';
+import { launchMuse } from './launch.ts';
 import { verifyWalkthrough } from '../verify/verify.ts';
 import { videoPath } from './render.ts';
 import { printVerifyReport } from './verify.ts';
 
-export async function runMake(config: ResolvedConfig, name: string): Promise<number> {
+export async function runMake(config: ResolvedConfig, name: string, options: { review?: boolean } = {}): Promise<number> {
   const log = (line: string) => console.log(line);
   const ffmpeg = findFfmpeg(config.root);
   if (!ffmpeg) {
@@ -35,6 +36,9 @@ export async function runMake(config: ResolvedConfig, name: string): Promise<num
     console.log(`Wrote ${relative(process.cwd(), result.file) || result.file} (${result.seconds.toFixed(1)} s).`);
     // Rendered is not finished: the video is done only once the user approves this version.
     console.log(formatReview(name, reviewState(config, name)));
+    // Most people who get a video never open a terminal, so bring the review page to them. This
+    // starts Muse in the background and returns: make finishes as usual, even under an agent.
+    console.log(`\n${(await launchMuse(config, name, { review: options.review ?? true })).message}`);
     return 0;
   } finally {
     await session.close();

@@ -28,10 +28,10 @@ export function readReview(config: ResolvedConfig, name: string): Review | undef
   try {
     parsed = JSON.parse(readFileSync(file, 'utf8').replace(/^\uFEFF/, '')) as Partial<Review>;
   } catch (error) {
-    throw new ReviewError(`${file} is not valid JSON: ${(error as Error).message}\nFix: review the video again in the studio, which rewrites it, or delete the file.`);
+    throw new ReviewError(`${file} is not valid JSON: ${(error as Error).message}\nFix: review the video again in Muse, which rewrites it, or delete the file.`);
   }
   if ((parsed.status !== 'approved' && parsed.status !== 'changes-requested') || typeof parsed.scriptHash !== 'string') {
-    throw new ReviewError(`${file} needs a "status" of "approved" or "changes-requested", and a "scriptHash".\nFix: review the video again in the studio, which rewrites it, or delete the file.`);
+    throw new ReviewError(`${file} needs a "status" of "approved" or "changes-requested", and a "scriptHash".\nFix: review the video again in Muse, which rewrites it, or delete the file.`);
   }
   return parsed as Review;
 }
@@ -56,13 +56,13 @@ export function reviewState(config: ResolvedConfig, name: string): ReviewState {
 
 /** One line on where the review stands, with what to do next. */
 export function formatReview(name: string, { review, current }: ReviewState): string {
-  const studio = `npx tourwright studio ${name}`;
-  if (!review) return `Review: not reviewed yet. The user approves the video in the studio (${studio}).`;
+  const muse = `npx tourwright muse ${name}`;
+  if (!review) return `Review: not reviewed yet. The user approves the video in Muse (${muse}).`;
   const when = review.at ? ` on ${review.at.slice(0, 16).replace('T', ' ')} UTC` : '';
   if (review.status === 'approved') {
     return current
       ? `Review: approved${when}, for script.json as it is now.`
-      : `Review: edited since approval. It was approved${when}, but script.json has changed since, so the approval no longer counts. The user needs to look again in the studio (${studio}).`;
+      : `Review: edited since approval. It was approved${when}, but script.json has changed since, so the approval no longer counts. The user needs to look again in Muse (${muse}).`;
   }
   const comment = review.comment ? `: "${review.comment}"` : '.';
   return current ? `Review: changes requested${when}${comment}` : `Review: changes were requested${when} on an earlier version${comment} The user has not reviewed the edits since.`;
