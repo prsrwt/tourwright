@@ -77,7 +77,8 @@ npm install --no-save tourwright ffmpeg-static
 | `init` | Set up Tourwright in this app. Never overwrites a file. |
 | `new <name>` | Create a walkthrough from a template |
 | `check <name>` | Validate a script: schema, cues, beats, writing rules. No browser. |
-| `verify <name>` | Render a still at every beat and check each against the live page. Writes a report, a timing table and a contact sheet. |
+| `verify <name>` | Render a still at every beat and check each against the live page. Writes a report, a timing table, a description of each still and a contact sheet. |
+| `describe <name>` | Say in words what is on screen at every beat, or at one moment with `--at <seconds>`: what the camera shows, the highlight and its text, the caption and the stage's values |
 | `render <name>` | Render the MP4 |
 | `make <name>` | Check and verify, then render only if every still passes |
 | `doctor` | Report ffmpeg, the browser and the voice. `--voice` downloads the model and speaks a test sentence. |

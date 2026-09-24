@@ -66,6 +66,11 @@ test('the studio plays back, edits script.json, and pins notes to the millisecon
     assert.equal(note?.ms, Math.round((frame / 30) * 1000));
     assert.equal(note?.scene, 'stats');
     assert.equal(note?.sentence, 'These cards count your open, completed and overdue tasks.');
+    // And what was on screen there, read from the player, so the agent need not guess.
+    assert.equal(note?.screen?.frame, frame);
+    assert.equal(note?.screen?.scene, 'stats');
+    assert.equal(note?.screen?.highlight?.target, 'stats');
+    assert.ok(note?.screen?.targets.some((t) => t.name === 'stats' && t.cut.length === 0));
 
     // The agent resolves it in the file; the studio shows what it did.
     writeFileSync(notesFile, JSON.stringify({ notes: [{ ...note!, status: 'done', resolution: 'Zoomed to 2x on the stats.' }] }, null, 2));

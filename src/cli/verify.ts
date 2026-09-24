@@ -21,6 +21,7 @@ export function printVerifyReport(report: VerifyReport): void {
   console.log(`${report.name}: ${report.seconds.toFixed(1)} s, ${report.stills.length} stills, ${report.errors} ${report.errors === 1 ? 'error' : 'errors'}, ${report.warnings} ${report.warnings === 1 ? 'warning' : 'warnings'}.`);
   console.log(`  Contact sheet  ${shown(report.files.contactSheet)}  (look at this: every still, labelled)`);
   console.log(`  Timing         ${shown(report.files.timing)}  (each cue and the words heard around it)`);
+  console.log(`  Screen         ${shown(report.files.screen)}  (what is on screen at each still, as text)`);
   console.log(`  Stills         ${shown(report.files.stills)}`);
   console.log(`  Report         ${shown(report.files.report)}`);
 }

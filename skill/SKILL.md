@@ -7,7 +7,7 @@ description: Script, check, verify and render a narrated walkthrough video of th
 
 Tourwright turns one file, `script.json`, into a narrated MP4 of the app's real components. You write the narration and mark where things should happen; the tool speaks it, times every camera move and highlight against the spoken words, and renders the video. You never write seconds or frame numbers: each scene lasts as long as its narration plus a short tail.
 
-You cannot watch the video, so the tool turns everything worth checking into text and one image: a timing table and a contact sheet of stills. The loop is: write, `check`, `verify`, read the report, fix, repeat. Render only when verify is clean.
+You cannot watch the video, so the tool turns everything worth checking into text and one image: a timing table, a description of what is on screen at each still, and a contact sheet of stills. The loop is: write, `check`, `verify`, read the report, fix, repeat. Render only when verify is clean.
 
 Reference files, read when you reach the step that needs them:
 
@@ -23,7 +23,7 @@ Reference files, read when you reach the step that needs them:
 | `tourwright/stages.tsx` | Stages: the app's real components with fixture data, and their targets |
 | `tourwright/walkthroughs/<name>/script.json` | One walkthrough |
 | `tourwright/out/<name>.mp4` | The rendered video |
-| `tourwright/out/<name>/` | `report.json`, `timing.md`, `contact-sheet.png` and `stills/` from verify |
+| `tourwright/out/<name>/` | `report.json`, `timing.md`, `screen.md`, `contact-sheet.png` and `stills/` from verify |
 
 ## Commands
 
@@ -32,6 +32,7 @@ Reference files, read when you reach the step that needs them:
 | `npx tourwright new <name>` | Create `tourwright/walkthroughs/<name>/script.json` from a template |
 | `npx tourwright check <name>` | Validate the script: schema, cues, beats, writing rules. Fast; no browser |
 | `npx tourwright verify <name>` | Voice the narration, render a still at every beat, and check each against the live page |
+| `npx tourwright describe <name>` | Say in words what is on screen once each beat has settled, or at one moment with `--at <seconds>`: how much of the frame each target fills and whether it is cut off, the highlight and the text inside it, the caption and the stage's values |
 | `npx tourwright render <name>` | Render the MP4 |
 | `npx tourwright make <name>` | Check and verify, then render only if every still passes |
 | `npx tourwright doctor` | Report ffmpeg, the browser and the voice, with the fix for anything missing |
@@ -40,7 +41,7 @@ Reference files, read when you reach the step that needs them:
 | `npx tourwright notes <name>` | List the open notes left in the studio, each with its time, scene and the sentence being spoken |
 | `npx tourwright scaffold <page-file>` | Draft a stage from a page component: its sections in order, each a target, with typed placeholder fixtures, in `tourwright/scaffold/` |
 
-Add `--json` to `check` or `verify` for machine-readable output. Add `--fake-voice` to `verify`, `render` or `make` to iterate without the voice model: narration is silent, but its timing is realistic, so stills and timing reports are still meaningful. Use the real voice for the final render.
+Add `--json` to `check`, `verify`, `describe` or `notes` for machine-readable output. Add `--fake-voice` to `verify`, `describe`, `render` or `make` to iterate without the voice model: narration is silent, but its timing is realistic, so stills and timing reports are still meaningful. Use the real voice for the final render.
 
 ## The workflow
 
@@ -67,9 +68,13 @@ asks you to handle them ("check the studio notes", "fix my notes"):
 1. Run `npx tourwright notes <name>`. Each open note has its time to the millisecond, its frame,
    the scene (with its index in `script.json`) and the sentence being spoken, so you know exactly
    which beat or sentence it is about.
-2. Make the change in `script.json` (or the stage, if the note is about what is on screen), then
-   verify.
-3. In `notes.json`, set that note's `"status"` to `"done"` and add a one-line `"resolution"` saying
+2. **Understand the moment before you change anything.** Under each note is what was on screen
+   when it was written: what the camera showed, the highlight and the text inside it, the caption
+   and the stage's values. Read it to see what the user was looking at. For a note without one, run
+   `npx tourwright describe <name> --at <seconds>` with the note's time.
+3. Make the change in `script.json` (or the stage, if the note is about what is on screen), then
+   verify, and check in `screen.md` that the still nearest the note now shows what the note asked for.
+4. In `notes.json`, set that note's `"status"` to `"done"` and add a one-line `"resolution"` saying
    what you changed. The studio shows it to the user straight away. If you disagree with a note,
    leave it open and say why in the `"resolution"`.
 
@@ -128,7 +133,7 @@ Rules of thumb:
 Don't report a walkthrough as done until all of these hold.
 
 1. **Verify is clean.** `npx tourwright verify <name>` shows no errors, and any warning left has a reason you can state.
-2. **Look at the contact sheet.** Open `tourwright/out/<name>/contact-sheet.png`: every still, labelled `<scene>-<cue>` with its time. Each still is the frame where that beat's movement has settled. For each one, confirm that the target is the thing being talked about, the highlight outlines that element and not its neighbour or parent, the framing makes sense, and the caption (burned in by default) reads correctly and does not hide what the narration is about. Open a still in `stills/` at full size if the sheet is too small to judge.
+2. **Read `screen.md`, then look at the contact sheet.** `tourwright/out/<name>/screen.md` says, for every still, what the camera shows (each target's share of the frame, and anything cut off at an edge), what is highlighted and the text inside it, the caption and the stage's values. Read it first: it tells you what each still shows without guessing from pixels. Then open `tourwright/out/<name>/contact-sheet.png`: every still, labelled `<scene>-<cue>` with its time. Each still is the frame where that beat's movement has settled. For each one, confirm that the target is the thing being talked about, the highlight outlines that element and not its neighbour or parent, the framing makes sense, and the caption (burned in by default) reads correctly and does not hide what the narration is about. Open a still in `stills/` at full size if the sheet is too small to judge.
 3. **Timing lands on the words.** Open `tourwright/out/<name>/timing.md`. For each cue it shows the words heard around it, with `**[here]**` where the cue lands. Confirm each one is where you meant.
 4. **Duration is sensible.** The total is at the top of `timing.md`. A "60-second" video between 50 and 75 seconds is fine.
 5. **Coverage.** Go through the brief's must-show features one by one and name the still where each appears. A feature with no still is missing, however good the rest looks. Check the seconds too: each Explain item should have more time than any Mention item.

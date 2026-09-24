@@ -95,8 +95,12 @@ An agent cannot watch a video, so every quality worth having becomes a number or
   "did you mean" fixes), then renders the settle frame of every beat and asserts against the live
   DOM: the target is fully in frame, text is at least 12 px at the final scale, the frame is not
   blank, no stage threw and there were no console errors. It writes `report.json`, `timing.md`
-  (each cue, its time, and the words spoken around it) and one labelled contact sheet of all the
-  stills, so a model can look at one image.
+  (each cue, its time, and the words spoken around it), `screen.md` (what each still shows, read
+  from the page) and one labelled contact sheet of all the stills, so a model can look at one image.
+- `describe` prints the same description of the screen for any moment. The player reads it from
+  the DOM, not the image: each target's share of the frame and whether it is cut off, the
+  highlight and the text inside it, the caption and the stage's values. Studio notes save it too,
+  so a note says what was on screen when it was written.
 - `make` runs `verify` before `render`, and renders only if every still passes, so a broken script
   fails in seconds rather than after a full render.
 

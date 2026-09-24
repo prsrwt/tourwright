@@ -208,3 +208,21 @@ export function buildMotion(timeline: Timeline, measured: Measurements | Measure
 
   return { view: (f) => views.at(f), highlight: (f) => highlights.at(f) };
 }
+
+/** The highlight in force at a frame: the last highlight beat before it, within the same stage. */
+export function highlightAt(timeline: Timeline, frame: number): { target: string; scene: number; beat: number } | undefined {
+  let found: { target: string; scene: number; beat: number } | undefined;
+  let stage: string | undefined;
+  for (const scene of timeline.scenes) {
+    if (scene.from > frame) break;
+    if (scene.stage !== stage) {
+      found = undefined; // A cut to another stage clears the highlight.
+      stage = scene.stage;
+    }
+    for (const beat of [...scene.beats].sort((a, b) => (a.highlight?.from ?? 0) - (b.highlight?.from ?? 0))) {
+      if (!beat.highlight || beat.highlight.from > frame) continue;
+      found = beat.highlight.to ? { target: beat.highlight.to, scene: scene.index, beat: beat.index } : undefined;
+    }
+  }
+  return found;
+}

@@ -1,6 +1,7 @@
 // What the studio page and the studio server exchange. Types only, so both sides share them.
 
 import type { Diagnostic } from '../check/diagnostic.ts';
+import type { ScreenDescription } from '../runtime/screen.ts';
 import type { Timeline } from '../timing/timeline.ts';
 
 export const API = '/__tourwright/api';
@@ -21,6 +22,8 @@ export interface Note {
   /** The sentence being spoken at that moment, if any. */
   sentence?: string;
   text: string;
+  /** What was on screen when the note was written, read from the player's page. */
+  screen?: ScreenDescription;
   status: 'open' | 'done';
   /** What the agent did about it, when done. */
   resolution?: string;

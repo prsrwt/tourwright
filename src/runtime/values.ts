@@ -16,6 +16,8 @@ export interface StageValues {
   forLayout(stage: string, frame: number): Record<string, unknown>;
   /** Which step each steps value is on: equal keys mean the same layout. */
   state(stage: string, frame: number): string;
+  /** The numbers part way through counting to their end value at a frame. */
+  counting(stage: string, frame: number): string[];
 }
 
 interface NumberTrack {
@@ -108,5 +110,10 @@ export function buildValues(timeline: Timeline, definitions: Record<string, Valu
         .filter(([, def]) => isSteps(def))
         .map(([name, def]) => `${name}=${stepIndex(stage, name, def as StepsValue, frame)}`)
         .join('&'),
+    counting: (stage, frame) =>
+      Object.keys(definitions[stage] ?? {}).filter((name) => {
+        const track = numbers.get(key(stage, name));
+        return track !== undefined && frame >= track.from && frame < track.from + track.frames;
+      }),
   };
 }

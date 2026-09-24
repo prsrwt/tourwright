@@ -15,6 +15,9 @@ import { findFfmpeg } from '../src/render/ffmpeg.ts';
 import { renderVideo } from '../src/render/render.ts';
 import { verifyWalkthrough } from '../src/verify/verify.ts';
 import { verifyPrepared } from '../src/cli/verify.ts';
+import { describeFrames } from '../src/cli/describe.ts';
+import { formatScreen } from '../src/runtime/screen.ts';
+import { settleFrame } from '../src/timing/timeline.ts';
 
 const app = fileURLToPath(new URL('../examples/next-app/', import.meta.url));
 // Inside the app (so its aliases and CSS resolve) but in its git-ignored out folder.
@@ -50,6 +53,47 @@ test('the example walkthrough verifies clean against the real components', async
   assert.equal(report.stills.length, 7, 'six beats, plus the moment the stat cards start counting');
   assert.ok(existsSync(report.files.contactSheet));
   assert.match(readFileSync(report.files.timing, 'utf8'), /\| overdue \| 4\.\d\d s \|/);
+  // screen.md says, in words, what each still shows.
+  const screen = readFileSync(report.files.screen, 'utf8');
+  assert.equal(screen.match(/^## /gm)?.length, report.stills.length);
+  assert.match(screen, /## stats-overdue\n\n```text\n[\d.]+ s · frame \d+ · scene "stats" \(scenes\[1\]\)\n[^`]*Highlight: {2}stat-overdue\n {2}In view: {4}"Overdue 2 needs attention"/);
+  assert.match(screen, /## stats-cards-before\n[^#]*Values: {5}counts = 0\.000 \(counting\)\n/);
+});
+
+test('describe reads what is on screen at a beat from the page', async () => {
+  const base = setup({});
+  const config = { ...base, walkthroughs: join(app, 'tourwright', 'walkthroughs') };
+  const prepared = await prepare(config, 'intro');
+  const t = prepared.timeline;
+  const session = await openSession(config, prepared, quiet);
+  try {
+    const stats = t.scenes[1]!;
+    const counting = stats.beats[0]!.animate!;
+    const [overdue, midCount, title] = await describeFrames(session.player, [settleFrame(t, stats, stats.beats[1]!), counting.from + Math.floor(counting.frames / 2), 0]);
+
+    assert.equal(overdue!.scene, 'stats');
+    assert.equal(overdue!.sceneIndex, 1);
+    assert.equal(overdue!.sentence, 'Overdue tasks are the ones to look at first.');
+    assert.equal(overdue!.caption, 'Overdue tasks are the ones to look at first.');
+    assert.deepEqual(overdue!.highlight, { target: 'stat-overdue', text: 'Overdue 2 needs attention' });
+    // The camera is on the stat cards, so every target is in view, and none is cut off.
+    assert.deepEqual(overdue!.targets.map((x) => x.name).sort(), ['stat-overdue', 'stats', 'status-column', 'tasks']);
+    const cards = overdue!.targets.find((x) => x.name === 'stats')!;
+    assert.deepEqual(cards.cut, []);
+    assert.equal(cards.visible, 1);
+    assert.ok(cards.share > 0.05 && cards.share < 0.5, `the stat cards are a strip across the frame, not ${cards.share}`);
+    assert.deepEqual(overdue!.values, [{ name: 'counts', text: '1.000', counting: false }]);
+    assert.match(formatScreen(overdue!), /^[\d.]+ s · frame \d+ · scene "stats" \(scenes\[1\]\)\n {2}Saying: {5}"Overdue tasks/);
+
+    assert.equal(midCount!.values[0]!.counting, true);
+    assert.ok(Number(midCount!.values[0]!.text) > 0 && Number(midCount!.values[0]!.text) < 1);
+
+    assert.equal(title!.title, true);
+    assert.equal(title!.sceneIndex, -1);
+    assert.equal(title!.highlight, null);
+  } finally {
+    await session.close();
+  }
 });
 
 test('injected faults are each caught with a message that names the fix', async () => {

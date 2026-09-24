@@ -7,10 +7,12 @@ import { join } from 'node:path';
 import { closest, type Diagnostic } from '../check/diagnostic.ts';
 import type { PlayerPage } from '../render/page.ts';
 import { isStageThrow } from '../runtime/messages.ts';
-import type { Rect } from '../runtime/motion.ts';
+import { highlightAt, type Rect } from '../runtime/motion.ts';
+import type { ScreenDescription } from '../runtime/screen.ts';
 import { sceneSeconds, settleFrame, type TimedBeat, type TimedScene, type Timeline } from '../timing/timeline.ts';
 import { contactSheet, imageStats } from './images.ts';
 import { pacingDiagnostics } from './pacing.ts';
+import { screenMarkdown } from './screen.ts';
 import { timingMarkdown } from './timing.ts';
 import { namedLabels, normalise } from './words.ts';
 
@@ -46,7 +48,7 @@ export interface VerifyReport {
   warnings: number;
   diagnostics: Diagnostic[];
   stills: Still[];
-  files: { report: string; timing: string; contactSheet: string; stills: string };
+  files: { report: string; timing: string; screen: string; contactSheet: string; stills: string };
 }
 
 interface Shot {
@@ -81,12 +83,14 @@ export async function verifyWalkthrough(name: string, timeline: Timeline, player
   const masks: (Rect | null)[] = [];
   const pixelMasks: (Rect | null)[] = [];
   const beforeMarkup = new Map<TimedBeat, string>();
+  const screens: { label: string; screen: ScreenDescription }[] = [];
   for (const shot of shots) {
     const at = `scenes[${shot.scene.index}]`;
     const diagnostics: Diagnostic[] = [];
     const frameReport = await player.page.evaluate((f) => window.__tour.setFrame(f), shot.frame);
     const png = await player.page.screenshot({ type: 'png', animations: 'disabled', caret: 'hide' });
     const label = `${shot.scene.id}-${shot.cue}`;
+    screens.push({ label, screen: await player.page.evaluate(() => window.__tour.describe()) });
     const file = join(stillsDir, `${label}.png`);
     writeFileSync(file, png);
     images.push(png);
@@ -227,11 +231,13 @@ export async function verifyWalkthrough(name: string, timeline: Timeline, player
   const files = {
     report: join(outDir, 'report.json'),
     timing: join(outDir, 'timing.md'),
+    screen: join(outDir, 'screen.md'),
     contactSheet: join(outDir, 'contact-sheet.png'),
     stills: stillsDir,
   };
   writeFileSync(files.contactSheet, await contactSheet(browser, images, stills.map((s) => `${s.label}  ${s.time.toFixed(1)} s`)));
   writeFileSync(files.timing, timingMarkdown(name, timeline));
+  writeFileSync(files.screen, screenMarkdown(name, screens));
   const report: VerifyReport = {
     name,
     ok: errors === 0,
@@ -266,24 +272,6 @@ function captionFixes(target: Rect, caption: Rect, frame: { w: number; h: number
 /** How much of a rect, from 0 to 1, is inside the frame. */
 function visibleShare(rect: Rect, frame: { w: number; h: number }): number {
   return overlap(rect, { x: 0, y: 0, w: frame.w, h: frame.h });
-}
-
-/** The highlight in force at a frame: the last highlight beat before it, within the same stage. */
-function highlightAt(timeline: Timeline, frame: number): { target: string; scene: number; beat: number } | undefined {
-  let found: { target: string; scene: number; beat: number } | undefined;
-  let stage: string | undefined;
-  for (const scene of timeline.scenes) {
-    if (scene.from > frame) break;
-    if (scene.stage !== stage) {
-      found = undefined; // A cut to another stage clears the highlight.
-      stage = scene.stage;
-    }
-    for (const beat of [...scene.beats].sort((a, b) => (a.highlight?.from ?? 0) - (b.highlight?.from ?? 0))) {
-      if (!beat.highlight || beat.highlight.from > frame) continue;
-      found = beat.highlight.to ? { target: beat.highlight.to, scene: scene.index, beat: beat.index } : undefined;
-    }
-  }
-  return found;
 }
 
 /** The share of `target`'s area, from 0 to 1, that `cover` hides. */

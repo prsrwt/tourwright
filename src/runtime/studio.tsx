@@ -10,6 +10,7 @@ import type { StudioState, Note } from '../studio/protocol.ts';
 import type { TimedBeat, TimedScene, Timeline } from '../timing/timeline.ts';
 import type { Rect } from './motion.ts';
 import type { ReadyReport, TourApi } from './player.tsx';
+import type { ScreenDescription } from './screen.ts';
 
 const API = '/__tourwright/api';
 
@@ -222,7 +223,7 @@ function Studio() {
         <audio ref={audio} src={`${API}/soundtrack.wav?v=${state.version}`} preload="auto" onEnded={() => setPlaying(false)} />
       </div>
       <aside style={{ borderLeft: '1px solid #1e293b', overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
-        <Notes state={state} timeline={timeline} frame={frame} audio={audio} inputRef={noteInput} onSeek={seek} />
+        <Notes state={state} timeline={timeline} api={api} frame={frame} audio={audio} inputRef={noteInput} onSeek={seek} />
         <Problems diagnostics={state.diagnostics.filter((d) => !/^scenes\[/.test(d.path))} error={state.error} />
         {timeline && (
           <Scenes
@@ -367,7 +368,7 @@ function Segment({ left, width, label }: { left: string; width: string; label: s
 // ---------------------------------------------------------------------------------------------
 // Notes for the agent, pinned to the millisecond.
 
-function Notes({ state, timeline, frame, audio, inputRef, onSeek }: { state: StudioState; timeline: Timeline | undefined; frame: number; audio: React.RefObject<HTMLAudioElement | null>; inputRef: React.RefObject<HTMLTextAreaElement | null>; onSeek: (f: number) => void }) {
+function Notes({ state, timeline, api, frame, audio, inputRef, onSeek }: { state: StudioState; timeline: Timeline | undefined; api: TourApi | undefined; frame: number; audio: React.RefObject<HTMLAudioElement | null>; inputRef: React.RefObject<HTMLTextAreaElement | null>; onSeek: (f: number) => void }) {
   const [text, setText] = useState('');
   // The playhead to the millisecond: the audio clock while it has one, else the frame.
   const ms = () => Math.round(audio.current && !audio.current.paused ? audio.current.currentTime * 1000 : (frame / (timeline?.fps ?? 30)) * 1000);
@@ -378,6 +379,12 @@ function Notes({ state, timeline, frame, audio, inputRef, onSeek }: { state: Stu
     const f = Math.min(timeline.frames - 1, Math.floor((at / 1000) * timeline.fps));
     const scene = sceneAt(timeline, f);
     const sentence = scene ? sentenceAt(scene, f) : undefined;
+    // What is on screen at the note's frame, so the agent can read it rather than guess.
+    let screen: ScreenDescription | undefined;
+    if (api) {
+      api.setFrame(f, 'settle');
+      screen = api.describe();
+    }
     const note = {
       ms: at,
       frame: f,
@@ -385,6 +392,7 @@ function Notes({ state, timeline, frame, audio, inputRef, onSeek }: { state: Stu
       sceneIndex: scene?.index ?? -1,
       ...(sentence && { sentence }),
       text: text.trim(),
+      ...(screen && { screen }),
     };
     await fetch(`${API}/notes`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(note) });
     setText('');
