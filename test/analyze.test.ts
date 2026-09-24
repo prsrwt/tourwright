@@ -48,11 +48,14 @@ test('inspect lists the components a stage renders, with prop types, what it pas
 });
 
 test('scaffold drafts a stage from a page: its sections in order, wrappers kept, typed placeholders', () => {
-  const result = scaffoldStage(app, join(app, 'app', 'page.tsx'), 'dashboard-draft', scratch);
+  // A stages file somewhere other than the default: the draft goes beside it, and names it.
+  const result = scaffoldStage(app, join(app, 'app', 'page.tsx'), 'dashboard-draft', join(scratch, 'trial', 'stages.tsx'));
+  assert.equal(result.file, join(scratch, 'trial', 'scaffold', 'dashboard-draft.tsx'));
   assert.deepEqual(result.components, ['AppShell', 'StatCards', 'TaskTable']);
   assert.deepEqual(result.problems, [], 'the draft type-checks as written');
   const draft = readFileSync(result.file, 'utf8');
   assert.match(draft, /import \{ StatCards \} from '@\/components\/StatCards';/);
+  assert.match(draft, /\/\/ this stage to out\/\.test\/analyze-\d+\/trial\/stages\.tsx\./);
   assert.match(draft, /export const appShellProps: Omit<ComponentProps<typeof AppShell>, 'children'> = \{/);
   assert.match(draft, /stats: \[\], {2}\/\/ What the page passes: dashboard\.stats/);
   // The shell wraps the sections; each section is a target.

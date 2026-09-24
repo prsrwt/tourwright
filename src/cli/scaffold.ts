@@ -1,4 +1,4 @@
-import { basename, join, relative } from 'node:path';
+import { basename, relative } from 'node:path';
 import { scaffoldStage } from '../analyze/scaffold.ts';
 import type { ResolvedConfig } from '../config/config.ts';
 
@@ -14,7 +14,7 @@ export function runScaffold(config: ResolvedConfig, pageFile: string, options: S
       .replace(/\.[jt]sx?$/, '')
       .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
       .toLowerCase();
-  const result = scaffoldStage(config.root, pageFile, stage, join(config.root, 'tourwright', 'scaffold'));
+  const result = scaffoldStage(config.root, pageFile, stage, config.stages);
   const shown = relative(process.cwd(), result.file) || result.file;
 
   console.log(`Drafted stage "${stage}" in ${shown}, from ${result.components.length} components of ${pageFile}:`);

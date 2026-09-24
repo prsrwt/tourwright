@@ -30,7 +30,9 @@ interface Section {
   children: Section[];
 }
 
-export function scaffoldStage(root: string, pageFile: string, stage: string, outDir: string): ScaffoldResult {
+/** Writes the draft to a scaffold folder next to the configured stages file, which it refers to. */
+export function scaffoldStage(root: string, pageFile: string, stage: string, stagesFile: string): ScaffoldResult {
+  const outDir = join(dirname(stagesFile), 'scaffold');
   const page = resolve(pageFile);
   if (!existsSync(page)) throw new AnalyzeError(`${pageFile} does not exist.`);
   const app = appProgram(root, [page]);
@@ -63,7 +65,8 @@ export function scaffoldStage(root: string, pageFile: string, stage: string, out
   if (!all.length) throw new AnalyzeError(`${pageFile} renders no components of its own to stage. Skipped: ${[...skipped].join(', ') || 'none'}.`);
 
   mkdirSync(outDir, { recursive: true });
-  writeFileSync(out, render(stage, relative(root, page).replace(/\\/g, '/'), sections));
+  const posix = (path: string) => relative(root, path).replace(/\\/g, '/');
+  writeFileSync(out, render(stage, posix(page), posix(stagesFile), sections));
   return { file: out, stage, components: all.map((s) => s.name), skipped: [...skipped], problems: typeProblems(root, out) };
 }
 
@@ -159,7 +162,7 @@ function conditionOf(app: AppProgram, node: TS.Node): string | undefined {
   return undefined;
 }
 
-function render(stage: string, pageFile: string, sections: Section[]): string {
+function render(stage: string, pageFile: string, stagesFile: string, sections: Section[]): string {
   const all = flatten(sections);
   const names = new Map<Section, string>();
   const used = new Map<string, number>();
@@ -177,8 +180,8 @@ function render(stage: string, pageFile: string, sections: Section[]): string {
     '// The page fetches its data; a stage gets it from fixtures instead. Every value below is a',
     '// placeholder of the right type: replace each with fictional data that tells the story (made-up',
     '// names, round amounts, never real records), delete sections the video does not need, and add',
-    '// this stage to tourwright/stages.tsx. "What the page passes" comments show where each value',
-    '// comes from in the real page.',
+    `// this stage to ${stagesFile}. "What the page passes" comments show where each value comes`,
+    '// from in the real page.',
     ...(movable.length ? ['//', '// Could move in a video (declare a value, pass it, and animate it from a beat):', ...movable] : []),
     '',
     "import type { ComponentProps } from 'react';",
