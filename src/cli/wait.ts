@@ -37,7 +37,7 @@ export async function runWait(config: ResolvedConfig, name: string, options: Wai
 
   // What the user had already said before the wait began does not end it; only something new does.
   const seen = verdictKey(start.review);
-  const asked = new Set(readNotes(config, name).filter((n) => n.status === 'question').map((n) => n.id));
+  const before = new Map(readNotes(config, name).map((n) => [n.id, { status: n.status, userReplies: userReplies(n) }]));
   console.log(`Waiting for the user to review "${name}" in Muse (npx tourwright muse ${name})${timeout ? `, for up to ${timeout} s` : ''}...`);
 
   const deadline = timeout ? Date.now() + timeout * 1000 : Infinity;
@@ -61,19 +61,31 @@ export async function runWait(config: ResolvedConfig, name: string, options: Wai
       console.log(`${formatReview(name, state)}\n`);
       console.log(`The user sent ${sent.length ? `${sent.length} note${sent.length === 1 ? '' : 's'}` : 'a request'} for you to handle:\n`);
       for (const note of [...sent, ...alsoOpen]) printNote(note);
+      console.log(settled(notes, before));
       console.log(handle(name));
       return WAIT.feedback;
     }
-    const answered = notes.filter((n) => asked.has(n.id) && n.status === 'open');
-    if (answered.length) {
-      console.log(`The user answered your question on ${answered.map((n) => `[${n.id}]`).join(', ')}:\n`);
-      for (const note of answered) printNote(note);
+    // Every answer the user gives on a note is for the agent: an answer to its question, "not fixed
+    // yet" on a fix, or a closed note reopened. A brand-new note is not, until the user sends it.
+    const handedBack = notes.filter((n) => {
+      const was = before.get(n.id);
+      return was && n.status === 'open' && (was.status !== 'open' || userReplies(n) > was.userReplies);
+    });
+    if (handedBack.length) {
+      for (const note of handedBack) {
+        const was = before.get(note.id)!.status;
+        const what = was === 'question' ? 'answered your question' : was === 'fixed' ? 'says this is not fixed yet' : was === 'closed' ? 'reopened this note' : 'replied';
+        console.log(`The user ${what}:\n`);
+        printNote(note);
+      }
+      console.log(settled(notes, before));
       console.log(handle(name));
       return WAIT.feedback;
     }
   }
   const state = reviewState(config, name);
   console.log(`${formatReview(name, state)}\n`);
+  console.log(settled(readNotes(config, name), before));
   console.log(`Still waiting: the user has not approved "${name}" or asked for changes yet. ${openCount(readNotes(config, name))}\nNext: run "npx tourwright wait ${name}" again to keep waiting.`);
   return WAIT.timeout;
 }
@@ -90,6 +102,24 @@ function approved(config: ResolvedConfig, name: string, state: ReviewState): num
       : `Done: the user approved "${name}". ${existsSync(video) ? `${shown} is older than the approved script.json, so` : 'There is no video yet, so'} render the final cut with "npx tourwright make ${name} --require-approval --no-review", then tell the user it is finished and carry on with what comes next.`,
   );
   return WAIT.approved;
+}
+
+function userReplies(note: Note): number {
+  return note.replies.filter((r) => r.from === 'you').length;
+}
+
+/**
+ * What else the user did while the agent waited that needs nothing from it, so it still knows:
+ * fixes they approved (the note's "Approve fix") and notes they deleted.
+ */
+function settled(notes: Note[], before: Map<string, { status: string }>): string {
+  const approvedFixes = notes.filter((n) => n.status === 'closed' && before.get(n.id)?.status === 'fixed').map((n) => `[${n.id}]`);
+  const deleted = [...before.keys()].filter((id) => !notes.some((n) => n.id === id)).map((id) => `[${id}]`);
+  const lines = [
+    ...(approvedFixes.length ? [`The user also approved your fix on ${approvedFixes.join(', ')}: those notes are closed.`] : []),
+    ...(deleted.length ? [`The user deleted ${deleted.join(', ')}: nothing to do for those.`] : []),
+  ];
+  return lines.length ? `${lines.join('\n')}\n` : '';
 }
 
 function handle(name: string): string {

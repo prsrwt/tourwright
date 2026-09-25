@@ -87,5 +87,28 @@ test('wait ends when the user answers a question, and otherwise times out with w
 
   const answered = await wait(config, () => writeFileSync(notes, JSON.stringify({ notes: [note('q', 'open'), note('b', 'open')] })));
   assert.equal(answered.code, WAIT.feedback);
-  assert.match(answered.out, /The user answered your question on \[q\]:\n\n\[q\] at 1\.000 s/);
+  assert.match(answered.out, /The user answered your question:\n\n\[q\] at 1\.000 s/);
+});
+
+test('every answer on a note wakes the agent; approving a fix or deleting a note is reported with it', async () => {
+  const config = app();
+  const notes = join(config.walkthroughs, 'intro', 'notes.json');
+  const reply = { from: 'you', text: 'Still too fast.', at: '2026-09-25T10:00:00Z' };
+  writeFileSync(notes, JSON.stringify({ notes: [note('f', 'fixed'), note('g', 'fixed'), note('c', 'closed'), note('d', 'open')] }));
+
+  // Approving a fix or deleting a note needs nothing from the agent, so on their own they do not wake it.
+  const quiet = await wait(config, () => writeFileSync(notes, JSON.stringify({ notes: [note('f', 'fixed'), note('g', 'closed'), note('c', 'closed')] })), 0.3);
+  assert.equal(quiet.code, WAIT.timeout);
+  assert.match(quiet.out, /approved your fix on \[g\]: those notes are closed\.\nThe user deleted \[d\]: nothing to do for those\./);
+
+  // "Not fixed yet" on a fix hands it back.
+  const notYet = await wait(config, () => writeFileSync(notes, JSON.stringify({ notes: [{ ...note('f', 'open'), replies: [reply] }, note('g', 'closed'), note('c', 'closed')] })));
+  assert.equal(notYet.code, WAIT.feedback);
+  assert.match(notYet.out, /The user says this is not fixed yet:\n\n\[f\][^]*User: Still too fast\./);
+
+  // So does reopening a closed note.
+  const reopened = await wait(config, () => writeFileSync(notes, JSON.stringify({ notes: [{ ...note('f', 'open'), replies: [reply] }, note('g', 'closed'), { ...note('c', 'open'), replies: [reply] }] })));
+  assert.equal(reopened.code, WAIT.feedback);
+  assert.match(reopened.out, /The user reopened this note:\n\n\[c\]/);
+  assert.doesNotMatch(reopened.out, /\[f\] at/, 'f was already handed back before this wait');
 });
