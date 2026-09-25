@@ -49,17 +49,17 @@ test('init writes a .ts config for an ES module app, keeps existing files, and n
   assert.equal(silently(() => runInit(tempApp({}))), 1);
 });
 
-test('new creates a script that passes check, using a stage an existing walkthrough uses', () => {
+test('new creates a script that passes check, using a stage an existing walkthrough uses', async () => {
   const dir = tempApp({ dependencies: { react: '19.0.0' } });
   silently(() => runInit(dir));
   const config = resolveConfig({}, join(dir, 'tourwright.config.mts'), {});
-  assert.equal(silently(() => runNew(config, 'billing-overview')), 0);
+  assert.equal(await silently(() => runNew(config, 'billing-overview')), 0);
   const script = JSON.parse(readFileSync(join(config.walkthroughs, 'billing-overview', 'script.json'), 'utf8'));
   assert.equal(script.title, 'Billing Overview');
   assert.equal(script.scenes[0].stage, 'example');
   assert.deepEqual(checkScript(script).diagnostics, []);
-  assert.equal(silently(() => runNew(config, 'billing-overview')), 1, 'refuses to overwrite');
-  assert.equal(silently(() => runNew(config, 'Bad Name')), 1);
+  assert.equal(await silently(() => runNew(config, 'billing-overview')), 1, 'refuses to overwrite');
+  assert.equal(await silently(() => runNew(config, 'Bad Name')), 1);
 });
 
 test('no em or en dashes anywhere in the repo', () => {

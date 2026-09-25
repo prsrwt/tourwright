@@ -10,6 +10,7 @@ import { AnalyzeError } from '../analyze/program.ts';
 import { NotesError } from '../studio/server.ts';
 import { ReviewError } from '../studio/review.ts';
 import { DescribeError } from './describe.ts';
+import { DraftError } from './draft.ts';
 import { runCheck } from './check.ts';
 
 const USAGE = `Usage: tourwright <command> [options]
@@ -17,7 +18,8 @@ const USAGE = `Usage: tourwright <command> [options]
 Commands:
   check <name>    Validate a walkthrough's script.json
   init            Set up Tourwright in this app
-  new <name>      Create a walkthrough from a template
+  new <name>      Create a walkthrough from a template (--from-stage <stage> drafts its scenes and
+                  beats from what the stage renders, leaving only the narration to write)
   verify <name>   Render a still per beat and check them against the page
   describe <name> Say what is on screen at every beat, or at one moment (--at <seconds>)
   render <name>   Render the MP4
@@ -53,6 +55,7 @@ async function main(argv: string[]): Promise<number> {
       voice: { type: 'boolean', default: false },
       'fake-voice': { type: 'boolean', default: false },
       stage: { type: 'string' },
+      'from-stage': { type: 'string' },
       at: { type: 'string' },
       open: { type: 'boolean', default: true },
       review: { type: 'boolean', default: true },
@@ -154,7 +157,7 @@ async function main(argv: string[]): Promise<number> {
       const n = needName();
       if (!n) return 1;
       const { runNew } = await import('./new.ts');
-      return runNew(await config(), n);
+      return runNew(await config(), n, values['from-stage'] === undefined ? {} : { fromStage: values['from-stage'] });
     }
     case 'make': {
       const n = needName();
@@ -169,7 +172,7 @@ async function main(argv: string[]): Promise<number> {
 }
 
 /** Errors whose message already says what is wrong and how to fix it, so no stack trace. */
-const EXPECTED = [ConfigError, PrepareError, StagesMissingError, BrowserMissingError, RenderError, AnalyzeError, NotesError, ReviewError, DescribeError];
+const EXPECTED = [ConfigError, PrepareError, StagesMissingError, BrowserMissingError, RenderError, AnalyzeError, NotesError, ReviewError, DescribeError, DraftError];
 
 main(process.argv.slice(2)).then(
   (code) => {

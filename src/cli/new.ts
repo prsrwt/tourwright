@@ -6,7 +6,12 @@ import { NAME_PATTERN } from '../schema/script.ts';
 import { schemaPath } from './init.ts';
 import { newScript } from './templates.ts';
 
-export function runNew(config: ResolvedConfig, name: string): number {
+export interface NewOptions {
+  /** Draft the scenes and beats from what this stage renders, leaving only the narration to write. */
+  fromStage?: string;
+}
+
+export async function runNew(config: ResolvedConfig, name: string, options: NewOptions = {}): Promise<number> {
   if (!NAME_PATTERN.test(name)) {
     console.error(`"${name}" is not a valid walkthrough name. Use lowercase letters, digits and single hyphens, such as "billing-overview".`);
     return 1;
@@ -16,9 +21,15 @@ export function runNew(config: ResolvedConfig, name: string): number {
     console.error(`${relative(process.cwd(), file)} already exists. Edit it, or choose another name.`);
     return 1;
   }
-  const stage = stageFromExisting(config) ?? 'example';
   const title = name.split('-').map((word) => word[0]!.toUpperCase() + word.slice(1)).join(' ');
   mkdirSync(dirname(file), { recursive: true });
+  if (options.fromStage) {
+    const { draftFromStage } = await import('./draft.ts');
+    console.log(await draftFromStage(config, name, options.fromStage, file, schemaPath(config.root, dirname(file)), title));
+    console.log(`Wrote ${relative(process.cwd(), file) || file}. Each sentence is a placeholder: replace it with the narration, keeping the [cue] at its start, and delete scenes the video does not need. Then run "npx tourwright check ${name}".`);
+    return 0;
+  }
+  const stage = stageFromExisting(config) ?? 'example';
   writeFileSync(file, newScript(schemaPath(config.root, dirname(file)), title, stage));
   console.log(`Created ${relative(process.cwd(), file) || file}, using stage "${stage}".`);
   console.log(`Write the narration, then run "npx tourwright check ${name}" and "npx tourwright verify ${name}". Verify lists every stage and target if a name is wrong.`);

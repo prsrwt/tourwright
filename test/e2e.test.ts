@@ -8,6 +8,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { checkScript } from '../src/check/check.ts';
 import { resolveConfig, type ResolvedConfig } from '../src/config/config.ts';
 import { prepare } from '../src/pipeline/prepare.ts';
 import { openSession } from '../src/pipeline/session.ts';
@@ -58,6 +59,30 @@ test('the example walkthrough verifies clean against the real components', async
   assert.equal(screen.match(/^## /gm)?.length, report.stills.length);
   assert.match(screen, /## stats-overdue\n\n```text\n[\d.]+ s · frame \d+ · scene "stats" \(scenes\[1\]\)\n[^`]*Highlight: {2}stat-overdue\n {2}In view: {4}"Overdue 2 needs attention"/);
   assert.match(screen, /## stats-cards-before\n[^#]*Values: {5}counts = 0\.000 \(counting\)\n/);
+});
+
+test('new --from-stage drafts scenes and beats from what the stage renders, and the draft passes check', async () => {
+  const config = setup({});
+  const { runNew } = await import('../src/cli/new.ts');
+  const { DraftError } = await import('../src/cli/draft.ts');
+  const { log } = console;
+  console.log = () => undefined;
+  try {
+    assert.equal(await runNew(config, 'dash', { fromStage: 'dashboard' }), 0);
+    await assert.rejects(runNew(config, 'nope', { fromStage: 'dashbord' }), (e: Error) => e instanceof DraftError && /There is no stage "dashbord"\. Stages: [^]*"dashboard"[^]*Fix:/.test(e.message));
+  } finally {
+    console.log = log;
+  }
+  const script = JSON.parse(readFileSync(join(config.walkthroughs, 'dash', 'script.json'), 'utf8'));
+  // An overview, then each top-level target in page order, with a beat for each target inside it.
+  assert.deepEqual(script.scenes.map((s: { id: string }) => s.id), ['overview', 'stats', 'tasks']);
+  assert.deepEqual(script.scenes[1].beats, [
+    { at: 'stats', camera: { to: 'stats', zoom: 'fit' }, highlight: 'stats' },
+    { at: 'stat-overdue', highlight: 'stat-overdue' },
+    { at: 'end', highlight: false },
+  ]);
+  assert.deepEqual(checkScript(script).diagnostics, []);
+  assert.equal(existsSync(join(config.walkthroughs, 'nope', 'script.json')), false, 'a failed draft leaves no file behind');
 });
 
 test('describe reads what is on screen at a beat from the page', async () => {
