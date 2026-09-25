@@ -80,7 +80,7 @@ export async function draftFromStage(config: ResolvedConfig, name: string, stage
   ];
   writeFileSync(file, JSON.stringify({ $schema: schema, title, settings: SETTINGS, scenes }, null, 2) + '\n');
   const inner = parts.reduce((n, p) => n + p.inside.length, 0);
-  return `Drafted ${scenes.length} scenes from stage "${stage}": an overview, then ${parts.map((p) => p.name).join(', ')} in page order${inner ? `, with ${inner} highlight${inner === 1 ? '' : 's'} on the parts inside them` : ''}.`;
+  return `Drafted ${scenes.length} scenes from stage "${stage}": an overview, then ${parts.map((p) => p.name).join(', ')} in page order${inner ? `, with the narration box on ${inner === 1 ? 'one of' : `${inner} of`} the parts inside them` : ''}.`;
 }
 
 /**

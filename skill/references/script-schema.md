@@ -7,7 +7,7 @@ Location: `tourwright/walkthroughs/<name>/script.json`. Keep the `$schema` line 
 1. Top level
 2. Scenes
 3. Cue markers
-4. Beats: camera and highlight
+4. Beats: camera and narration box
 5. How timing works
 6. Settings and defaults
 7. Complete example
@@ -32,7 +32,7 @@ Location: `tourwright/walkthroughs/<name>/script.json`. Keep the `$schema` line 
 | `beats` | no | Actions tied to cues (section 4) |
 | `tail` | no | Seconds held after the narration ends. Defaults to `settings.voice.tail` (0.7). |
 
-A scene with no beats holds whatever framing the previous scene ended on, if it uses the same stage. A scene on a different stage starts on the whole stage with no highlight.
+A scene with no beats holds whatever framing the previous scene ended on, if it uses the same stage. A scene on a different stage starts on the whole stage with no narration box.
 
 ## 3. Cue markers
 
@@ -72,18 +72,18 @@ names are values the stage declares (see `stages.md`, "Making parts move").
 
 The camera never shows space beyond the edge of the stage: near an edge, it stops at the edge instead of centring the target.
 
-### highlight
+### highlight (the narration box)
 
 - `"claim-total"`: outline that target and dim everything else. From nothing it fades in; from another target it slides and resizes.
 - `false`: fade the outline and the dimming out.
 
-The highlight carries into the next scene if that scene uses the same stage, and clears at a cut to a different stage.
+The narration box carries into the next scene if that scene uses the same stage, and clears at a cut to a different stage.
 
 ## 5. How timing works
 
 Narration is spoken sentence by sentence, with `settings.voice.sentenceGap` seconds between sentences, so each sentence's start is known exactly. For a beat whose cue lands at time `t`:
 
-- **Camera and highlight moves start at `t - lead`** (lead defaults to 0.4 seconds) and take `duration` (0.9 seconds for the camera, `slide` or `fade` for the highlight).
+- **Camera and highlight moves start at `t - lead`** (lead defaults to 0.4 seconds) and take `duration` (0.9 seconds for the camera, `slide` or `fade` for the narration box).
 - **A move that would start before its scene starts at the scene start.**
 - **A move that begins while another is still running starts from wherever the camera is at that frame.** Nothing snaps.
 
@@ -108,7 +108,7 @@ Put only what you are changing in `script.json`. These are the defaults:
 - `video`: output size, frame rate and quality. Width and height must be even. `fps` is one of 24, 25, 30, 50 or 60. A lower `crf` gives higher quality and a bigger file. For a quick draft, `{ "width": 1280, "height": 720 }`.
 - `voice.voice`: any Kokoro voice ID. `bm_fable`, `bm_george` and `bm_lewis` are British male; `bf_emma` and `bf_isabella` are British female; `af_heart`, `af_bella`, `am_adam` and `am_michael` are American. `speed` runs from 0.5 to 2. `dtype` trades quality for download size: `fp32` (about 326 MB), `fp16`, `q8` (about 92 MB) or `q4`.
 - `camera.padding` is pixels of space kept around a framed target. `maxZoom` limits how close the camera gets, as a multiple of the whole-stage width.
-- `highlight.color` is any CSS colour. `dim` is the opacity of the darkening outside the highlight, from 0 to 1. `slide` and `fade` are seconds.
+- `highlight.color` is any CSS colour. `dim` is the opacity of the darkening outside the narration box, from 0 to 1. `slide` and `fade` are seconds.
 - `captions`: the narration, one sentence at a time, each shown from when it starts until the next sentence starts. They show the written words, not the lexicon's respellings. `mode` is `"burned"` (drawn into the video, so they show everywhere, including Slack and GitHub), `"soft"` (a subtitle track inside the MP4, which players show and viewers can turn off) or `"off"`. `burned` and `soft` both write `<name>.vtt` next to the MP4, for web pages that add subtitles with a `<track>`. `size` is pixels at 1080p. Verify warns when a caption covers more than 10% of a target; frame the target higher, or use `"position": "top"`.
 - `title`: the card that opens the video with `title` and `subtitle`. Set `background` to the app's brand colour, taken from its own colour tokens (for example the `--brand` value in its global CSS), and `color` to the text colour that goes on it. `"seconds": 0` leaves the card out and opens on the first scene.
 - Easing presets: `linear`, `inOutSine`, `inOutCubic`, `outCubic`, `outExpo`. Use `inOutCubic` for camera moves.

@@ -1257,7 +1257,7 @@ function Scenes(props: { state: StudioState; timeline: Timeline; ready: ReadyRep
   const current = sceneAt(timeline, props.frame);
   return (
     <>
-      <p style={{ color: C.muted, margin: `0 0 ${S.gap * 1.5}px` }}>Click a time to jump there, the narration to edit it, or edit on a beat to change the camera and highlight.</p>
+      <p style={{ color: C.muted, margin: `0 0 ${S.gap * 1.5}px` }}>Click a time to jump there, the narration to edit it, or edit on a beat to change the camera and the narration box.</p>
       {timeline.scenes.map((scene) => (
         <SceneCard key={scene.index} {...props} scene={scene} raw={script?.scenes?.[scene.index]} active={current?.index === scene.index} />
       ))}
@@ -1451,7 +1451,7 @@ function BeatEditor(props: {
         )}
       </div>
       <div style={row}>
-        <span style={label}>highlight</span>
+        <span style={label} title='The outline that lights up what the narration is talking about ("highlight" in script.json)'>narration box</span>
         <select value={highlight} onChange={(e) => setHighlight(e.target.value)} style={input}>
           <option value="">(unchanged)</option>
           <option value="(clear)">(clear)</option>
@@ -1554,7 +1554,7 @@ function settle(timeline: Timeline, scene: TimedScene, beat: TimedBeat): number 
 function describe(beat: TimedBeat): string {
   const parts: string[] = [];
   if (beat.camera) parts.push(`camera to ${beat.camera.to}${beat.camera.to === 'all' ? '' : ` (${beat.camera.zoom})`}`);
-  if (beat.highlight) parts.push(beat.highlight.to === false ? 'clear highlight' : `highlight ${beat.highlight.to}`);
+  if (beat.highlight) parts.push(beat.highlight.to === false ? 'clear narration box' : `narration box on ${beat.highlight.to}`);
   if (beat.animate) parts.push(`animate ${beat.animate.values.join(', ')}`);
   return parts.join(', ');
 }

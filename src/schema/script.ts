@@ -28,10 +28,10 @@ export const Beat = z
     camera: Camera.optional(),
     highlight: z
       .union([z.string().min(1), z.literal(false)], {
-        error: 'highlight must be a target name, or false to clear the highlight.',
+        error: 'highlight must be a target name, or false to clear the narration box.',
       })
       .optional()
-      .describe('Outline a target, or false to clear the highlight.'),
+      .describe('The narration box: outline a target while the narration talks about it, dimming the rest. false clears it.'),
     animate: z
       .union([z.string().min(1), z.array(z.string().min(1)).min(1)])
       .optional()

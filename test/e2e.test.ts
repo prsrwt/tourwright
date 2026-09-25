@@ -57,8 +57,8 @@ test('the example walkthrough verifies clean against the real components', async
   // screen.md says, in words, what each still shows.
   const screen = readFileSync(report.files.screen, 'utf8');
   assert.equal(screen.match(/^## /gm)?.length, report.stills.length);
-  assert.match(screen, /## stats-overdue\n\n```text\n[\d.]+ s · frame \d+ · scene "stats" \(scenes\[1\]\)\n[^`]*Highlight: {2}stat-overdue\n {2}In view: {4}"Overdue 2 needs attention"/);
-  assert.match(screen, /## stats-cards-before\n[^#]*Values: {5}counts = 0\.000 \(counting\)\n/);
+  assert.match(screen, /## stats-overdue\n\n```text\n[\d.]+ s · frame \d+ · scene "stats" \(scenes\[1\]\)\n[^`]*Narration box: stat-overdue\n {2}Inside it: {5}"Overdue 2 needs attention"/);
+  assert.match(screen, /## stats-cards-before\n[^#]*Values: {8}counts = 0\.000 \(counting\)\n/);
 });
 
 test('new --from-stage drafts scenes and beats from what the stage renders, and the draft passes check', async () => {
@@ -144,7 +144,7 @@ test('describe reads what is on screen at a beat from the page', async () => {
     assert.equal(cards.visible, 1);
     assert.ok(cards.share > 0.05 && cards.share < 0.5, `the stat cards are a strip across the frame, not ${cards.share}`);
     assert.deepEqual(overdue!.values, [{ name: 'counts', text: '1.000', counting: false }]);
-    assert.match(formatScreen(overdue!), /^[\d.]+ s · frame \d+ · scene "stats" \(scenes\[1\]\)\n {2}Saying: {5}"Overdue tasks/);
+    assert.match(formatScreen(overdue!), /^[\d.]+ s · frame \d+ · scene "stats" \(scenes\[1\]\)\n {2}Saying: {8}"Overdue tasks/);
 
     assert.equal(midCount!.values[0]!.counting, true);
     assert.ok(Number(midCount!.values[0]!.text) > 0 && Number(midCount!.values[0]!.text) < 1);

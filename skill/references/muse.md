@@ -34,7 +34,7 @@ When the user asks you to handle notes ("check my notes in Muse", "fix my notes"
    to the millisecond, its frame, the scene (with its index in `script.json`), its scope and target,
    the sentence being spoken and its replies. The top line says where the video's review stands.
 2. **Understand the moment before you change anything.** Under each note is what was on screen
-   when it was written: what the camera showed, the highlight and the text inside it, the caption
+   when it was written: what the camera showed, the narration box and the text inside it, the caption
    and the stage's values. Read it to see what the user was looking at. For a note without one, run
    `npx tourwright describe <name> --at <seconds>` with the note's time.
 3. **Handle each `open` note.** Read the whole thread: the latest reply from the user may change

@@ -53,7 +53,7 @@ export function targetDiagnostics(timeline: Timeline, ready: ReadyReport): Diagn
             level: 'error',
             path,
             message: `Target "${target}" is not on the page at this point: it only appears once the stage's values change (a toggle, say).`,
-            fix: `animate the value that shows "${target}" in an earlier beat, before the camera or highlight goes to it.`,
+            fix: `animate the value that shows "${target}" in an earlier beat, before the camera or narration box goes to it.`,
           });
           continue;
         }

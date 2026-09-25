@@ -60,7 +60,7 @@ The stage renders at the video's width (1920 pixels by default) and its natural 
 
 ## Adding a target
 
-A target is a named element the camera and highlighter can find. There are two ways to declare one, in order of preference.
+A target is a named element the camera and the narration box can find. There are two ways to declare one, in order of preference.
 
 1. **Wrap a section in `data-focus`** in the stage's `render`:
 
@@ -80,7 +80,7 @@ A target is a named element the camera and highlighter can find. There are two w
 
    Use an existing `data-testid` or another stable attribute. If there is none, adding a `data-testid` to the app component is an acceptable small change; make it in its own commit. Never target by class names or position in the page; they break silently. A selector that matches several elements targets the box around all of them, which is how to highlight a table column.
 
-Choose targets at the level the narration speaks about. The camera likes sections; the highlighter likes the specific thing being named. Every target must be visible in the fixture state without any clicking. When a name is wrong, verify lists every target the stage offers.
+Choose targets at the level the narration speaks about. The camera likes sections; the narration box likes the specific thing being named. Every target must be visible in the fixture state without any clicking. When a name is wrong, verify lists every target the stage offers.
 
 ## Making parts move: values
 
@@ -130,7 +130,7 @@ on the page". Animate the inputs instead, for example by scaling the list's amou
 value, or do not animate that figure. Never paint a number over the real component.
 
 **Toggles change the layout.** When a steps value reveals or hides sections, Tourwright measures
-the stage in each state, so the camera and highlight find the new sections. Flip the value in an
+the stage in each state, so the camera and the narration box find the new sections. Flip the value in an
 earlier beat than the one that moves the camera to what it reveals; verify reports a target that
 "is not on the page at this point" otherwise.
 

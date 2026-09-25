@@ -91,7 +91,7 @@ export function pacingDiagnostics(timeline: Timeline): Diagnostic[] {
         out.push({
           level: 'warning',
           path: beatPath(scene, beat, 'highlight'),
-          message: `The highlight on "${beat.highlight!.to}" stays on through ${after.length} more sentences${into}, up to "${after[after.length - 1]!.text}". A highlight that lingers after the narration moves on points at the wrong thing.`,
+          message: `The narration box on "${beat.highlight!.to}" stays on through ${after.length} more sentences${into}, up to "${after[after.length - 1]!.text}". A narration box that lingers after the narration moves on points at the wrong thing.`,
           fix: `clear it with { "at": "<cue>", "highlight": false } where the narration moves on, or move it to what is being talked about.`,
         });
       }

@@ -137,8 +137,8 @@ export async function verifyWalkthrough(name: string, timeline: Timeline, player
         diagnostics.push({
           level: 'warning',
           path: on ? `scenes[${on.scene}].beats[${on.beat}].highlight` : at,
-          message: `In still ${label}, the highlight${on ? ` on "${on.target}"` : ''} is still on but only ${Math.round(shown * 100)}% of it is in view: the camera has moved on without it.`,
-          fix: 'clear the highlight ({ "highlight": false }) or move it, in the beat that moves the camera away.',
+          message: `In still ${label}, the narration box${on ? ` on "${on.target}"` : ''} is still on but only ${Math.round(shown * 100)}% of it is in view: the camera has moved on without it.`,
+          fix: 'clear the narration box ({ "highlight": false }) or move it, in the beat that moves the camera away.',
         });
       }
     }
@@ -157,7 +157,7 @@ export async function verifyWalkthrough(name: string, timeline: Timeline, player
           message: `In still ${label}, target "${target}" is cut off by the frame: ${cut}.`,
           fix: shot.beat?.camera?.to === target
             ? 'use "zoom": "fit", or a smaller zoom number, so the whole target fits.'
-            : `move the camera to "${target}" (or something that contains it) before highlighting it.`,
+            : `move the camera to "${target}" (or something that contains it) before putting the narration box on it.`,
         });
       }
       const covered = caption && overlap(rect, caption);

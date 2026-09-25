@@ -1,11 +1,13 @@
 ---
 name: walkthrough
-description: Script, check, verify and render a narrated walkthrough video of this app's real React components with Tourwright. Use this whenever someone asks for a demo video, product tour, screen walkthrough, explainer or onboarding video, or "a video showing how X works", or wants to change an existing walkthrough's narration, camera moves, highlights or timing. Also use it when touching files under tourwright/.
+description: Script, check, verify and render a narrated walkthrough video of this app's real React components with Tourwright. Use this whenever someone asks for a demo video, product tour, screen walkthrough, explainer or onboarding video, or "a video showing how X works", or wants to change an existing walkthrough's narration, camera moves, narration box or timing. Also use it when touching files under tourwright/.
 ---
 
 # Walkthrough videos
 
-Tourwright turns one file, `script.json`, into a narrated MP4 of the app's real components. You write the narration and mark, with a `[cue]` at the start of a sentence, where the camera or highlight should move; the tool speaks it, times every move against the words and renders the video. You never write seconds or frame numbers.
+Tourwright turns one file, `script.json`, into a narrated MP4 of the app's real components. You write the narration and mark, with a `[cue]` at the start of a sentence, where the camera or the narration box should move; the tool speaks it, times every move against the words and renders the video. You never write seconds or frame numbers.
+
+**The narration box** is the outline Tourwright draws around a target while the narration talks about it, dimming the rest of the screen, so the viewer knows where to look. Call it that when you talk to the user and in notes; users and Muse use the same name. In `script.json` it is a beat's `"highlight"`: a target name moves the box there, and `false` clears it.
 
 You cannot watch the video, so everything worth checking comes back as text: what is on screen at each still (`screen.md`), where each cue lands in the words (`timing.md`), and errors with their fix. The loop is: write, `check`, `verify`, read, fix. Render only when verify is clean.
 
@@ -80,7 +82,7 @@ Each turn and each file you read costs. The tool is built so you rarely need mor
 Before calling a walkthrough done:
 
 1. **verify is clean**: no errors, and a reason for each warning left.
-2. **Each still shows what its sentence talks about**: read `screen.md` (the framing, what is cut off, the highlight and its text, the caption).
+2. **Each still shows what its sentence talks about**: read `screen.md` (the framing, what is cut off, the narration box and its text, the caption).
 3. **Cues land on the right words**: `timing.md` marks each with `**[here]**`.
 4. **The length is sensible**: the total is at the top of `timing.md`.
 5. **Every must-show feature has a still**, and Explain parts get more time than Mention parts.

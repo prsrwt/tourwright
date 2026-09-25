@@ -326,7 +326,7 @@
                   "description": "Move the camera to a target."
                 },
                 "highlight": {
-                  "description": "Outline a target, or false to clear the highlight.",
+                  "description": "The narration box: outline a target while the narration talks about it, dimming the rest. false clears it.",
                   "anyOf": [
                     {
                       "type": "string",

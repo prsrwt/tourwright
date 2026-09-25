@@ -72,7 +72,7 @@ test('a highlight left on while the narration moves on is flagged', () => {
       ],
     },
   ]);
-  assert.match(messages(found).join(), /highlight on "total" stays on through 3 more sentences/);
+  assert.match(messages(found).join(), /narration box on "total" stays on through 3 more sentences/);
 });
 
 test('zooming in before the viewer has seen the whole screen is flagged', () => {

@@ -38,7 +38,7 @@ export interface ScreenDescription {
   sentence: string | null;
   /** Targets at least partly in view, largest first. */
   targets: ScreenTarget[];
-  /** The target the highlight is on, and the visible text inside it. */
+  /** The target the narration box is on (a beat's "highlight"), and the visible text inside it. */
   highlight: { target: string; text: string } | null;
   /** The caption drawn on the frame, or null when none is showing (or captions are not burned in). */
   caption: string | null;
@@ -50,13 +50,13 @@ export function formatScreen(d: ScreenDescription, indent = ''): string {
   const where = d.title ? 'the title card' : `scene "${d.scene}" (scenes[${d.sceneIndex}])`;
   const lines = [
     `${d.seconds.toFixed(3)} s · frame ${d.frame} · ${where}`,
-    `  Saying:     ${d.sentence ? `"${d.sentence}"` : '(nothing)'}`,
-    `  Camera:     ${d.title ? '(behind the title card) ' : ''}${cameraText(d.targets)}`,
-    `  Highlight:  ${d.highlight?.target ?? '(none)'}`,
+    `  Saying:        ${d.sentence ? `"${d.sentence}"` : '(nothing)'}`,
+    `  Camera:        ${d.title ? '(behind the title card) ' : ''}${cameraText(d.targets)}`,
+    `  Narration box: ${d.highlight?.target ?? '(none)'}`,
   ];
-  if (d.highlight) lines.push(`  In view:    ${d.highlight.text ? `"${d.highlight.text}"` : '(no text)'}`);
-  lines.push(`  Caption:    ${d.caption ? `"${d.caption}"` : '(none)'}`);
-  if (d.values.length) lines.push(`  Values:     ${d.values.map((v) => `${v.name} = ${v.text}${v.counting ? ' (counting)' : ''}`).join(', ')}`);
+  if (d.highlight) lines.push(`  Inside it:     ${d.highlight.text ? `"${d.highlight.text}"` : '(no text)'}`);
+  lines.push(`  Caption:       ${d.caption ? `"${d.caption}"` : '(none)'}`);
+  if (d.values.length) lines.push(`  Values:        ${d.values.map((v) => `${v.name} = ${v.text}${v.counting ? ' (counting)' : ''}`).join(', ')}`);
   return lines.map((line) => indent + line).join('\n');
 }
 

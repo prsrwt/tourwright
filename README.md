@@ -1,7 +1,7 @@
 # Tourwright
 
 Narrated walkthrough videos of your app's **real React components**. You write one script; the tool
-speaks it, moves a camera and a highlighter around your own UI, and renders an MP4.
+speaks it, moves a camera and a narration box (an outline on whatever is being talked about) around your own UI, and renders an MP4.
 
 Everything runs locally: the voice is a model on your machine, and nothing is uploaded.
 
@@ -78,11 +78,11 @@ npm install --no-save tourwright ffmpeg-static
 | `new <name>` | Create a walkthrough from a template. `--from-stage <stage>` drafts its scenes, cues and beats from what the stage renders, leaving only the narration to write |
 | `check <name>` | Validate a script: schema, cues, beats, writing rules. No browser. `--fix` applies the fixes that have exactly one right answer |
 | `verify <name>` | Render a still at every beat and check each against the live page. Writes a report, a timing table, a description of each still and a contact sheet, and says which stills changed since the last run. `--fix` also corrects misspelt stage and target names |
-| `describe <name>` | Say in words what is on screen at every beat, or at one moment with `--at <seconds>`: what the camera shows, the highlight and its text, the caption and the stage's values |
+| `describe <name>` | Say in words what is on screen at every beat, or at one moment with `--at <seconds>`: what the camera shows, the narration box and its text, the caption and the stage's values |
 | `render <name>` | Render the MP4 |
 | `make <name>` | Check and verify, then render only if every still passes, then open Muse in the browser to review it. `--no-review`, or `"review": false` in the config, leaves it closed; in CI, or with no screen, it prints the link or command instead. `--require-approval` renders only a version the user has approved in Muse |
 | `doctor` | Report ffmpeg, the browser and the voice. `--voice` downloads the model and speaks a test sentence. |
-| `muse <name>` | Open Muse, the review page, in a browser tab (`studio` works too): play it with narration and captions (at any speed, a scene on loop, or scene by scene), click a target to move the camera or highlight to it, edit beats and narration, leave notes for the agent pinned to the millisecond (or on a clicked target), talk each one through with the agent (filter them by whose turn it is, reword, reopen or delete them), and approve the video |
+| `muse <name>` | Open Muse, the review page, in a browser tab (`studio` works too): play it with narration and captions (at any speed, a scene on loop, or scene by scene), click a target to move the camera or narration box to it, edit beats and narration, leave notes for the agent pinned to the millisecond (or on a clicked target), talk each one through with the agent (filter them by whose turn it is, reword, reopen or delete them), and approve the video |
 | `notes <name>` | List the notes left in Muse by status, questions first, with their threads, and whether the current version is approved |
 | `reply <name> <id>` | Answer a note left in Muse: `--fixed "what changed"` or `--question "what you need to know"`. Only the user closes a note |
 | `wait <name>` | Wait until the user approves the video in Muse, asks for changes or answers the agent's question, then say what to do next. Exits 0 when approved, 2 with feedback to handle, 3 after `--timeout <seconds>` (540 by default, 0 for no limit). This is how an agent learns the video is finished and moves on |
