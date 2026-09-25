@@ -16,28 +16,28 @@ import type { ScreenDescription } from './screen.ts';
 const API = '/__tourwright/api';
 
 // ---------------------------------------------------------------------------------------------
-// Style: every colour and size Muse uses. Peach (#FCDED3) is Muse's colour; it is too light for
-// text, so it is only ever a surface, always with dark text on it. Each text colour below meets
-// WCAG AA (4.5:1) on the surfaces it is used on: ink on any of them at 12:1 or more, muted at 5:1
-// or more (5.05:1 on peach), accent 5.3:1 or more, and each tone's text on its own background at
-// 5.6:1 or more.
+// Style: every colour and size Muse uses. Muse keeps to white and a warm off-white, so the video is
+// what stands out. Peach (#FCDED3) is Muse's colour; it is too light for text, so it is only ever a
+// surface, always with dark text on it. Each text colour below meets WCAG AA (4.5:1) on the
+// surfaces it is used on: ink on any of them at 12:1 or more, muted at 5:1 or more (5.05:1 on
+// peach), accent 5.3:1 or more, and each tone's text on its own background at 5.6:1 or more.
 
 const C = {
   /** The page behind everything: a warm off-white. */
   page: '#FBF8F6',
   surface: '#FFFFFF',
   peach: '#FCDED3',
-  /** A paler peach, for large areas such as the note box and the guide. */
-  peachSoft: '#FEF1EC',
+  /** A paler peach, for the note being written. */
+  peachSoft: '#FEF4F0',
   /** Borders on peach. */
   peachDeep: '#EDB8A4',
   ink: '#1F2328',
   muted: '#5B5F66',
-  line: '#E8DDD7',
-  track: '#F3E9E4',
+  line: '#ECE4DF',
+  track: '#F3ECE8',
   /** The one accent: selection, links, the playhead's beats, the scene playing now. */
   accent: '#1F5FCC',
-  /** The accent, faint: the inside of a target while picking one. */
+  /** The accent, faint: the inside of a target while picking one, a selected filter. */
   accentWash: 'rgba(31, 95, 204, 0.10)',
   /** Dims the preview behind the target outlines while picking. */
   shade: 'rgba(31, 35, 40, 0.35)',
@@ -64,23 +64,27 @@ const S = {
   text: 14,
   small: 12,
   /** Width of the side panel. */
-  panel: 440,
+  panel: 400,
+  /** Below this window width, the side panel goes under the video. */
+  narrow: 1000,
 };
 
 // Shared styles never mix a shorthand (border, margin) with its longhands, which React warns
 // about when a rerender changes one of them: each sets only what the places using it override.
-const reset: CSSProperties = { background: 'transparent', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer' };
-const control: CSSProperties = { ...reset, borderRadius: S.radius, padding: '6px 14px', fontWeight: 600, lineHeight: '20px' };
-/** The main action in a place: peach, with dark text. */
-const primary: CSSProperties = { ...control, background: C.peach, border: `1px solid ${C.peachDeep}`, color: C.ink };
-/** The main action on a peach surface, where a peach button would disappear. */
-const strong: CSSProperties = { ...control, background: C.ink, border: `1px solid ${C.ink}`, color: C.surface };
-const quiet: CSSProperties = { ...control, background: C.surface, border: `1px solid ${C.line}`, color: C.ink, fontWeight: 500 };
-const input: CSSProperties = { background: C.surface, color: C.ink, border: `1px solid ${C.line}`, borderRadius: S.radius, padding: '6px 8px', font: 'inherit', boxSizing: 'border-box' };
+const reset: CSSProperties = { background: 'transparent', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer', border: 0 };
+const control: CSSProperties = { ...reset, borderRadius: S.radius, padding: '5px 12px', fontWeight: 600, lineHeight: '20px', whiteSpace: 'nowrap' };
+/** The one main action in a place. */
+const primary: CSSProperties = { ...control, background: C.ink, color: C.surface };
+const quiet: CSSProperties = { ...control, background: C.surface, boxShadow: `inset 0 0 0 1px ${C.line}`, color: C.ink, fontWeight: 500 };
+/** A small text action inside a card: edit, delete, reopen. */
+const subtle: CSSProperties = { ...reset, color: C.muted, fontSize: S.small, textDecoration: 'underline', textUnderlineOffset: 2 };
+const input: CSSProperties = { background: C.surface, color: C.ink, border: `1px solid ${C.line}`, borderRadius: S.radius, padding: '6px 8px', font: 'inherit' };
 const label: CSSProperties = { width: 72, color: C.muted };
-const link: CSSProperties = { color: C.accent, cursor: 'pointer', fontVariantNumeric: 'tabular-nums', textDecoration: 'underline', textUnderlineOffset: 2 };
+const link: CSSProperties = { ...reset, color: C.accent, fontVariantNumeric: 'tabular-nums', textDecoration: 'underline', textUnderlineOffset: 2 };
 const card: CSSProperties = { padding: S.gap * 1.5, borderRadius: S.radius, background: C.surface, borderStyle: 'solid', borderWidth: 1, borderColor: C.line };
 const panel: CSSProperties = { flex: 1, minHeight: 0, overflow: 'auto', padding: S.gap * 2 };
+/** A round button in the transport. */
+const round: CSSProperties = { ...reset, width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none', color: C.ink };
 
 function pill(background: string, color: string): CSSProperties {
   return { display: 'inline-block', padding: '2px 10px', borderRadius: 999, background, color, fontSize: S.small, fontWeight: 600, lineHeight: '18px', whiteSpace: 'nowrap' };
@@ -175,6 +179,23 @@ function usePlayer(timeline: Timeline | undefined, key: number | undefined) {
 
 type Tab = 'notes' | 'scenes';
 
+/** Which notes to show: all of them, or only those waiting on one side. */
+type Filter = 'all' | 'you' | 'agent' | 'done';
+
+const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+
+function useNarrow(): boolean {
+  const query = `(max-width: ${S.narrow - 1}px)`;
+  const [narrow, setNarrow] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const media = window.matchMedia(query);
+    const change = () => setNarrow(media.matches);
+    media.addEventListener('change', change);
+    return () => media.removeEventListener('change', change);
+  }, [query]);
+  return narrow;
+}
+
 function Studio() {
   const [state] = useStudioState();
   const timeline = state?.timeline;
@@ -182,10 +203,17 @@ function Studio() {
   const audio = useRef<HTMLAudioElement>(null);
   const [frame, setFrame] = useState(0);
   const [playing, setPlaying] = useState(false);
+  const [speed, setSpeed] = useState(1);
+  // Looping keeps playback inside the scene the playhead was in when it was turned on or last moved.
+  const [loop, setLoop] = useState(false);
+  const loopRange = useRef<{ from: number; to: number }>(undefined);
   const [message, setMessage] = useState<string>();
   const [picking, setPicking] = useState<((target: string) => void) | undefined>();
   const [tab, setTab] = useState<Tab>('notes');
+  const [filter, setFilter] = useState<Filter>('all');
+  const [help, setHelp] = useState(false);
   const noteInput = useRef<HTMLTextAreaElement>(null);
+  const narrow = useNarrow();
 
   const fps = timeline?.fps ?? 30;
   const frames = timeline?.frames ?? 1;
@@ -206,12 +234,24 @@ function Studio() {
     [api, frames],
   );
 
+  const rangeAt = useCallback(
+    (f: number) => {
+      const scene = timeline && sceneAt(timeline, f);
+      return scene ? { from: scene.from, to: scene.from + scene.frames - 1 } : { from: 0, to: (timeline?.titleFrames ?? 1) - 1 };
+    },
+    [timeline],
+  );
+
   // Each (re)start leaves the player on its measuring render, so draw the current frame again.
   // The player object is the same across restarts; the ready report is new each time.
   useEffect(() => {
     if (api) show(frame, 'settle');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [api, ready]);
+
+  useEffect(() => {
+    if (audio.current) audio.current.playbackRate = speed;
+  }, [speed, state?.timelineVersion]);
 
   // Playback follows the audio clock, so picture and narration never drift apart.
   useEffect(() => {
@@ -222,6 +262,14 @@ function Studio() {
       const a = audio.current;
       if (!a) return;
       const f = Math.floor(a.currentTime * fps);
+      const range = loopRange.current;
+      if (range && (f >= range.to || a.ended)) {
+        a.currentTime = range.from / fps;
+        if (a.paused) void a.play();
+        last = -1;
+        handle = requestAnimationFrame(tick);
+        return;
+      }
       if (f !== last) {
         last = f;
         show(f, 'play');
@@ -240,52 +288,83 @@ function Studio() {
     (f: number) => {
       const shown = show(f, 'settle');
       if (audio.current) audio.current.currentTime = shown / fps;
+      if (loopRange.current) loopRange.current = rangeAt(shown);
     },
-    [show, fps],
+    [show, fps, rangeAt],
   );
+
+  const pause = useCallback(() => {
+    if (!playing) return;
+    audio.current?.pause();
+    setPlaying(false);
+    show(frame, 'settle');
+  }, [playing, frame, show]);
 
   const toggle = useCallback(() => {
     const a = audio.current;
     if (!a) return;
-    if (playing) {
-      a.pause();
-      setPlaying(false);
-      show(frame, 'settle');
-    } else {
-      if (frame >= frames - 1) a.currentTime = 0;
-      else a.currentTime = frame / fps;
-      void a.play();
-      setPlaying(true);
-    }
-  }, [playing, frame, frames, fps, show]);
+    if (playing) return pause();
+    if (frame >= frames - 1) a.currentTime = 0;
+    else a.currentTime = frame / fps;
+    a.playbackRate = speed;
+    void a.play();
+    setPlaying(true);
+  }, [playing, pause, frame, frames, fps, speed]);
+
+  const toggleLoop = useCallback(() => {
+    loopRange.current = loop ? undefined : rangeAt(frame);
+    setLoop(!loop);
+  }, [loop, frame, rangeAt]);
+
+  // The start of the scene before or after the one playing: the title card counts as a scene.
+  const jump = useCallback(
+    (direction: -1 | 1) => {
+      if (!timeline) return;
+      const starts = [0, ...timeline.scenes.map((s) => s.from)];
+      const here = starts.filter((f) => f <= frame).length - 1;
+      // Going back from partway into a scene goes to its own start first, as a music player does.
+      const target = direction === 1 ? starts[here + 1] : frame - starts[here]! > fps ? starts[here] : starts[here - 1];
+      if (target === undefined) return;
+      if (playing) {
+        audio.current!.currentTime = target / fps;
+        if (loopRange.current) loopRange.current = rangeAt(target);
+      } else seek(target);
+    },
+    [timeline, frame, fps, playing, seek, rangeAt],
+  );
 
   // Writing a note: pause, show the notes, and put the cursor in the box.
   const startNote = useCallback(() => {
-    if (playing) toggle();
+    pause();
     setTab('notes');
     setTimeout(() => noteInput.current?.focus(), 0);
-  }, [playing, toggle]);
+  }, [pause]);
 
-  // Keyboard: space plays, arrows step a frame (with Shift, a second), N writes a note.
+  // Keyboard: space plays, arrows step a frame (with Shift, a second), [ and ] jump a scene,
+  // L loops the scene, N writes a note, ? lists these.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const typing = e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement;
-      if (typing) return;
-      if (e.key === ' ') {
-        e.preventDefault();
-        toggle();
-      } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-        e.preventDefault();
-        if (playing) toggle();
-        seek(frame + (e.key === 'ArrowRight' ? 1 : -1) * (e.shiftKey ? fps : 1));
-      } else if (e.key === 'n' || e.key === 'N') {
-        e.preventDefault();
-        startNote();
-      }
+      if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
+      const keys: Record<string, () => void> = {
+        ' ': toggle,
+        ArrowRight: () => (pause(), seek(frame + (e.shiftKey ? fps : 1))),
+        ArrowLeft: () => (pause(), seek(frame - (e.shiftKey ? fps : 1))),
+        '[': () => jump(-1),
+        ']': () => jump(1),
+        l: toggleLoop,
+        n: startNote,
+        '?': () => setHelp((h) => !h),
+        Escape: () => (setHelp(false), setPicking(undefined)),
+      };
+      const run = keys[e.key.length === 1 ? e.key.toLowerCase() : e.key];
+      if (!run) return;
+      e.preventDefault();
+      run();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [toggle, seek, startNote, frame, fps, playing]);
+  }, [toggle, pause, seek, jump, toggleLoop, startNote, frame, fps]);
 
   const edit = useCallback(
     async (change: (script: RawScript) => void) => {
@@ -301,47 +380,76 @@ function Studio() {
 
   const waiting = state.notes.filter((n) => n.status === 'question' || n.status === 'fixed').length;
   const pick = (done: (target: string) => void) => setPicking(() => done);
-  const seekPaused = (f: number) => (playing && toggle(), seek(f));
+  const seekPaused = (f: number) => (pause(), seek(f));
+
+  const video = (
+    <main style={{ display: 'flex', flexDirection: 'column', minWidth: 0, padding: S.gap * 2, ...(narrow && { height: '62vh', flex: 'none' }) }}>
+      {timeline ? (
+        <Preview timeline={timeline} frameRef={frameRef} api={api} picking={picking} onPick={(t) => (picking?.(t), setPicking(undefined))} onCancelPick={() => setPicking(undefined)} frame={frame}>
+          <Transport
+            timeline={timeline}
+            frame={frame}
+            playing={playing}
+            speed={speed}
+            loop={loop}
+            help={help}
+            onToggle={toggle}
+            onSeek={seekPaused}
+            onJump={jump}
+            onSpeed={setSpeed}
+            onLoop={toggleLoop}
+            onNote={startNote}
+            onHelp={() => setHelp(!help)}
+          />
+        </Preview>
+      ) : (
+        <Centered>{state.preparing ? 'Voicing the narration...' : 'This walkthrough could not be prepared. See the problems under Scenes.'}</Centered>
+      )}
+      <audio ref={audio} src={`${API}/soundtrack.wav?v=${state.timelineVersion}`} preload="auto" onEnded={() => !loopRange.current && setPlaying(false)} />
+    </main>
+  );
+
+  const side = (
+    <aside style={{ background: C.surface, display: 'flex', flexDirection: 'column', minHeight: 0, ...(narrow ? { borderTop: `1px solid ${C.line}` } : { borderLeft: `1px solid ${C.line}` }) }}>
+      <div role="tablist" aria-label="Side panel" style={{ display: 'flex', gap: S.gap / 2, padding: `${S.gap}px ${S.gap * 2}px 0`, borderBottom: `1px solid ${C.line}` }}>
+        <TabButton id="notes" current={tab} onSelect={setTab}>
+          Notes
+          {waiting > 0 && (
+            <span aria-label={`${waiting} waiting on you`} style={{ ...pill(C.yoursBg, C.yoursText), marginLeft: S.gap }}>
+              {waiting}
+            </span>
+          )}
+        </TabButton>
+        <TabButton id="scenes" current={tab} onSelect={setTab}>
+          Scenes
+          {(state.error || state.diagnostics.some((d) => d.level === 'error')) && <span aria-label="has problems" style={{ ...pill(C.errBg, C.errText), marginLeft: S.gap }}>!</span>}
+        </TabButton>
+      </div>
+      {/* Both panels stay mounted, so a half-written note or beat survives switching tabs. */}
+      <div role="tabpanel" hidden={tab !== 'notes'} style={panel}>
+        <Notes state={state} timeline={timeline} api={api} frame={frame} audio={audio} inputRef={noteInput} filter={filter} onFilter={setFilter} onSeek={seekPaused} onPick={pick} onWrite={pause} />
+      </div>
+      <div role="tabpanel" hidden={tab !== 'scenes'} style={panel}>
+        <Problems diagnostics={state.diagnostics.filter((d) => !/^scenes\[/.test(d.path))} error={state.error} />
+        {timeline && <Scenes state={state} timeline={timeline} ready={ready} frame={frame} onSeek={seekPaused} onEdit={edit} onPick={pick} />}
+      </div>
+    </aside>
+  );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <Header state={state} message={message} />
-      <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: `minmax(0, 1fr) ${S.panel}px` }}>
-        <main style={{ display: 'flex', flexDirection: 'column', minWidth: 0, padding: S.gap * 2, gap: S.gap * 1.5 }}>
-          <Guide />
-          {timeline ? (
-            <Preview timeline={timeline} frameRef={frameRef} api={api} picking={picking} onPick={(t) => (picking?.(t), setPicking(undefined))} onCancelPick={() => setPicking(undefined)} frame={frame} />
-          ) : (
-            <Centered>{state.preparing ? 'Voicing the narration...' : 'This walkthrough could not be prepared. See the problems under Scenes.'}</Centered>
-          )}
-          {timeline && <Transport timeline={timeline} frame={frame} playing={playing} onToggle={toggle} onSeek={seekPaused} />}
-          <audio ref={audio} src={`${API}/soundtrack.wav?v=${state.timelineVersion}`} preload="auto" onEnded={() => setPlaying(false)} />
-        </main>
-        <aside style={{ borderLeft: `1px solid ${C.line}`, background: C.surface, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <div role="tablist" aria-label="Side panel" style={{ display: 'flex', gap: S.gap, padding: `${S.gap * 1.5}px ${S.gap * 2}px 0`, borderBottom: `1px solid ${C.line}` }}>
-            <TabButton id="notes" current={tab} onSelect={setTab}>
-              Notes
-              {waiting > 0 && (
-                <span aria-label={`${waiting} waiting on you`} style={{ ...pill(C.yoursBg, C.yoursText), marginLeft: S.gap }}>
-                  {waiting}
-                </span>
-              )}
-            </TabButton>
-            <TabButton id="scenes" current={tab} onSelect={setTab}>
-              Scenes
-              {(state.error || state.diagnostics.some((d) => d.level === 'error')) && <span aria-label="has problems" style={{ ...pill(C.errBg, C.errText), marginLeft: S.gap }}>!</span>}
-            </TabButton>
-          </div>
-          {/* Both panels stay mounted, so a half-written note or beat survives switching tabs. */}
-          <div role="tabpanel" hidden={tab !== 'notes'} style={panel}>
-            <Notes state={state} timeline={timeline} api={api} frame={frame} audio={audio} inputRef={noteInput} onSeek={seekPaused} onPick={pick} />
-          </div>
-          <div role="tabpanel" hidden={tab !== 'scenes'} style={panel}>
-            <Problems diagnostics={state.diagnostics.filter((d) => !/^scenes\[/.test(d.path))} error={state.error} />
-            {timeline && <Scenes state={state} timeline={timeline} ready={ready} frame={frame} onSeek={seekPaused} onEdit={edit} onPick={pick} />}
-          </div>
-        </aside>
-      </div>
+      {narrow ? (
+        <div style={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+          {video}
+          {side}
+        </div>
+      ) : (
+        <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: `minmax(0, 1fr) ${S.panel}px` }}>
+          {video}
+          {side}
+        </div>
+      )}
     </div>
   );
 }
@@ -358,11 +466,10 @@ function TabButton({ id, current, onSelect, children }: { id: Tab; current: Tab;
         padding: `${S.gap}px ${S.gap * 1.5}px`,
         marginBottom: -1,
         borderStyle: 'solid',
-        borderWidth: '0 0 3px',
-        borderColor: `transparent transparent ${selected ? C.accent : 'transparent'}`,
+        borderWidth: '0 0 2px',
+        borderColor: `transparent transparent ${selected ? C.ink : 'transparent'}`,
         color: selected ? C.ink : C.muted,
-        fontWeight: selected ? 600 : 500,
-        fontSize: S.text + 1,
+        fontWeight: 600,
         display: 'inline-flex',
         alignItems: 'center',
       }}
@@ -377,9 +484,11 @@ function TabButton({ id, current, onSelect, children }: { id: Tab; current: Tab;
 
 function Header({ state, message }: { state: StudioState; message: string | undefined }) {
   return (
-    <header style={{ display: 'flex', alignItems: 'center', gap: S.gap * 2, padding: `${S.gap * 1.5}px ${S.gap * 2}px`, background: C.peach, borderBottom: `1px solid ${C.peachDeep}` }}>
-      <span style={{ fontSize: 22, fontWeight: 700, letterSpacing: -0.5, color: C.ink }}>Muse</span>
-      <span style={{ fontSize: S.text + 2, fontWeight: 600, color: C.ink }}>{state.name}</span>
+    <header style={{ display: 'flex', alignItems: 'center', gap: S.gap * 1.5, padding: `${S.gap}px ${S.gap * 2}px`, minHeight: 56, background: C.surface, borderBottom: `1px solid ${C.line}`, flexWrap: 'wrap' }}>
+      <span aria-hidden="true" style={{ width: 22, height: 22, borderRadius: '50%', background: C.peach, boxShadow: `inset 0 0 0 1px ${C.peachDeep}`, flex: 'none' }} />
+      <span style={{ fontSize: 17, fontWeight: 700, letterSpacing: -0.3, color: C.ink }}>Muse</span>
+      <span aria-hidden="true" style={{ color: C.line, fontSize: 20 }}>/</span>
+      <span style={{ fontSize: S.text + 1, fontWeight: 600, color: C.ink }}>{state.name}</span>
       {state.preparing && <span style={{ color: C.muted }}>Voicing changes...</span>}
       {message && <span style={{ color: message === 'Saving...' ? C.muted : C.errText }}>{message}</span>}
       <ReviewBar state={state} />
@@ -387,24 +496,28 @@ function Header({ state, message }: { state: StudioState; message: string | unde
   );
 }
 
-/** The whole video's review: approve this exact version of script.json, or ask for changes. */
+/**
+ * The whole video's review: approve this exact version of script.json, or ask for changes.
+ * Approving while notes are still open asks first, so nothing is signed off by accident.
+ */
 function ReviewBar({ state }: { state: StudioState }) {
-  const [asking, setAsking] = useState(false);
+  const [mode, setMode] = useState<'idle' | 'asking' | 'confirming'>('idle');
   const [comment, setComment] = useState('');
   const [error, setError] = useState<string>();
   const review = state.review;
   const current = review?.scriptHash === state.scriptHash;
+  const unresolved = state.notes.filter((n) => n.status !== 'closed').length;
   const send = async (status: 'approved' | 'changes-requested') => {
     const body: ReviewRequest = { base: state.scriptHash, status, ...(status === 'changes-requested' && comment.trim() && { comment: comment.trim() }) };
     const res = await fetch(`${API}/review`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     setError(res.ok ? undefined : ((await res.json()) as { error: string }).error);
     if (res.ok) {
-      setAsking(false);
+      setMode('idle');
       setComment('');
     }
   };
   const [text, tone] = !review
-    ? ['Not reviewed yet', pill(C.surface, C.muted)]
+    ? ['Not reviewed yet', pill(C.track, C.muted)]
     : review.status === 'approved'
       ? current
         ? ['Approved', pill(C.okBg, C.okText)]
@@ -417,72 +530,60 @@ function ReviewBar({ state }: { state: StudioState }) {
   const when = review && `${new Date(review.at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}${review.comment ? `: "${review.comment}"` : ''}`;
   return (
     <div data-review="" data-script-hash={state.scriptHash} style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: S.gap, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-      <span style={{ ...tone, fontSize: S.text, padding: '4px 12px', border: `1px solid ${C.peachDeep}` }}>{text}</span>
-      {when && <span style={{ color: C.muted, maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{when}</span>}
+      <span title={when} style={tone}>
+        {text}
+      </span>
+      {review?.status === 'changes-requested' && review.comment && mode === 'idle' && (
+        <span title={when} style={{ color: C.muted, maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          "{review.comment}"
+        </span>
+      )}
       {state.reviewError && <span style={{ color: C.errText, whiteSpace: 'pre-wrap' }}>{state.reviewError}</span>}
-      {asking ? (
+      {mode === 'asking' && (
         <>
-          <input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="What should change?" style={{ ...input, width: 260 }} autoFocus />
-          <button style={strong} disabled={!comment.trim()} onClick={() => void send('changes-requested')}>
+          <input
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && comment.trim() && void send('changes-requested')}
+            placeholder="What should change?"
+            style={{ ...input, width: 260 }}
+            autoFocus
+          />
+          <button style={primary} disabled={!comment.trim()} onClick={() => void send('changes-requested')}>
             Send
           </button>
-          <button style={quiet} onClick={() => setAsking(false)}>
+          <button style={quiet} onClick={() => setMode('idle')}>
             Cancel
           </button>
         </>
-      ) : (
+      )}
+      {mode === 'confirming' && (
         <>
-          {/* Approving the version already approved would change nothing, so the button goes. */}
-          {!(current && review?.status === 'approved') && (
-            <button style={strong} disabled={busy} onClick={() => void send('approved')}>
-              Approve this version
-            </button>
-          )}
-          <button style={quiet} disabled={busy} onClick={() => setAsking(true)}>
-            Request changes
+          <span style={{ color: C.ink }}>
+            {unresolved === 1 ? '1 note is' : `${unresolved} notes are`} not closed yet.
+          </span>
+          <button style={primary} onClick={() => void send('approved')}>
+            Approve anyway
+          </button>
+          <button style={quiet} onClick={() => setMode('idle')}>
+            Cancel
           </button>
         </>
       )}
+      {mode === 'idle' && (
+        <>
+          <button style={quiet} disabled={busy} onClick={() => setMode('asking')}>
+            Request changes
+          </button>
+          {/* Approving the version already approved would change nothing, so the button goes. */}
+          {!(current && review?.status === 'approved') && (
+            <button style={primary} disabled={busy} onClick={() => (unresolved ? setMode('confirming') : void send('approved'))}>
+              Approve this version
+            </button>
+          )}
+        </>
+      )}
       {error && <div style={{ width: '100%', textAlign: 'right', color: C.errText, whiteSpace: 'pre-wrap' }}>{error}</div>}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------------------------
-// First visit: three steps, until dismissed. Remembered per browser, if storage is allowed.
-
-const GUIDE_KEY = 'tourwright.muse.guide-dismissed';
-
-function Guide() {
-  const [shown, setShown] = useState(() => {
-    try {
-      return localStorage.getItem(GUIDE_KEY) !== '1';
-    } catch {
-      return true;
-    }
-  });
-  if (!shown) return null;
-  const dismiss = () => {
-    try {
-      localStorage.setItem(GUIDE_KEY, '1');
-    } catch {
-      // Private browsing, or storage turned off: it just shows again next time.
-    }
-    setShown(false);
-  };
-  return (
-    <div data-guide="" style={{ display: 'flex', alignItems: 'center', gap: S.gap * 2, padding: `${S.gap * 1.5}px ${S.gap * 2}px`, background: C.peachSoft, border: `1px solid ${C.peachDeep}`, borderRadius: S.radius }}>
-      <strong style={{ color: C.ink, whiteSpace: 'nowrap' }}>Reviewing a video?</strong>
-      <ol style={{ flex: 1, display: 'flex', gap: `${S.gap / 2}px ${S.gap * 3}px`, margin: 0, padding: 0, listStyle: 'none', color: C.ink, flexWrap: 'wrap' }}>
-        <li>1. Play the video.</li>
-        <li>
-          2. Press <Key>N</Key> (or click Add note) to leave a note at the current moment.
-        </li>
-        <li>3. Approve when it's right.</li>
-      </ol>
-      <button style={{ ...quiet, whiteSpace: 'nowrap' }} onClick={dismiss}>
-        Got it
-      </button>
     </div>
   );
 }
@@ -498,17 +599,24 @@ function Preview(props: {
   onPick: (target: string) => void;
   onCancelPick: () => void;
   frame: number;
+  /** The transport, drawn under the video at its width, so the two read as one player. */
+  children?: ReactNode;
 }) {
   const { timeline, frameRef, api, picking, frame } = props;
   const box = useRef<HTMLDivElement>(null);
+  const below = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.5);
   useEffect(() => {
     const el = box.current;
     if (!el) return;
-    const fit = () => setScale(Math.min(el.clientWidth / timeline.layout.width, el.clientHeight / timeline.layout.height));
+    const fit = () => {
+      const room = el.clientHeight - (below.current?.offsetHeight ?? 0) - S.gap * 1.5;
+      setScale(Math.max(0.1, Math.min(el.clientWidth / timeline.layout.width, room / timeline.layout.height)));
+    };
     fit();
     const observer = new ResizeObserver(fit);
     observer.observe(el);
+    if (below.current) observer.observe(below.current);
     return () => observer.disconnect();
   }, [timeline.layout.width, timeline.layout.height]);
 
@@ -519,8 +627,8 @@ function Preview(props: {
   );
 
   return (
-    <div ref={box} style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ position: 'relative', width: timeline.layout.width * scale, height: timeline.layout.height * scale, borderRadius: S.radius, overflow: 'hidden', boxShadow: `0 0 0 1px ${C.line}, 0 4px 16px ${C.shadow}` }}>
+    <div ref={box} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: S.gap * 1.5 }}>
+      <div style={{ position: 'relative', flex: 'none', width: timeline.layout.width * scale, height: timeline.layout.height * scale, borderRadius: S.radius, overflow: 'hidden', boxShadow: `0 0 0 1px ${C.line}, 0 8px 24px ${C.shadow}` }}>
         <iframe
           ref={frameRef}
           src="/__tourwright/"
@@ -533,6 +641,7 @@ function Preview(props: {
               <button
                 key={t.name}
                 title={t.name}
+                data-target={t.name}
                 onClick={(e) => (e.stopPropagation(), props.onPick(t.name))}
                 style={{
                   position: 'absolute',
@@ -551,70 +660,121 @@ function Preview(props: {
               </button>
             ))}
             <div style={{ position: 'absolute', left: S.gap, bottom: S.gap, background: C.ink, color: C.surface, padding: `${S.gap / 2}px ${S.gap}px`, borderRadius: S.radius }}>
-              Click a target, or anywhere else to cancel. Scrub first if it is not in view.
+              Click a target, or anywhere else (or Esc) to cancel. Scrub first if it is not in view.
             </div>
           </div>
         )}
+      </div>
+      <div ref={below} style={{ width: Math.max(timeline.layout.width * scale, 360), maxWidth: '100%' }}>
+        {props.children}
       </div>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------------------------
-// Transport: play, time to the millisecond, and a scrubber marked with scenes and beats.
+// Transport: play, the scrubber marked with scenes and beats, the time to the millisecond, and
+// what the reviewer controls about playback: speed, looping a scene, jumping between scenes.
 
-function Transport({ timeline, frame, playing, onToggle, onSeek }: { timeline: Timeline; frame: number; playing: boolean; onToggle: () => void; onSeek: (f: number) => void }) {
+function Transport(props: {
+  timeline: Timeline;
+  frame: number;
+  playing: boolean;
+  speed: number;
+  loop: boolean;
+  help: boolean;
+  onToggle: () => void;
+  onSeek: (f: number) => void;
+  onJump: (direction: -1 | 1) => void;
+  onSpeed: (speed: number) => void;
+  onLoop: () => void;
+  onNote: () => void;
+  onHelp: () => void;
+}) {
+  const { timeline, frame, playing } = props;
   const bar = useRef<HTMLDivElement>(null);
   const at = (e: React.PointerEvent) => {
     const r = bar.current!.getBoundingClientRect();
-    onSeek(Math.round(((e.clientX - r.left) / r.width) * (timeline.frames - 1)));
+    props.onSeek(Math.round(((e.clientX - r.left) / r.width) * (timeline.frames - 1)));
   };
   const percent = (f: number) => `${(f / timeline.frames) * 100}%`;
   const current = sceneAt(timeline, frame);
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: S.gap }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: S.gap * 2 }}>
-        <button
-          onClick={onToggle}
-          aria-label={playing ? 'Pause' : 'Play'}
-          style={{ ...reset, width: 48, height: 48, borderRadius: '50%', background: C.peach, border: `1px solid ${C.peachDeep}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}
-        >
-          {playing ? <PauseIcon /> : <PlayIcon />}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: S.gap, position: 'relative' }}>
+      <div
+        ref={bar}
+        data-scrubber=""
+        onPointerDown={(e) => (e.currentTarget.setPointerCapture(e.pointerId), at(e))}
+        onPointerMove={(e) => e.buttons === 1 && at(e)}
+        style={{ position: 'relative', height: 36, background: C.track, borderRadius: S.radius, cursor: 'pointer', overflow: 'hidden', touchAction: 'none' }}
+      >
+        <Segment left="0%" width={percent(timeline.titleFrames)} label="title" active={!current} />
+        {timeline.scenes.map((s, i) => (
+          <Segment key={i} left={percent(s.from)} width={percent(s.frames)} label={s.id} active={current?.index === s.index} />
+        ))}
+        {timeline.scenes.flatMap((s) =>
+          s.beats.map((b) => (
+            <div key={`${s.index}-${b.index}`} title={`${s.id}: ${b.at}`} style={{ position: 'absolute', left: percent(b.cue), bottom: 4, width: 3, height: 10, marginLeft: -1, borderRadius: 2, background: C.accent }} />
+          )),
+        )}
+        <div style={{ position: 'absolute', left: percent(frame), top: 0, bottom: 0, width: 2, marginLeft: -1, background: C.ink }} />
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: S.gap, flexWrap: 'wrap' }}>
+        <button onClick={() => props.onJump(-1)} aria-label="Previous scene" title="Previous scene  [" style={round}>
+          <Icon d="M5 4v12M16 4.5v11L7.5 10z" />
         </button>
-        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 132, flex: 'none' }}>
-          <span style={{ fontSize: 20, fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: C.ink }}>{clock((frame / timeline.fps) * 1000)}</span>
-          <span style={{ color: C.muted, fontVariantNumeric: 'tabular-nums' }}>frame {frame}</span>
+        <button onClick={props.onToggle} aria-label={playing ? 'Pause' : 'Play'} title="Play or pause  Space" style={{ ...round, width: 44, height: 44, background: C.peach, boxShadow: `inset 0 0 0 1px ${C.peachDeep}` }}>
+          {playing ? <Icon d="M6 4h3v12H6zM11 4h3v12h-3z" /> : <Icon d="M6.5 3.5v13l10-6.5z" />}
+        </button>
+        <button onClick={() => props.onJump(1)} aria-label="Next scene" title="Next scene  ]" style={round}>
+          <Icon d="M15 4v12M4 4.5v11l8.5-5.5z" />
+        </button>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: S.gap, marginLeft: S.gap, fontVariantNumeric: 'tabular-nums' }}>
+          <span style={{ fontSize: 16, fontWeight: 600, color: C.ink }}>{clock((frame / timeline.fps) * 1000)}</span>
+          <span style={{ color: C.muted, fontSize: S.small }}>/ {clock((timeline.frames / timeline.fps) * 1000)}</span>
+          <span style={{ color: C.muted, fontSize: S.small }}>frame {frame}</span>
         </div>
-        <div
-          ref={bar}
-          data-scrubber=""
-          onPointerDown={(e) => (e.currentTarget.setPointerCapture(e.pointerId), at(e))}
-          onPointerMove={(e) => e.buttons === 1 && at(e)}
-          style={{ position: 'relative', flex: 1, height: 44, background: C.track, borderRadius: S.radius, cursor: 'pointer', overflow: 'hidden' }}
-        >
-          <Segment left="0%" width={percent(timeline.titleFrames)} label="title" active={!current} />
-          {timeline.scenes.map((s, i) => (
-            <Segment key={i} left={percent(s.from)} width={percent(s.frames)} label={s.id} active={current?.index === s.index} />
-          ))}
-          {timeline.scenes.flatMap((s) =>
-            s.beats.map((b) => (
-              <div key={`${s.index}-${b.index}`} title={`${s.id}: ${b.at}`} style={{ position: 'absolute', left: percent(b.cue), bottom: 4, width: 3, height: 14, marginLeft: -1, borderRadius: 2, background: C.accent }} />
-            )),
-          )}
-          <div style={{ position: 'absolute', left: percent(frame), top: 0, bottom: 0, width: 2, marginLeft: -1, background: C.ink }} />
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: S.gap }}>
+          <button onClick={props.onLoop} aria-pressed={props.loop} aria-label="Loop this scene" title="Loop this scene  L" style={{ ...round, ...(props.loop && { background: C.accentWash, color: C.accent }) }}>
+            <Icon d="M4 9V8a3 3 0 0 1 3-3h8l-2.5-2.5M16 11v1a3 3 0 0 1-3 3H5l2.5 2.5" stroke />
+          </button>
+          <select aria-label="Playback speed" value={props.speed} onChange={(e) => props.onSpeed(Number(e.target.value))} style={{ ...input, padding: '4px 6px' }}>
+            {SPEEDS.map((s) => (
+              <option key={s} value={s}>
+                {s}×
+              </option>
+            ))}
+          </select>
+          <button onClick={props.onHelp} aria-label="Keyboard shortcuts" aria-expanded={props.help} title="Keyboard shortcuts  ?" style={{ ...round, fontWeight: 700, color: C.muted }}>
+            ?
+          </button>
+          <button onClick={props.onNote} style={primary} title="Note at this moment  N">
+            Write a note
+          </button>
         </div>
       </div>
-      <div style={{ color: C.muted, fontSize: S.small, display: 'flex', gap: S.gap * 2, justifyContent: 'flex-end' }}>
-        <span>
-          <Key>Space</Key> play or pause
-        </span>
-        <span>
-          <Key>←</Key> <Key>→</Key> one frame, with <Key>Shift</Key> one second
-        </span>
-        <span>
-          <Key>N</Key> note at this moment
-        </span>
-      </div>
+      {props.help && <Shortcuts />}
+    </div>
+  );
+}
+
+function Shortcuts() {
+  const rows: [ReactNode, string][] = [
+    [<Key>Space</Key>, 'play or pause'],
+    [<><Key>←</Key> <Key>→</Key></>, 'one frame, with Shift one second'],
+    [<><Key>[</Key> <Key>]</Key></>, 'previous or next scene'],
+    [<Key>L</Key>, 'loop the scene'],
+    [<Key>N</Key>, 'note at this moment'],
+    [<><Key>Ctrl</Key> <Key>Enter</Key></>, 'add the note'],
+  ];
+  return (
+    <div role="dialog" aria-label="Keyboard shortcuts" style={{ ...card, position: 'absolute', right: 0, bottom: '100%', marginBottom: S.gap, boxShadow: `0 8px 24px ${C.shadow}`, display: 'grid', gridTemplateColumns: 'auto auto', gap: `${S.gap}px ${S.gap * 2}px`, alignItems: 'center', zIndex: 1 }}>
+      {rows.map(([keys, what], i) => (
+        <div key={i} style={{ display: 'contents' }}>
+          <span style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{keys}</span>
+          <span style={{ color: C.muted }}>{what}</span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -628,8 +788,8 @@ function Segment({ left, width, label, active }: { left: string; width: string; 
         width,
         top: 0,
         bottom: 0,
-        borderLeft: `1px solid ${C.peachDeep}`,
-        padding: '4px 8px',
+        borderLeft: `1px solid ${C.surface}`,
+        padding: '3px 8px',
         fontSize: S.small,
         fontWeight: active ? 600 : 400,
         color: active ? C.ink : C.muted,
@@ -644,19 +804,11 @@ function Segment({ left, width, label, active }: { left: string; width: string; 
   );
 }
 
-function PlayIcon() {
+/** A 20px icon from one path: filled, or drawn as a line. */
+function Icon({ d, stroke }: { d: string; stroke?: boolean }) {
   return (
     <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
-      <path d="M6 3.5v13l11-6.5z" fill={C.ink} />
-    </svg>
-  );
-}
-
-function PauseIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
-      <rect x="4.5" y="3.5" width="4" height="13" rx="1" fill={C.ink} />
-      <rect x="11.5" y="3.5" width="4" height="13" rx="1" fill={C.ink} />
+      <path d={d} {...(stroke ? { fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const } : { fill: 'currentColor' })} />
     </svg>
   );
 }
@@ -671,6 +823,13 @@ const TURN: Record<NoteStatus, { label: string; detail?: string; tone: CSSProper
   closed: { label: 'Closed', tone: pill(C.okBg, C.okText), edge: C.line },
 };
 
+const FILTERS: { id: Filter; label: string; statuses: NoteStatus[] }[] = [
+  { id: 'all', label: 'All', statuses: ['question', 'fixed', 'open', 'closed'] },
+  { id: 'you', label: 'Your turn', statuses: ['question', 'fixed'] },
+  { id: 'agent', label: "Agent's turn", statuses: ['open'] },
+  { id: 'done', label: 'Closed', statuses: ['closed'] },
+];
+
 const SCOPE: Record<NoteScope, string> = { moment: 'this moment', scene: 'the whole scene', all: 'the whole video' };
 
 function Notes({
@@ -680,8 +839,11 @@ function Notes({
   frame,
   audio,
   inputRef,
+  filter,
+  onFilter,
   onSeek,
   onPick,
+  onWrite,
 }: {
   state: StudioState;
   timeline: Timeline | undefined;
@@ -689,15 +851,21 @@ function Notes({
   frame: number;
   audio: React.RefObject<HTMLAudioElement | null>;
   inputRef: React.RefObject<HTMLTextAreaElement | null>;
+  filter: Filter;
+  onFilter: (filter: Filter) => void;
   onSeek: (f: number) => void;
   onPick: (done: (target: string) => void) => void;
+  /** Called when the note box gets the cursor: playback pauses, so the note's moment holds still. */
+  onWrite: () => void;
 }) {
   const [text, setText] = useState('');
   const [scope, setScope] = useState<NoteScope>('moment');
   const [attached, setAttached] = useState<{ target: string; rect: Rect }>();
+  const [focused, setFocused] = useState(false);
   // The playhead to the millisecond: the audio clock while it has one, else the frame.
   const ms = () => Math.round(audio.current && !audio.current.paused ? audio.current.currentTime * 1000 : (frame / (timeline?.fps ?? 30)) * 1000);
   const now = clock((frame / (timeline?.fps ?? 30)) * 1000);
+  const open = focused || !!text || !!attached;
 
   const add = async () => {
     if (!text.trim() || !timeline) return;
@@ -738,6 +906,8 @@ function Notes({
     setText('');
     setScope('moment');
     setAttached(undefined);
+    // Show the new note, wherever the list was filtered to.
+    if (filter !== 'all' && filter !== 'agent') onFilter('all');
   };
   // Where the target is on screen now, in layout pixels: the picker shows the current frame.
   const attach = () =>
@@ -747,12 +917,15 @@ function Notes({
     });
   // Whatever needs the user comes first; closed notes sink to the bottom.
   const order: Record<NoteStatus, number> = { question: 0, fixed: 1, open: 2, closed: 3 };
-  const notes = [...state.notes].sort((a, b) => order[a.status] - order[b.status] || a.ms - b.ms);
+  const count = (f: (typeof FILTERS)[number]) => state.notes.filter((n) => f.statuses.includes(n.status)).length;
+  const shown = FILTERS.find((f) => f.id === filter)!;
+  const notes = state.notes.filter((n) => shown.statuses.includes(n.status)).sort((a, b) => order[a.status] - order[b.status] || a.ms - b.ms);
+  const withAgent = state.notes.filter((n) => n.status === 'open').length;
 
   return (
     <>
       {state.notesError && <Alert>{state.notesError}</Alert>}
-      <div style={{ ...card, background: C.peachSoft, borderColor: C.peachDeep }}>
+      <div style={{ ...card, background: open ? C.peachSoft : C.surface, borderColor: open ? C.peachDeep : C.line }}>
         <label htmlFor="new-note" style={{ display: 'flex', alignItems: 'baseline', gap: S.gap, marginBottom: S.gap, color: C.ink, fontWeight: 600 }}>
           New note <span style={{ fontWeight: 400, color: C.muted, fontVariantNumeric: 'tabular-nums' }}>at {now}</span>
         </label>
@@ -761,39 +934,75 @@ function Notes({
           ref={inputRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
+          onFocus={() => (setFocused(true), onWrite())}
+          onBlur={() => setFocused(false)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) void add();
+            if (e.key === 'Escape') e.currentTarget.blur();
           }}
-          placeholder={'What should change here? Such as "zoom in more on the total". Ctrl+Enter adds it.'}
-          style={{ ...input, width: '100%', minHeight: 64, resize: 'vertical' }}
+          placeholder={open ? 'What should change here? Such as "zoom in more on the total".' : 'What should change here?'}
+          rows={open ? 3 : 1}
+          style={{ ...input, width: '100%', resize: open ? 'vertical' : 'none', display: 'block' }}
         />
-        <div style={{ display: 'flex', gap: S.gap, alignItems: 'center', flexWrap: 'wrap', marginTop: S.gap }}>
-          <span style={{ color: C.muted }}>About</span>
-          <select aria-label="Note scope" value={scope} onChange={(e) => setScope(e.target.value as NoteScope)} style={input}>
-            {(Object.keys(SCOPE) as NoteScope[]).map((s) => (
-              <option key={s} value={s}>
-                {SCOPE[s]}
-              </option>
-            ))}
-          </select>
-          {attached ? (
-            <span style={{ color: C.ink }}>
-              on <strong>{attached.target}</strong>{' '}
-              <a onClick={() => setAttached(undefined)} style={link}>
-                (remove)
-              </a>
-            </span>
-          ) : (
-            <button style={quiet} onClick={attach} disabled={!api}>
-              Attach to a target
+        {open && (
+          <div style={{ display: 'flex', gap: S.gap, alignItems: 'center', flexWrap: 'wrap', marginTop: S.gap }}>
+            <select aria-label="Note scope" value={scope} onChange={(e) => setScope(e.target.value as NoteScope)} style={input}>
+              {(Object.keys(SCOPE) as NoteScope[]).map((s) => (
+                <option key={s} value={s}>
+                  About {SCOPE[s]}
+                </option>
+              ))}
+            </select>
+            {attached ? (
+              <span style={{ color: C.ink }}>
+                on <strong>{attached.target}</strong>{' '}
+                <button onClick={() => setAttached(undefined)} style={subtle}>
+                  remove
+                </button>
+              </span>
+            ) : (
+              <button style={quiet} onMouseDown={(e) => e.preventDefault()} onClick={attach} disabled={!api}>
+                Attach to a target
+              </button>
+            )}
+            <button onClick={() => void add()} style={{ ...primary, marginLeft: 'auto' }} disabled={!text.trim()} title="Ctrl+Enter">
+              Add note
             </button>
-          )}
-          <button onClick={() => void add()} style={{ ...primary, marginLeft: 'auto' }} disabled={!text.trim()}>
-            Add note at {now}
-          </button>
-        </div>
+          </div>
+        )}
       </div>
-      {!notes.length && <p style={{ color: C.muted, margin: `${S.gap * 2}px 0 0` }}>No notes yet. Notes you add appear here, with the agent's replies.</p>}
+
+      {state.notes.length > 0 && (
+        <div role="radiogroup" aria-label="Show notes" style={{ display: 'flex', gap: S.gap / 2, margin: `${S.gap * 2}px 0 ${S.gap}px`, flexWrap: 'wrap' }}>
+          {FILTERS.map((f) => {
+            const selected = f.id === filter;
+            return (
+              <button
+                key={f.id}
+                role="radio"
+                aria-checked={selected}
+                onClick={() => onFilter(f.id)}
+                style={{ ...control, padding: '3px 10px', fontSize: S.small, fontWeight: 600, background: selected ? C.ink : 'transparent', color: selected ? C.surface : C.muted }}
+              >
+                {f.label} <span style={{ opacity: 0.75, fontVariantNumeric: 'tabular-nums' }}>{count(f)}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {withAgent > 0 && (filter === 'all' || filter === 'agent') && (
+        <p style={{ color: C.muted, fontSize: S.small, margin: `0 0 ${S.gap}px` }}>
+          The agent picks up notes when you ask it to, such as "fix my notes in Muse".
+        </p>
+      )}
+
+      {!state.notes.length && (
+        <div style={{ color: C.muted, margin: `${S.gap * 3}px ${S.gap}px 0`, lineHeight: 1.6 }}>
+          <div style={{ color: C.ink, fontWeight: 600, marginBottom: S.gap / 2 }}>No notes yet</div>
+          Play the video and press <Key>N</Key> wherever something should change. The agent replies here, and you approve the video at the top once it is right.
+        </div>
+      )}
+      {state.notes.length > 0 && !notes.length && <p style={{ color: C.muted, margin: `${S.gap}px 0 0` }}>Nothing here.</p>}
       {notes.map((note) => (
         <NoteCard key={note.id} note={note} onSeek={onSeek} />
       ))}
@@ -803,22 +1012,42 @@ function Notes({
 
 function NoteCard({ note, onSeek }: { note: Note; onSeek: (f: number) => void }) {
   const [reply, setReply] = useState('');
-  const [asking, setAsking] = useState(false);
+  const [mode, setMode] = useState<'idle' | 'replying' | 'editing' | 'deleting'>('idle');
+  const [draft, setDraft] = useState(note.text);
   const patch = (change: Partial<Note>) => fetch(`${API}/notes/${note.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(change) });
   const send = async () => {
     const body: ReplyRequest = { text: reply.trim(), status: 'open' };
     await fetch(`${API}/notes/${note.id}/reply`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     setReply('');
-    setAsking(false);
+    setMode('idle');
+  };
+  const save = async () => {
+    await patch({ text: draft.trim() });
+    setMode('idle');
   };
   const remove = () => fetch(`${API}/notes/${note.id}`, { method: 'DELETE' });
   const turn = TURN[note.status];
-  const replyBox = (placeholder: string, action: string) => (
+  const yours = note.status === 'question' || note.status === 'fixed';
+  const replyBox = (placeholder: string, action: string, cancel: boolean) => (
     <div style={{ marginTop: S.gap }}>
-      <textarea value={reply} onChange={(e) => setReply(e.target.value)} placeholder={placeholder} style={{ ...input, width: '100%', minHeight: 48, resize: 'vertical' }} />
-      <button style={{ ...primary, marginTop: S.gap / 2 }} disabled={!reply.trim()} onClick={() => void send()}>
-        {action}
-      </button>
+      <textarea
+        value={reply}
+        onChange={(e) => setReply(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && (e.ctrlKey || e.metaKey) && reply.trim() && void send()}
+        placeholder={placeholder}
+        rows={2}
+        style={{ ...input, width: '100%', resize: 'vertical', display: 'block' }}
+      />
+      <div style={{ display: 'flex', gap: S.gap, marginTop: S.gap }}>
+        <button style={primary} disabled={!reply.trim()} onClick={() => void send()}>
+          {action}
+        </button>
+        {cancel && (
+          <button style={quiet} onClick={() => setMode('idle')}>
+            Cancel
+          </button>
+        )}
+      </div>
     </div>
   );
 
@@ -828,48 +1057,92 @@ function NoteCard({ note, onSeek }: { note: Note; onSeek: (f: number) => void })
       data-status={note.status}
       style={{
         ...card,
-        marginTop: S.gap * 1.5,
-        borderWidth: '1px 1px 1px 4px',
-        background: note.status === 'question' ? C.yoursBg : C.surface,
-        borderColor: `${note.status === 'question' ? `${C.yoursEdge} `.repeat(3) : `${C.line} `.repeat(3)}${turn.edge}`,
-        opacity: note.status === 'closed' ? 0.75 : 1,
+        marginTop: S.gap,
+        borderWidth: '1px 1px 1px 3px',
+        background: yours ? '#FFFBF2' : C.surface,
+        borderColor: `${C.line} ${C.line} ${C.line} ${turn.edge}`,
+        opacity: note.status === 'closed' ? 0.7 : 1,
       }}
     >
-      <div style={{ display: 'flex', gap: S.gap, alignItems: 'baseline' }}>
+      <div style={{ display: 'flex', gap: S.gap, alignItems: 'baseline', flexWrap: 'wrap' }}>
         <span style={turn.tone}>{turn.label}</span>
-        <a onClick={() => onSeek(note.frame)} style={link}>
+        <button onClick={() => onSeek(note.frame)} style={link} title="Jump to this moment">
           {clock(note.ms)}
-        </a>
-        <span style={{ flex: 1, minWidth: 0, color: C.muted }}>
+        </button>
+        <span style={{ flex: 1, minWidth: 0, color: C.muted, fontSize: S.small }}>
           {note.scene}
           {note.scope !== 'moment' && ` · ${SCOPE[note.scope]}`}
           {note.target && ` · on ${note.target}`}
         </span>
-        <a onClick={() => void remove()} style={{ ...link, color: C.errText }}>
-          delete
-        </a>
       </div>
-      {turn.detail && <div style={{ marginTop: S.gap / 2, color: C.yoursText, fontWeight: 600 }}>{turn.detail}</div>}
-      <div style={{ marginTop: S.gap, whiteSpace: 'pre-wrap', color: C.ink }}>{note.text}</div>
+      {turn.detail && <div style={{ marginTop: S.gap, color: C.yoursText, fontWeight: 600 }}>{turn.detail}</div>}
+      {mode === 'editing' ? (
+        <div style={{ marginTop: S.gap }}>
+          <textarea aria-label="Note" value={draft} onChange={(e) => setDraft(e.target.value)} rows={3} style={{ ...input, width: '100%', resize: 'vertical', display: 'block' }} autoFocus />
+          <div style={{ display: 'flex', gap: S.gap, marginTop: S.gap }}>
+            <button style={primary} disabled={!draft.trim()} onClick={() => void save()}>
+              Save
+            </button>
+            <button style={quiet} onClick={() => setMode('idle')}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ marginTop: S.gap, whiteSpace: 'pre-wrap', color: C.ink }}>{note.text}</div>
+      )}
       {note.replies.map((r, i) => (
         <div key={i} style={{ marginTop: S.gap, padding: `${S.gap / 2}px ${S.gap}px`, borderRadius: S.radius, background: r.from === 'agent' ? C.agentBg : C.peachSoft, whiteSpace: 'pre-wrap', color: C.ink }}>
-          {r.from === 'agent' ? 'Agent' : 'You'}: {r.text}
+          <span style={{ fontWeight: 600 }}>{r.from === 'agent' ? 'Agent:' : 'You:'}</span> {r.text}
         </div>
       ))}
-      {note.status === 'question' && replyBox('Answer the agent', 'Send answer')}
+      {note.status === 'question' && replyBox('Answer the agent', 'Send answer', false)}
       {note.status === 'fixed' &&
-        (asking ? (
-          replyBox('What still needs changing?', 'Send')
+        (mode === 'replying' ? (
+          replyBox('What still needs changing?', 'Send', true)
         ) : (
           <div style={{ display: 'flex', gap: S.gap, marginTop: S.gap }}>
             <button style={primary} onClick={() => void patch({ status: 'closed' })}>
               Approve
             </button>
-            <button style={quiet} onClick={() => setAsking(true)}>
+            <button style={quiet} onClick={() => setMode('replying')}>
               Request changes
             </button>
           </div>
         ))}
+      {note.status === 'closed' && mode === 'replying' && replyBox('What still needs changing?', 'Reopen', true)}
+      {mode !== 'editing' && (
+        <div style={{ display: 'flex', gap: S.gap * 1.5, marginTop: S.gap, justifyContent: 'flex-end', alignItems: 'center' }}>
+          {mode === 'deleting' ? (
+            <>
+              <span style={{ color: C.muted, fontSize: S.small }}>Delete this note?</span>
+              <button style={{ ...subtle, color: C.errText }} onClick={() => void remove()}>
+                Yes, delete
+              </button>
+              <button style={subtle} onClick={() => setMode('idle')}>
+                Keep it
+              </button>
+            </>
+          ) : (
+            <>
+              {/* Once the agent has replied, the note is a conversation: add to it rather than rewrite it. */}
+              {note.status === 'open' && !note.replies.length && (
+                <button style={subtle} onClick={() => (setDraft(note.text), setMode('editing'))}>
+                  edit
+                </button>
+              )}
+              {note.status === 'closed' && mode !== 'replying' && (
+                <button style={subtle} onClick={() => setMode('replying')}>
+                  reopen
+                </button>
+              )}
+              <button style={subtle} onClick={() => setMode('deleting')}>
+                delete
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -883,7 +1156,7 @@ function Scenes(props: { state: StudioState; timeline: Timeline; ready: ReadyRep
   const current = sceneAt(timeline, props.frame);
   return (
     <>
-      <p style={{ color: C.muted, margin: `0 0 ${S.gap * 1.5}px` }}>Click a time to jump to it, the narration to edit it, or edit on a beat to change what the camera and highlight do.</p>
+      <p style={{ color: C.muted, margin: `0 0 ${S.gap * 1.5}px` }}>Click a time to jump there, the narration to edit it, or edit on a beat to change the camera and highlight.</p>
       {timeline.scenes.map((scene) => (
         <SceneCard key={scene.index} {...props} scene={scene} raw={script?.scenes?.[scene.index]} active={current?.index === scene.index} />
       ))}
@@ -905,9 +1178,9 @@ function SceneCard(props: { state: StudioState; timeline: Timeline; ready: Ready
   return (
     <div data-scene={scene.id} style={{ ...card, marginBottom: S.gap * 1.5, borderColor: props.active ? C.accent : C.line, boxShadow: props.active ? `0 0 0 1px ${C.accent}` : 'none' }}>
       <div style={{ display: 'flex', gap: S.gap, alignItems: 'baseline' }}>
-        <a onClick={() => props.onSeek(scene.from)} style={{ ...link, fontWeight: 600, fontSize: S.text + 1 }}>
+        <button onClick={() => props.onSeek(scene.from)} style={{ ...link, fontWeight: 600, fontSize: S.text + 1 }}>
           {scene.id}
-        </a>
+        </button>
         <span style={{ color: C.muted }}>
           {scene.stage} · {clock((scene.from / timeline.fps) * 1000)} · {(scene.frames / timeline.fps).toFixed(1)} s
         </span>
@@ -972,14 +1245,14 @@ function SceneCard(props: { state: StudioState; timeline: Timeline; ready: Ready
         ) : (
           <div key={beat.index} style={{ marginTop: S.gap }}>
             <div style={{ display: 'flex', gap: S.gap, alignItems: 'baseline' }}>
-              <a onClick={() => props.onSeek(settle(timeline, scene, beat))} style={link}>
+              <button onClick={() => props.onSeek(settle(timeline, scene, beat))} style={link}>
                 {clock((beat.cue / timeline.fps) * 1000)}
-              </a>
+              </button>
               <span style={{ ...pill(C.agentBg, C.agentText), fontSize: S.small }}>{beat.at}</span>
               <span style={{ flex: 1, color: C.ink }}>{describe(beat)}</span>
-              <a onClick={() => setEditing(beat.index)} style={link}>
+              <button onClick={() => setEditing(beat.index)} style={link}>
                 edit
-              </a>
+              </button>
             </div>
             <DiagnosticList diagnostics={beatProblems} />
           </div>
@@ -1001,9 +1274,9 @@ function SceneCard(props: { state: StudioState; timeline: Timeline; ready: Ready
           }
         />
       ) : (
-        <a onClick={() => setEditing('new')} style={{ ...link, display: 'inline-block', marginTop: S.gap }}>
+        <button onClick={() => setEditing('new')} style={{ ...link, display: 'inline-block', marginTop: S.gap }}>
           + add beat
-        </a>
+        </button>
       )}
     </div>
   );

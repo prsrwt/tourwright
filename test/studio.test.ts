@@ -41,12 +41,8 @@ test('the studio plays back, edits script.json, and pins notes to the millisecon
     await page.locator('[data-scrubber]').waitFor();
     await page.getByRole('banner').getByText('Muse', { exact: true }).waitFor();
 
-    // A first visit shows three steps; dismissing them is remembered.
-    const guide = page.locator('[data-guide]');
-    await guide.getByText('3. Approve when it\'s right.').waitFor();
-    await guide.getByRole('button', { name: 'Got it' }).click();
-    await guide.waitFor({ state: 'detached' });
-    assert.equal(await page.evaluate(() => localStorage.getItem('tourwright.muse.guide-dismissed')), '1');
+    // With no notes yet, the notes panel says what to do.
+    await page.getByText('No notes yet').waitFor();
 
     // Playback follows the soundtrack: it is as long as the timeline, and pressing Play runs the
     // audio clock and moves the picture with it. (Headless Chromium plays to no speaker, but the
@@ -62,6 +58,15 @@ test('the studio plays back, edits script.json, and pins notes to the millisecon
     const heard = await audio.evaluate((el) => (el as HTMLAudioElement).currentTime);
     const showing = Number((await page.locator('span', { hasText: /^frame / }).first().textContent())!.replace('frame ', ''));
     assert.ok(Math.abs(showing - Math.floor(heard * state.timeline.fps)) <= 2, `the picture (frame ${showing}) follows the audio (${heard.toFixed(3)} s)`);
+
+    // The reviewer sets the speed, which the soundtrack (and so the picture) follows.
+    await page.getByLabel('Playback speed').selectOption('1.5');
+    assert.equal(await audio.evaluate((el) => (el as HTMLAudioElement).playbackRate), 1.5);
+    await page.getByLabel('Playback speed').selectOption('1');
+    // Next scene jumps to where the next scene starts.
+    await page.getByRole('button', { name: 'Next scene' }).click();
+    const sceneStart = Number((await page.locator('span', { hasText: /^frame / }).first().textContent())!.replace('frame ', ''));
+    assert.ok([0, ...(state as unknown as { timeline: { scenes: { from: number }[] } }).timeline.scenes.map((s) => s.from)].includes(sceneStart), `frame ${sceneStart} is no scene's start`);
 
     // Seek halfway along the scrubber.
     const bar = page.locator('[data-scrubber]');
@@ -79,8 +84,8 @@ test('the studio plays back, edits script.json, and pins notes to the millisecon
     assert.equal(await tab(/Scenes/).getAttribute('aria-selected'), 'true');
     await page.getByText('edit', { exact: true }).first().click();
     await page.getByRole('button', { name: 'pick' }).first().click();
-    assert.deepEqual((await page.locator('button[title]').allTextContents()).sort(), ['stat-overdue', 'stats', 'status-column', 'tasks']);
-    await page.locator('button[title="stats"]').click();
+    assert.deepEqual((await page.locator('button[data-target]').allTextContents()).sort(), ['stat-overdue', 'stats', 'status-column', 'tasks']);
+    await page.locator('button[data-target="stats"]').click();
     await page.getByRole('button', { name: 'Save beat' }).click();
     await page.getByText('camera to stats (fit)').first().waitFor();
     assert.deepEqual(JSON.parse(readFileSync(scriptFile, 'utf8')).scenes[0].beats[0], { at: 'open', camera: { to: 'stats' } });
@@ -91,7 +96,7 @@ test('the studio plays back, edits script.json, and pins notes to the millisecon
     const shown = `${String(Math.floor(playhead / 60000)).padStart(2, '0')}:${String(Math.floor(playhead / 1000) % 60).padStart(2, '0')}.${String(playhead % 1000).padStart(3, '0')}`;
     assert.equal((await page.locator('label[for="new-note"]').textContent())?.replace(/\s+/g, ' '), `New note at ${shown}`);
     await page.locator('textarea').first().fill('Zoom in more on the total here');
-    await page.getByRole('button', { name: /Add note at/ }).click();
+    await page.getByRole('button', { name: 'Add note', exact: true }).click();
     await page.getByText('Zoom in more on the total here').waitFor();
     const notesFile = join(dir, 'intro', 'notes.json');
     const [note] = (JSON.parse(readFileSync(notesFile, 'utf8')) as NotesFile).notes;
@@ -169,13 +174,25 @@ test('the studio plays back, edits script.json, and pins notes to the millisecon
     assert.deepEqual(byId.redo?.replies.map((r) => r.from), ['agent', 'you']);
     assert.equal(byId.redo?.replies[1]?.text, 'Still too fast.');
 
+    // The list can be narrowed to whose turn it is, and a closed note can be reopened.
+    const filter = (name: RegExp) => page.getByRole('radiogroup', { name: 'Show notes' }).getByRole('radio', { name });
+    await filter(/^Closed/).click();
+    await card('ask').waitFor({ state: 'detached' });
+    await card('good').getByRole('button', { name: 'reopen' }).click();
+    await card('good').locator('textarea').fill('The highlight is gone again.');
+    await card('good').getByRole('button', { name: 'Reopen', exact: true }).click();
+    await card('good').waitFor({ state: 'detached' });
+    assert.equal(readNotesFile().find((n) => n.id === 'good')?.status, 'open');
+    await filter(/^All/).click();
+    await card('good').getByText("Agent's turn").waitFor();
+
     // A note on a target picked in the preview, about the whole scene.
     await page.locator('textarea').first().fill('This card needs its label');
     await page.getByLabel('Note scope').selectOption('scene');
     await page.getByRole('button', { name: 'Attach to a target' }).click();
-    await page.locator('button[title="stat-overdue"]').click();
+    await page.locator('button[data-target="stat-overdue"]').click();
     await page.getByText('on stat-overdue').first().waitFor();
-    await page.getByRole('button', { name: /Add note at/ }).click();
+    await page.getByRole('button', { name: 'Add note', exact: true }).click();
     await page.getByText('This card needs its label').waitFor();
     const onTarget = readNotesFile().find((n) => n.text === 'This card needs its label')!;
     assert.equal(onTarget.target, 'stat-overdue');
@@ -188,6 +205,13 @@ test('the studio plays back, edits script.json, and pins notes to the millisecon
     const onScreen = (await player.evaluate(() => window.__tour.targetsOnScreen())).find((t) => t.name === 'stat-overdue')!;
     assert.deepEqual(onTarget.rect, { x: Math.round(onScreen.rect.x), y: Math.round(onScreen.rect.y), w: Math.round(onScreen.rect.w), h: Math.round(onScreen.rect.h) });
     await card(onTarget.id).getByText(/the whole scene · on stat-overdue/).waitFor();
+
+    // A note the agent has not answered yet can still be reworded.
+    await card(onTarget.id).getByRole('button', { name: 'edit' }).click();
+    await card(onTarget.id).getByLabel('Note').fill('This card needs a clearer label');
+    await card(onTarget.id).getByRole('button', { name: 'Save', exact: true }).click();
+    await card(onTarget.id).getByText('This card needs a clearer label').waitFor();
+    assert.equal(readNotesFile().find((n) => n.id === onTarget.id)?.text, 'This card needs a clearer label');
 
     // A save that started before someone else changed script.json is refused, not merged blindly.
     const stale = (await (await fetch(`${origin}${API}/state`)).json()) as { scriptHash: string; script: unknown };
@@ -202,7 +226,10 @@ test('the studio plays back, edits script.json, and pins notes to the millisecon
     // Wait for the studio to show the outside edit: reviewing before then is refused, as it should be.
     await page.locator(`[data-review][data-script-hash="${hashScript(readFileSync(scriptFile, 'utf8'))}"]`).waitFor();
     await reviewBar.getByText('Not reviewed yet').waitFor();
+    // Notes are still open, so approving asks first.
     await reviewBar.getByRole('button', { name: 'Approve this version' }).click();
+    await reviewBar.getByText(/notes are not closed yet/).waitFor();
+    await reviewBar.getByRole('button', { name: 'Approve anyway' }).click();
     await reviewBar.getByText('Approved', { exact: true }).waitFor();
     const approved = JSON.parse(readFileSync(reviewFile, 'utf8')) as Review;
     const { scriptHash } = (await (await fetch(`${origin}${API}/state`)).json()) as { scriptHash: string };
