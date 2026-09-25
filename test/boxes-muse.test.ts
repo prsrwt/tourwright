@@ -51,8 +51,15 @@ test('a narration box is placed, retimed and deleted from Muse', async () => {
     const timeline = (await state()).timeline!;
     const tasks = timeline.scenes[2]!;
     const bar = (await page.locator('[data-scrubber]').boundingBox())!;
-    await page.mouse.click(bar.x + (bar.width * (tasks.sentences[0]!.from + 20)) / timeline.frames, bar.y + 10);
-    await page.waitForTimeout(500);
+    // On a cold start (a fresh Vite cache, as on CI) the page can still reload itself once its
+    // dependencies are optimised, which drops a click made before it: click until one takes.
+    for (let attempt = 0; ; attempt++) {
+      await page.mouse.click(bar.x + (bar.width * (tasks.sentences[0]!.from + 20)) / timeline.frames, bar.y + 10);
+      const moved = await page.waitForFunction(() => [...document.querySelectorAll('span')].some((el) => /^frame [1-9]/.test(el.textContent ?? '')), undefined, { timeout: 10_000 }).then(() => true, () => false);
+      if (moved) break;
+      if (attempt === 5) throw new Error('Clicking the scrubber never moved the playhead.');
+      await page.locator('[data-scrubber]').waitFor();
+    }
     const before = readFileSync(file, 'utf8');
     await page.locator('[data-action="add-box"]').click();
     await page.locator('[data-picker] [data-target="status-column"]').click();

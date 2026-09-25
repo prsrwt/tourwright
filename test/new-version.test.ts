@@ -41,8 +41,15 @@ test('a new version shows in the open tab, on the same sentence, with the stage 
     const sentence = before.scenes[1]!.sentences[1]!;
     const place = sentence.from + 7;
     const bar = (await page.locator('[data-scrubber]').boundingBox())!;
-    await page.mouse.click(bar.x + (bar.width * (place + 0.5)) / before.frames, bar.y + 10);
-    await page.waitForFunction((el) => el?.textContent !== 'frame 0', await counter.elementHandle());
+    // On a cold start (a fresh Vite cache, as on CI) the page can still reload itself once its
+    // dependencies are optimised, which drops a click made before it: click until one takes.
+    for (let attempt = 0; ; attempt++) {
+      await page.mouse.click(bar.x + (bar.width * (place + 0.5)) / before.frames, bar.y + 10);
+      const moved = await page.waitForFunction(() => [...document.querySelectorAll('span')].some((el) => /^frame [1-9]/.test(el.textContent ?? '')), undefined, { timeout: 10_000 }).then(() => true, () => false);
+      if (moved) break;
+      if (attempt === 5) throw new Error('Clicking the scrubber never moved the playhead.');
+      await page.locator('[data-scrubber]').waitFor();
+    }
     const at = await shownFrame();
     const into = at - sentence.from;
     assert.ok(at >= sentence.from && at < (before.scenes[1]!.sentences[2]?.from ?? before.scenes[1]!.from + before.scenes[1]!.frames), `frame ${at} is not in the sentence`);
