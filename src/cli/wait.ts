@@ -37,7 +37,7 @@ export async function runWait(config: ResolvedConfig, name: string, options: Wai
 
   // What the user had already said before the wait began does not end it; only something new does.
   const seen = verdictKey(start.review);
-  const before = new Map(readNotes(config, name).map((n) => [n.id, { status: n.status, userReplies: userReplies(n) }]));
+  const before = new Map(readNotes(config, name).map((n) => [n.id, { status: n.status, text: n.text, userReplies: userReplies(n) }]));
   console.log(`Waiting for the user to review "${name}" in Muse (npx tourwright muse ${name})${timeout ? `, for up to ${timeout} s` : ''}...`);
 
   const deadline = timeout ? Date.now() + timeout * 1000 : Infinity;
@@ -67,14 +67,16 @@ export async function runWait(config: ResolvedConfig, name: string, options: Wai
     }
     // Every answer the user gives on a note is for the agent: an answer to its question, "not fixed
     // yet" on a fix, or a closed note reopened. A brand-new note is not, until the user sends it.
+    // Rewording a note already sent changes what the agent was asked; rewording one not sent yet does not.
+    const sentIds = state.current && state.review?.status === 'changes-requested' ? (state.review.notes ?? []) : [];
     const handedBack = notes.filter((n) => {
       const was = before.get(n.id);
-      return was && n.status === 'open' && (was.status !== 'open' || userReplies(n) > was.userReplies);
+      return was && n.status === 'open' && (was.status !== 'open' || userReplies(n) > was.userReplies || (n.text !== was.text && sentIds.includes(n.id)));
     });
     if (handedBack.length) {
       for (const note of handedBack) {
         const was = before.get(note.id)!.status;
-        const what = was === 'question' ? 'answered your question' : was === 'fixed' ? 'says this is not fixed yet' : was === 'closed' ? 'reopened this note' : 'replied';
+        const what = was === 'question' ? 'answered your question' : was === 'fixed' ? 'says this is not fixed yet' : was === 'closed' ? 'reopened this note' : note.text !== before.get(note.id)!.text ? 'reworded a note they sent you' : 'replied';
         console.log(`The user ${what}:\n`);
         printNote(note);
       }

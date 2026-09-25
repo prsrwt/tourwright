@@ -111,4 +111,13 @@ test('every answer on a note wakes the agent; approving a fix or deleting a note
   assert.equal(reopened.code, WAIT.feedback);
   assert.match(reopened.out, /The user reopened this note:\n\n\[c\]/);
   assert.doesNotMatch(reopened.out, /\[f\] at/, 'f was already handed back before this wait');
+
+  // Rewording a note already sent to the agent hands it over again; rewording one not sent does not.
+  writeFileSync(notes, JSON.stringify({ notes: [note('s', 'open'), note('u', 'open')] }));
+  writeReview(config, 'intro', { status: 'changes-requested', scriptHash: hash(config), at: '2026-09-25T10:00:00Z', notes: ['s'] });
+  const unsentEdit = await wait(config, () => writeFileSync(notes, JSON.stringify({ notes: [note('s', 'open'), { ...note('u', 'open'), text: 'u, reworded' }] })), 0.3);
+  assert.equal(unsentEdit.code, WAIT.timeout);
+  const sentEdit = await wait(config, () => writeFileSync(notes, JSON.stringify({ notes: [{ ...note('s', 'open'), text: 'Zoom to 3x, not 2x.' }, note('u', 'open')] })));
+  assert.equal(sentEdit.code, WAIT.feedback);
+  assert.match(sentEdit.out, /The user reworded a note they sent you:\n\n\[s\][^]*Zoom to 3x, not 2x\./);
 });

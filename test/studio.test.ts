@@ -109,6 +109,9 @@ test('the studio plays back, edits script.json, and pins notes to the millisecon
     assert.equal(note?.screen?.scene, 'stats');
     assert.equal(note?.screen?.highlight?.target, 'stats');
     assert.ok(note?.screen?.targets.some((t) => t.name === 'stats' && t.cut.length === 0));
+    // A new note waits to be sent, and the panel offers to send it.
+    await page.locator(`[data-note="${note!.id}"]`).getByText('Not sent yet', { exact: true }).waitFor();
+    await page.locator('[data-send-bar]').getByText('1 note is not sent yet.').waitFor();
 
     // From here on, count how often the player restarts. Notes and replies arriving must not
     // restart it or reload the soundtrack, which would stop playback; only a new timeline does.
@@ -154,7 +157,7 @@ test('the studio plays back, edits script.json, and pins notes to the millisecon
     assert.equal(await card('ask').getAttribute('data-status'), 'question');
     await card('ask').getByText('Agent: All three cards, or only Overdue?').waitFor();
     await card('ask').locator('textarea').fill('All three, please.');
-    await card('ask').getByRole('button', { name: 'Send answer' }).click();
+    await card('ask').getByRole('button', { name: 'Send answer to the agent' }).click();
     await card('ask').getByText("Agent's turn").waitFor();
     await card('ask').getByText('You: All three, please.').waitFor();
     const answered = readNotesFile().find((n) => n.id === 'ask')!;
@@ -166,7 +169,7 @@ test('the studio plays back, edits script.json, and pins notes to the millisecon
     await card('good').getByText('Closed', { exact: true }).waitFor();
     await card('redo').getByRole('button', { name: 'Not fixed yet' }).click();
     await card('redo').locator('textarea').fill('Still too fast.');
-    await card('redo').getByRole('button', { name: 'Send', exact: true }).click();
+    await card('redo').getByRole('button', { name: 'Send to the agent', exact: true }).click();
     await card('redo').getByText("Agent's turn").waitFor();
     const byId = Object.fromEntries(readNotesFile().map((n) => [n.id, n]));
     assert.equal(byId.good?.status, 'closed');
@@ -180,7 +183,7 @@ test('the studio plays back, edits script.json, and pins notes to the millisecon
     await card('ask').waitFor({ state: 'detached' });
     await card('good').getByRole('button', { name: 'reopen' }).click();
     await card('good').locator('textarea').fill('The highlight is gone again.');
-    await card('good').getByRole('button', { name: 'Reopen', exact: true }).click();
+    await card('good').getByRole('button', { name: 'Reopen and send to the agent', exact: true }).click();
     await card('good').waitFor({ state: 'detached' });
     assert.equal(readNotesFile().find((n) => n.id === 'good')?.status, 'open');
     await filter(/^All/).click();
@@ -257,6 +260,7 @@ test('the studio plays back, edits script.json, and pins notes to the millisecon
     await reviewBar.getByRole('button', { name: `Send ${open.length} note${open.length === 1 ? '' : 's'} to the agent` }).click();
     await reviewBar.getByText(`Sent ${open.length} note${open.length === 1 ? '' : 's'} to the agent`, { exact: true }).waitFor();
     assert.equal(await reviewBar.locator('[data-action="send"]').count(), 0);
+    assert.equal(await page.locator('[data-send-bar]').count(), 0, 'the panel has nothing left to send either');
     const requested = JSON.parse(readFileSync(reviewFile, 'utf8')) as Review;
     assert.equal(requested.status, 'changes-requested');
     assert.deepEqual(requested.notes, open);

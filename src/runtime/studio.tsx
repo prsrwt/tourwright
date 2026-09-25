@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Diagnostic } from '../check/diagnostic.ts';
-import type { NewNoteRequest, Note, NoteScope, NoteStatus, ReplyRequest, ReviewRequest, StudioState } from '../studio/protocol.ts';
+import type { NewNoteRequest, Note, NoteScope, NoteStatus, ReplyRequest, Review, ReviewRequest, StudioState } from '../studio/protocol.ts';
 import type { TimedBeat, TimedScene, Timeline } from '../timing/timeline.ts';
 import type { Rect } from './motion.ts';
 import type { ReadyReport, TourApi } from './player.tsx';
@@ -496,6 +496,19 @@ function Header({ state, message }: { state: StudioState; message: string | unde
   );
 }
 
+/** The notes sent to the agent with the current request for changes: with the agent now. */
+function sentNoteIds(state: StudioState): string[] {
+  const review = state.review;
+  return review?.scriptHash === state.scriptHash && review.status === 'changes-requested' ? (review.notes ?? []) : [];
+}
+
+/** Records the review: sending the open notes to the agent, or approving the video. Returns the error, if any. */
+async function sendReview(state: StudioState, status: Review['status'], comment = ''): Promise<string | undefined> {
+  const body: ReviewRequest = { base: state.scriptHash, status, ...(status === 'changes-requested' && comment.trim() && { comment: comment.trim() }) };
+  const res = await fetch(`${API}/review`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  return res.ok ? undefined : ((await res.json()) as { error: string }).error;
+}
+
 /**
  * The whole video's review, as two plain actions: send the open notes to the agent, or approve the
  * video as finished. Sending is the agent's signal to make the changes; approving tells it the
@@ -509,14 +522,13 @@ function ReviewBar({ state }: { state: StudioState }) {
   const current = review?.scriptHash === state.scriptHash;
   const open = state.notes.filter((n) => n.status === 'open');
   // Notes already sent with the current request for changes are with the agent; only new ones are left to send.
-  const sent = current && review?.status === 'changes-requested' ? (review.notes ?? []) : [];
+  const sent = sentNoteIds(state);
   const unsent = open.filter((n) => !sent.includes(n.id));
   const unresolved = state.notes.filter((n) => n.status !== 'closed').length;
-  const send = async (status: 'approved' | 'changes-requested') => {
-    const body: ReviewRequest = { base: state.scriptHash, status, ...(status === 'changes-requested' && comment.trim() && { comment: comment.trim() }) };
-    const res = await fetch(`${API}/review`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    setError(res.ok ? undefined : ((await res.json()) as { error: string }).error);
-    if (res.ok) {
+  const send = async (status: Review['status']) => {
+    const failed = await sendReview(state, status, comment);
+    setError(failed);
+    if (!failed) {
       setMode('idle');
       setComment('');
     }
@@ -831,6 +843,8 @@ const TURN: Record<NoteStatus, { label: string; detail?: string; tone: CSSProper
   closed: { label: 'Closed', tone: pill(C.okBg, C.okText), edge: C.line },
 };
 
+const UNSENT = { label: 'Not sent yet', detail: 'Goes to the agent when you press "Send to the agent".', tone: pill(C.track, C.muted), edge: C.line };
+
 const FILTERS: { id: Filter; label: string; statuses: NoteStatus[] }[] = [
   { id: 'all', label: 'All', statuses: ['question', 'fixed', 'open', 'closed'] },
   { id: 'you', label: 'Your turn', statuses: ['question', 'fixed'] },
@@ -928,7 +942,10 @@ function Notes({
   const count = (f: (typeof FILTERS)[number]) => state.notes.filter((n) => f.statuses.includes(n.status)).length;
   const shown = FILTERS.find((f) => f.id === filter)!;
   const notes = state.notes.filter((n) => shown.statuses.includes(n.status)).sort((a, b) => order[a.status] - order[b.status] || a.ms - b.ms);
+  const sent = sentNoteIds(state);
   const withAgent = state.notes.filter((n) => n.status === 'open').length;
+  const unsent = state.notes.filter((n) => n.status === 'open' && !sent.includes(n.id)).length;
+  const [sendError, setSendError] = useState<string>();
 
   return (
     <>
@@ -998,27 +1015,37 @@ function Notes({
           })}
         </div>
       )}
-      {withAgent > 0 && (filter === 'all' || filter === 'agent') && (
-        <p style={{ color: C.muted, fontSize: S.small, margin: `0 0 ${S.gap}px` }}>
-          The agent picks up notes when you ask it to, such as "fix my notes in Muse".
-        </p>
+      {/* Notes wait here until they are sent, so the agent gets them together rather than one at a time. */}
+      {unsent > 0 && (
+        <div data-send-bar="" style={{ display: 'flex', alignItems: 'center', gap: S.gap, margin: `0 0 ${S.gap}px`, flexWrap: 'wrap' }}>
+          <span style={{ color: C.ink, fontSize: S.small }}>
+            {unsent === 1 ? '1 note is' : `${unsent} notes are`} not sent yet.
+          </span>
+          <button style={primary} disabled={state.preparing || !!state.error} title="The agent gets these notes and makes the changes" onClick={() => void sendReview(state, 'changes-requested').then(setSendError)}>
+            Send to the agent
+          </button>
+          {sendError && <span style={{ color: C.errText, whiteSpace: 'pre-wrap' }}>{sendError}</span>}
+        </div>
+      )}
+      {!unsent && withAgent > 0 && (filter === 'all' || filter === 'agent') && (
+        <p style={{ color: C.muted, fontSize: S.small, margin: `0 0 ${S.gap}px` }}>The agent has your notes and replies on each one here.</p>
       )}
 
       {!state.notes.length && (
         <div style={{ color: C.muted, margin: `${S.gap * 3}px ${S.gap}px 0`, lineHeight: 1.6 }}>
           <div style={{ color: C.ink, fontWeight: 600, marginBottom: S.gap / 2 }}>No notes yet</div>
-          Play the video and press <Key>N</Key> wherever something should change. The agent replies here, and you approve the video at the top once it is right.
+          Play the video and press <Key>N</Key> wherever something should change, then send your notes to the agent. It replies here, and you approve the video at the top once it is right.
         </div>
       )}
       {state.notes.length > 0 && !notes.length && <p style={{ color: C.muted, margin: `${S.gap}px 0 0` }}>Nothing here.</p>}
       {notes.map((note) => (
-        <NoteCard key={note.id} note={note} onSeek={onSeek} />
+        <NoteCard key={note.id} note={note} sent={sent.includes(note.id)} onSeek={onSeek} />
       ))}
     </>
   );
 }
 
-function NoteCard({ note, onSeek }: { note: Note; onSeek: (f: number) => void }) {
+function NoteCard({ note, sent, onSeek }: { note: Note; sent: boolean; onSeek: (f: number) => void }) {
   const [reply, setReply] = useState('');
   const [mode, setMode] = useState<'idle' | 'replying' | 'editing' | 'deleting'>('idle');
   const [draft, setDraft] = useState(note.text);
@@ -1034,7 +1061,8 @@ function NoteCard({ note, onSeek }: { note: Note; onSeek: (f: number) => void })
     setMode('idle');
   };
   const remove = () => fetch(`${API}/notes/${note.id}`, { method: 'DELETE' });
-  const turn = TURN[note.status];
+  // An open note is the agent's only once it has been sent; until then it is waiting to go.
+  const turn = note.status === 'open' && !sent && !note.replies.length ? UNSENT : TURN[note.status];
   const yours = note.status === 'question' || note.status === 'fixed';
   const replyBox = (placeholder: string, action: string, cancel: boolean) => (
     <div style={{ marginTop: S.gap }}>
@@ -1083,7 +1111,7 @@ function NoteCard({ note, onSeek }: { note: Note; onSeek: (f: number) => void })
           {note.target && ` · on ${note.target}`}
         </span>
       </div>
-      {turn.detail && <div style={{ marginTop: S.gap, color: C.yoursText, fontWeight: 600 }}>{turn.detail}</div>}
+      {turn.detail && <div style={turn === UNSENT ? { marginTop: S.gap, color: C.muted, fontSize: S.small } : { marginTop: S.gap, color: C.yoursText, fontWeight: 600 }}>{turn.detail}</div>}
       {mode === 'editing' ? (
         <div style={{ marginTop: S.gap }}>
           <textarea aria-label="Note" value={draft} onChange={(e) => setDraft(e.target.value)} rows={3} style={{ ...input, width: '100%', resize: 'vertical', display: 'block' }} autoFocus />
@@ -1104,10 +1132,10 @@ function NoteCard({ note, onSeek }: { note: Note; onSeek: (f: number) => void })
           <span style={{ fontWeight: 600 }}>{r.from === 'agent' ? 'Agent:' : 'You:'}</span> {r.text}
         </div>
       ))}
-      {note.status === 'question' && replyBox('Answer the agent', 'Send answer', false)}
+      {note.status === 'question' && replyBox('Answer the agent', 'Send answer to the agent', false)}
       {note.status === 'fixed' &&
         (mode === 'replying' ? (
-          replyBox('What still needs changing?', 'Send', true)
+          replyBox('What still needs changing?', 'Send to the agent', true)
         ) : (
           <div style={{ display: 'flex', gap: S.gap, marginTop: S.gap }}>
             <button style={primary} onClick={() => void patch({ status: 'closed' })}>
@@ -1118,7 +1146,7 @@ function NoteCard({ note, onSeek }: { note: Note; onSeek: (f: number) => void })
             </button>
           </div>
         ))}
-      {note.status === 'closed' && mode === 'replying' && replyBox('What still needs changing?', 'Reopen', true)}
+      {note.status === 'closed' && mode === 'replying' && replyBox('What still needs changing?', 'Reopen and send to the agent', true)}
       {mode !== 'editing' && (
         <div style={{ display: 'flex', gap: S.gap * 1.5, marginTop: S.gap, justifyContent: 'flex-end', alignItems: 'center' }}>
           {mode === 'deleting' ? (
