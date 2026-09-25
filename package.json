@@ -66,5 +66,10 @@
     "playwright",
     "tts",
     "documentation"
-  ]
+  ],
+  "overrides": {
+    "@huggingface/transformers": {
+      "sharp": "^0.35.4"
+    }
+  }
 }
