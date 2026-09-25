@@ -75,9 +75,9 @@ npm install --no-save tourwright ffmpeg-static
 | Command | What it does |
 | --- | --- |
 | `init` | Set up Tourwright in this app. Never overwrites a file. |
-| `new <name>` | Create a walkthrough from a template |
-| `check <name>` | Validate a script: schema, cues, beats, writing rules. No browser. |
-| `verify <name>` | Render a still at every beat and check each against the live page. Writes a report, a timing table, a description of each still and a contact sheet. |
+| `new <name>` | Create a walkthrough from a template. `--from-stage <stage>` drafts its scenes, cues and beats from what the stage renders, leaving only the narration to write |
+| `check <name>` | Validate a script: schema, cues, beats, writing rules. No browser. `--fix` applies the fixes that have exactly one right answer |
+| `verify <name>` | Render a still at every beat and check each against the live page. Writes a report, a timing table, a description of each still and a contact sheet, and says which stills changed since the last run. `--fix` also corrects misspelt stage and target names |
 | `describe <name>` | Say in words what is on screen at every beat, or at one moment with `--at <seconds>`: what the camera shows, the highlight and its text, the caption and the stage's values |
 | `render <name>` | Render the MP4 |
 | `make <name>` | Check and verify, then render only if every still passes, then open Muse in the browser to review it. `--no-review`, or `"review": false` in the config, leaves it closed; in CI, or with no screen, it prints the link or command instead. `--require-approval` renders only a version the user has approved in Muse |
