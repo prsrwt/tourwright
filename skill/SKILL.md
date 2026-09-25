@@ -72,8 +72,8 @@ Each turn and each file you read costs. The tool is built so you rarely need mor
 8. **`check <name> --fix`.** Fix every error left; fix each warning or be able to say why it is fine.
 9. **`verify <name> --fix --fake-voice`**, then the checks under "Verifying" below. Repeat from 6 or 7.
 10. **`make <name>`** with the real voice. It verifies, renders, and opens Muse in the user's browser; its last lines say whether Muse opened, or give the link or command instead.
-11. **Hand over** the MP4 path, the duration and anything you were unsure about. Tell the user Muse has opened in their browser (or give them the link or command), that there they can watch it, leave notes at any moment, and then either approve it or press "Request changes". It is not finished until they approve it (`references/muse.md`).
-12. **`wait <name>`** to hear their decision, and act on what it says (`references/muse.md`). Approved (exit 0): the video is finished. Say so, render the final cut if it tells you to, and move on to what comes next without asking about this video again. Feedback (exit 2): handle the notes, `make` it again, and wait again. Still waiting (exit 3): run `wait` again, or stop if the user has said they will come back to it later.
+11. **Hand over** the MP4 path, the duration and anything you were unsure about. Tell the user Muse has opened in their browser (or give them the link or command), that there they can watch it, leave notes at any moment, and then either press "Send notes to the agent" or approve it as finished. It is not finished until they approve it (`references/muse.md`).
+12. **`wait <name>`** to hear their decision, and act on what it says (`references/muse.md`). Approved (exit 0): the video is finished. Say so, render the final cut if it tells you to, and move on to what comes next without asking about this video again. Feedback (exit 2): it prints the notes the user sent, in full; handle them, `make` it again, and wait again. Still waiting (exit 3): run `wait` again, or stop if the user has said they will come back to it later.
 
 ## Verifying
 

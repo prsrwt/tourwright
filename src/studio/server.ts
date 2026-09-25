@@ -10,7 +10,7 @@ import type { ResolvedConfig } from '../config/config.ts';
 import { scriptPath } from '../config/walkthroughs.ts';
 import { prepare, PrepareError } from '../pipeline/prepare.ts';
 import { buildSoundtrack } from '../timing/audio.ts';
-import { API, NOTE_SCOPES, NOTE_STATUSES, type NewNoteRequest, type Note, type NotesFile, type ReplyRequest, type ReviewRequest, type SaveScriptRequest, type StudioState } from './protocol.ts';
+import { API, NOTE_SCOPES, NOTE_STATUSES, type NewNoteRequest, type Note, type NotesFile, type ReplyRequest, type Review, type ReviewRequest, type SaveScriptRequest, type StudioState } from './protocol.ts';
 import { hashScript as hash, readReview, reviewPath, writeReview } from './review.ts';
 
 export function notesPath(config: ResolvedConfig, name: string): string {
@@ -238,7 +238,18 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
           if (base !== current) {
             return send(409, { error: 'script.json changed since you started watching this version, so this review would be for a version you have not seen.\nFix: Muse has reloaded it; watch it again, then review.' });
           }
-          const review = { status, scriptHash: current, at: new Date().toISOString(), ...(comment?.trim() && { comment: comment.trim() }) };
+          // Asking for changes sends the open notes with it: the agent gets what to change, not only that something should.
+          const open = state.notes.filter((n) => n.status === 'open').map((n) => n.id);
+          if (status === 'changes-requested' && !open.length && !comment?.trim()) {
+            return send(400, { error: 'There is nothing to send yet.\nFix: leave a note where something should change, or say what should change.' });
+          }
+          const review: Review = {
+            status,
+            scriptHash: current,
+            at: new Date().toISOString(),
+            ...(comment?.trim() && { comment: comment.trim() }),
+            ...(status === 'changes-requested' && open.length && { notes: open }),
+          };
           writeReview(config, name, review);
           watchReview();
           state.review = review;

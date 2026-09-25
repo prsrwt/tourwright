@@ -5,8 +5,8 @@ Read this when the user asks you to handle their notes, or before you hand a vid
 The user reviews a walkthrough in Muse, a page in their browser. `make` opens it by itself after a
 successful render, and `npx tourwright muse <name>` opens it at any time. A Muse that make started
 closes itself 10 minutes after its tab is closed, and make reuses one that is still open. There the
-user leaves notes pinned to exact moments, and approves the whole video (or asks for changes) once
-they are happy with it. Notes live in `tourwright/walkthroughs/<name>/notes.json` and the video's
+user leaves notes pinned to exact moments, and either sends you their notes or approves the whole video
+once they are happy with it. Notes live in `tourwright/walkthroughs/<name>/notes.json` and the video's
 review in `review.json`, both beside the script.
 
 Each note has a `"status"` that says whose turn it is:
@@ -64,13 +64,13 @@ something that needs you, says what happened and what to do next, and its exit c
 | Exit | What happened | What you do |
 | --- | --- | --- |
 | 0 | The user approved the current version | The video is finished. If it says the MP4 is older than the approved script (they edited in Muse), render the final cut with `make <name> --require-approval --no-review`. Tell the user it is done, then carry on with the rest of your task. Don't ask them to review it again |
-| 2 | They asked for changes, or answered one of your questions | Run `notes <name>`, handle the open notes as above, `make` it again, then `wait` again |
+| 2 | They sent you their notes (the "Send notes to the agent" button), or answered one of your questions | It prints those notes in full, as `notes` would: handle each as above from step 2, `make` it again, then `wait` again |
 | 3 | Nothing yet, after `--timeout` (540 s by default, just under the longest command Claude Code runs) | Run `wait` again. Run it in the background if your tools can, so you can keep talking to the user |
 
 If the video is already approved, `wait` returns 0 at once, so it is always safe to run. A request
 for changes the user made before you started waiting does not end the wait: that one you have
 already seen. Notes on their own don't end it either, because the user may still be adding them;
-it ends when they press "Request changes" or approve.
+it ends when they send them to you or approve. A review's `"notes"` lists the ids they sent.
 
 Edits made in Muse are written to `script.json` too. If the user has Muse open, it
 reloads when you change the file, so you both always see the same script.

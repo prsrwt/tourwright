@@ -103,6 +103,8 @@ export interface Review {
   scriptHash: string;
   at: string;
   comment?: string;
+  /** With changes-requested: the ids of the notes that were open when the user sent them, for the agent to handle. */
+  notes?: string[];
 }
 
 export interface NewNoteRequest {

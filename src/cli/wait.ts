@@ -10,6 +10,7 @@ import { scriptPath } from '../config/walkthroughs.ts';
 import type { Note, Review } from '../studio/protocol.ts';
 import { formatReview, reviewState, type ReviewState } from '../studio/review.ts';
 import { readNotes } from '../studio/server.ts';
+import { printNote } from './notes.ts';
 import { videoPath } from './render.ts';
 
 /** Exit codes, so a caller can branch without reading the text. */
@@ -53,13 +54,21 @@ export async function runWait(config: ResolvedConfig, name: string, options: Wai
     }
     if (state.approved) return approved(config, name, state);
     if (state.current && state.review?.status === 'changes-requested' && verdictKey(state.review) !== seen) {
+      // The notes the user sent with the request, in full, so the agent can start on them at once.
+      const ids = state.review.notes ?? [];
+      const sent = notes.filter((n) => ids.includes(n.id));
+      const alsoOpen = notes.filter((n) => n.status === 'open' && !ids.includes(n.id));
       console.log(`${formatReview(name, state)}\n`);
-      console.log(`The user wants changes. ${openCount(notes)}\nNext: run "npx tourwright notes ${name}", handle each open note and the review's comment, make it again, then wait again.`);
+      console.log(`The user sent ${sent.length ? `${sent.length} note${sent.length === 1 ? '' : 's'}` : 'a request'} for you to handle:\n`);
+      for (const note of [...sent, ...alsoOpen]) printNote(note);
+      console.log(handle(name));
       return WAIT.feedback;
     }
     const answered = notes.filter((n) => asked.has(n.id) && n.status === 'open');
     if (answered.length) {
-      console.log(`The user answered your question on ${answered.map((n) => `[${n.id}]`).join(', ')}. ${openCount(notes)}\nNext: run "npx tourwright notes ${name}" and handle the open notes, then wait again.`);
+      console.log(`The user answered your question on ${answered.map((n) => `[${n.id}]`).join(', ')}:\n`);
+      for (const note of answered) printNote(note);
+      console.log(handle(name));
       return WAIT.feedback;
     }
   }
@@ -81,6 +90,14 @@ function approved(config: ResolvedConfig, name: string, state: ReviewState): num
       : `Done: the user approved "${name}". ${existsSync(video) ? `${shown} is older than the approved script.json, so` : 'There is no video yet, so'} render the final cut with "npx tourwright make ${name} --require-approval --no-review", then tell the user it is finished and carry on with what comes next.`,
   );
   return WAIT.approved;
+}
+
+function handle(name: string): string {
+  return [
+    `Next: make each change (read references/muse.md if you are unsure how), then say what you did on each note with`,
+    `npx tourwright reply ${name} <id> --fixed "what you changed" (or --question "what you need to know"),`,
+    `make it again, and wait again with npx tourwright wait ${name}.`,
+  ].join('\n');
 }
 
 function verdictKey(review: Review | undefined): string {

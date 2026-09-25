@@ -497,8 +497,9 @@ function Header({ state, message }: { state: StudioState; message: string | unde
 }
 
 /**
- * The whole video's review: approve this exact version of script.json, or ask for changes.
- * Approving while notes are still open asks first, so nothing is signed off by accident.
+ * The whole video's review, as two plain actions: send the open notes to the agent, or approve the
+ * video as finished. Sending is the agent's signal to make the changes; approving tells it the
+ * video is done. Approving while notes are still open asks first, so nothing is signed off by accident.
  */
 function ReviewBar({ state }: { state: StudioState }) {
   const [mode, setMode] = useState<'idle' | 'asking' | 'confirming'>('idle');
@@ -506,6 +507,10 @@ function ReviewBar({ state }: { state: StudioState }) {
   const [error, setError] = useState<string>();
   const review = state.review;
   const current = review?.scriptHash === state.scriptHash;
+  const open = state.notes.filter((n) => n.status === 'open');
+  // Notes already sent with the current request for changes are with the agent; only new ones are left to send.
+  const sent = current && review?.status === 'changes-requested' ? (review.notes ?? []) : [];
+  const unsent = open.filter((n) => !sent.includes(n.id));
   const unresolved = state.notes.filter((n) => n.status !== 'closed').length;
   const send = async (status: 'approved' | 'changes-requested') => {
     const body: ReviewRequest = { base: state.scriptHash, status, ...(status === 'changes-requested' && comment.trim() && { comment: comment.trim() }) };
@@ -516,28 +521,25 @@ function ReviewBar({ state }: { state: StudioState }) {
       setComment('');
     }
   };
+  const plural = (n: number) => `${n} note${n === 1 ? '' : 's'}`;
   const [text, tone] = !review
     ? ['Not reviewed yet', pill(C.track, C.muted)]
     : review.status === 'approved'
       ? current
-        ? ['Approved', pill(C.okBg, C.okText)]
-        : ['Edited since approval', pill(C.warnBg, C.warnText)]
+        ? ['Approved: finished', pill(C.okBg, C.okText)]
+        : ['Edited since you approved it', pill(C.warnBg, C.warnText)]
       : current
-        ? ['Changes requested', pill(C.errBg, C.errText)]
-        : ['Changes requested on an earlier version', pill(C.warnBg, C.warnText)];
+        ? [sent.length ? `Sent ${plural(sent.length)} to the agent` : 'Sent to the agent', pill(C.warnBg, C.warnText)]
+        : ['Changed since you sent it: watch again', pill(C.warnBg, C.warnText)];
   // Reviewing a version that is still being voiced, or failed to prepare, would approve something unseen.
   const busy = state.preparing || !!state.error;
   const when = review && `${new Date(review.at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}${review.comment ? `: "${review.comment}"` : ''}`;
+  const approvedNow = current && review?.status === 'approved';
   return (
     <div data-review="" data-script-hash={state.scriptHash} style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: S.gap, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-      <span title={when} style={tone}>
+      <span data-review-status="" title={when} style={tone}>
         {text}
       </span>
-      {review?.status === 'changes-requested' && review.comment && mode === 'idle' && (
-        <span title={when} style={{ color: C.muted, maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          "{review.comment}"
-        </span>
-      )}
       {state.reviewError && <span style={{ color: C.errText, whiteSpace: 'pre-wrap' }}>{state.reviewError}</span>}
       {mode === 'asking' && (
         <>
@@ -550,7 +552,7 @@ function ReviewBar({ state }: { state: StudioState }) {
             autoFocus
           />
           <button style={primary} disabled={!comment.trim()} onClick={() => void send('changes-requested')}>
-            Send
+            Send to the agent
           </button>
           <button style={quiet} onClick={() => setMode('idle')}>
             Cancel
@@ -559,9 +561,7 @@ function ReviewBar({ state }: { state: StudioState }) {
       )}
       {mode === 'confirming' && (
         <>
-          <span style={{ color: C.ink }}>
-            {unresolved === 1 ? '1 note is' : `${unresolved} notes are`} not closed yet.
-          </span>
+          <span style={{ color: C.ink }}>{unresolved === 1 ? '1 note is' : `${unresolved} notes are`} not closed yet.</span>
           <button style={primary} onClick={() => void send('approved')}>
             Approve anyway
           </button>
@@ -572,13 +572,21 @@ function ReviewBar({ state }: { state: StudioState }) {
       )}
       {mode === 'idle' && (
         <>
-          <button style={quiet} disabled={busy} onClick={() => setMode('asking')}>
-            Request changes
-          </button>
-          {/* Approving the version already approved would change nothing, so the button goes. */}
-          {!(current && review?.status === 'approved') && (
-            <button style={primary} disabled={busy} onClick={() => (unresolved ? setMode('confirming') : void send('approved'))}>
-              Approve this version
+          {/* With notes to send, one click sends them. Without, say what should change in a line. */}
+          {unsent.length ? (
+            <button data-action="send" style={quiet} disabled={busy} title="The agent gets these notes and makes the changes" onClick={() => void send('changes-requested')}>
+              {sent.length ? `Send ${plural(unsent.length)} more to the agent` : `Send ${plural(unsent.length)} to the agent`}
+            </button>
+          ) : (
+            !sent.length && (
+              <button data-action="ask" style={quiet} disabled={busy} title="Tell the agent what should change, without pinning a note" onClick={() => setMode('asking')}>
+                Ask for changes
+              </button>
+            )
+          )}
+          {!approvedNow && (
+            <button data-action="approve" style={primary} disabled={busy} title="Tells the agent the video is finished" onClick={() => (unresolved ? setMode('confirming') : void send('approved'))}>
+              Approve: it's finished
             </button>
           )}
         </>
@@ -818,7 +826,7 @@ function Icon({ d, stroke }: { d: string; stroke?: boolean }) {
 
 const TURN: Record<NoteStatus, { label: string; detail?: string; tone: CSSProperties; edge: string }> = {
   question: { label: 'Your turn', detail: 'The agent has a question', tone: pill(C.yoursBg, C.yoursText), edge: C.yoursEdge },
-  fixed: { label: 'Your turn', detail: 'The agent says it is fixed: approve it, or request changes', tone: pill(C.yoursBg, C.yoursText), edge: C.yoursEdge },
+  fixed: { label: 'Your turn', detail: 'The agent says it is fixed: approve it, or say it is not fixed yet', tone: pill(C.yoursBg, C.yoursText), edge: C.yoursEdge },
   open: { label: "Agent's turn", tone: pill(C.agentBg, C.agentText), edge: C.line },
   closed: { label: 'Closed', tone: pill(C.okBg, C.okText), edge: C.line },
 };
@@ -1103,10 +1111,10 @@ function NoteCard({ note, onSeek }: { note: Note; onSeek: (f: number) => void })
         ) : (
           <div style={{ display: 'flex', gap: S.gap, marginTop: S.gap }}>
             <button style={primary} onClick={() => void patch({ status: 'closed' })}>
-              Approve
+              Approve fix
             </button>
             <button style={quiet} onClick={() => setMode('replying')}>
-              Request changes
+              Not fixed yet
             </button>
           </div>
         ))}

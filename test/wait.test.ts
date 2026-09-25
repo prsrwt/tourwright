@@ -69,10 +69,12 @@ test('wait ends on a new request for changes, not on one made before it started'
   writeFileSync(join(config.walkthroughs, 'intro', 'notes.json'), JSON.stringify({ notes: [note('a', 'open')] }));
   assert.equal((await wait(config, () => undefined, 0.3)).code, WAIT.timeout, 'the old request is not news');
 
-  const changes = await wait(config, () => writeReview(config, 'intro', { status: 'changes-requested', scriptHash: hash(config), at: '2026-09-25T09:05:00Z', comment: 'Zoom in more.' }));
+  // The notes sent with the request come with it, in full: the agent need not go and fetch them.
+  const changes = await wait(config, () => writeReview(config, 'intro', { status: 'changes-requested', scriptHash: hash(config), at: '2026-09-25T09:05:00Z', comment: 'Zoom in more.', notes: ['a'] }));
   assert.equal(changes.code, WAIT.feedback);
   assert.match(changes.out, /Review: changes requested on 2026-09-25 09:05 UTC: "Zoom in more\."/);
-  assert.match(changes.out, /The user wants changes\. 1 note is open for you\.\nNext: run "npx tourwright notes intro"/);
+  assert.match(changes.out, /The user sent 1 note for you to handle:\n\n\[a\] at 1\.000 s \(frame 30\), in scene "welcome" \(scenes\[0\]\)\n {2}note a/);
+  assert.match(changes.out, /Next: make each change[^]*npx tourwright reply intro <id> --fixed[^]*wait again with npx tourwright wait intro\./);
 });
 
 test('wait ends when the user answers a question, and otherwise times out with where things stand', async () => {
@@ -85,5 +87,5 @@ test('wait ends when the user answers a question, and otherwise times out with w
 
   const answered = await wait(config, () => writeFileSync(notes, JSON.stringify({ notes: [note('q', 'open'), note('b', 'open')] })));
   assert.equal(answered.code, WAIT.feedback);
-  assert.match(answered.out, /The user answered your question on \[q\]\. 2 notes are open for you\./);
+  assert.match(answered.out, /The user answered your question on \[q\]:\n\n\[q\] at 1\.000 s/);
 });

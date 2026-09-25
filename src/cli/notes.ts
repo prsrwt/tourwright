@@ -57,7 +57,7 @@ export function runNotes(config: ResolvedConfig, name: string, options: { json: 
   return 0;
 }
 
-function printNote(note: Note): void {
+export function printNote(note: Note): void {
   const scope = note.scope === 'scene' ? ', about the whole scene' : note.scope === 'all' ? ', about the whole video' : '';
   console.log(`[${note.id}] at ${(note.ms / 1000).toFixed(3)} s (frame ${note.frame}), in ${where(note)}${scope}`);
   if (note.target) {
