@@ -192,7 +192,7 @@ test('the studio plays back, edits script.json, and pins notes to the millisecon
     // A note on a target picked in the preview, about the whole scene.
     await page.locator('textarea').first().fill('This card needs its label');
     await page.getByLabel('Note scope').selectOption('scene');
-    await page.getByRole('button', { name: 'Attach to a target' }).click();
+    await page.getByRole('button', { name: 'Point at part of the screen' }).click();
     await page.locator('button[data-target="stat-overdue"]').click();
     await page.getByText('on stat-overdue').first().waitFor();
     await page.getByRole('button', { name: 'Add note', exact: true }).click();
@@ -208,6 +208,32 @@ test('the studio plays back, edits script.json, and pins notes to the millisecon
     const onScreen = (await player.evaluate(() => window.__tour.targetsOnScreen())).find((t) => t.name === 'stat-overdue')!;
     assert.deepEqual(onTarget.rect, { x: Math.round(onScreen.rect.x), y: Math.round(onScreen.rect.y), w: Math.round(onScreen.rect.w), h: Math.round(onScreen.rect.h) });
     await card(onTarget.id).getByText(/the whole scene · on stat-overdue/).waitFor();
+    // With the text inside it, and a picture of exactly that part, rendered as the video renders it.
+    assert.ok(onTarget.areaText?.includes('Overdue'), `areaText: ${JSON.stringify(onTarget.areaText)}`);
+    await card(onTarget.id).locator('img[data-snippet]').waitFor();
+    const { layout } = ((await (await fetch(`${origin}${API}/state`)).json()) as StudioState).timeline!;
+    const snippetPng = readFileSync(join(dir, 'intro', 'notes', `${onTarget.id}.png`));
+    assert.equal(snippetPng.readUInt32BE(16), Math.round(onTarget.rect!.w * layout.scale), 'the snippet is the target, at the video scale');
+
+    // Or a box drawn around any part of the frame, such as only the card's label.
+    await page.locator('textarea').first().fill('Only this label should be bold');
+    await page.getByRole('button', { name: 'Point at part of the screen' }).click();
+    const picker = (await page.locator('[data-picker]').boundingBox())!;
+    const scale = picker.width / layout.width;
+    const r = onScreen.rect;
+    await page.mouse.move(picker.x + (r.x + 4) * scale, picker.y + (r.y + 4) * scale);
+    await page.mouse.down();
+    await page.mouse.move(picker.x + (r.x + r.w / 2) * scale, picker.y + (r.y + r.h * 0.35) * scale, { steps: 5 });
+    await page.mouse.up();
+    await page.getByText('on "Overdue"').first().waitFor();
+    await page.getByRole('button', { name: 'Add note', exact: true }).click();
+    await page.getByText('Only this label should be bold').waitFor();
+    const onArea = readNotesFile().find((n) => n.text === 'Only this label should be bold')!;
+    assert.equal(onArea.target, undefined);
+    assert.ok(Math.abs(onArea.rect!.x - (r.x + 4)) <= 2 && onArea.rect!.w > 20 && onArea.rect!.w < r.w, `rect: ${JSON.stringify(onArea.rect)}`);
+    assert.deepEqual(onArea.areaText, ['Overdue']);
+    await card(onArea.id).getByText(/on an area you drew/).waitFor();
+    await card(onArea.id).locator('img[data-snippet]').waitFor();
 
     // A note the agent has not answered yet can still be reworded.
     await card(onTarget.id).getByRole('button', { name: 'edit' }).click();

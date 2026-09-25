@@ -12,6 +12,8 @@ import { prepare, PrepareError } from '../pipeline/prepare.ts';
 import { buildSoundtrack } from '../timing/audio.ts';
 import { API, NOTE_SCOPES, NOTE_STATUSES, type NewNoteRequest, type Note, type NotesFile, type ReplyRequest, type Review, type ReviewRequest, type SaveScriptRequest, type StudioState } from './protocol.ts';
 import { hashScript as hash, readReview, reviewPath, writeReview } from './review.ts';
+import { removeSnippet, snippetFile, snippets } from './snippet.ts';
+import { PLAYER_PATH } from '../bundle/server.ts';
 
 export function notesPath(config: ResolvedConfig, name: string): string {
   return join(dirname(scriptPath(config, name)), 'notes.json');
@@ -71,6 +73,8 @@ export interface Studio {
 
 export function createStudio(config: ResolvedConfig, name: string, log: (line: string) => void): Studio {
   const file = scriptPath(config, name);
+  const folder = dirname(file);
+  const shots = snippets();
   const state: StudioState = { name, version: 0, timelineVersion: 0, scriptHash: '', script: undefined, diagnostics: [], preparing: false, notes: [] };
   // A notes file that cannot be read keeps the last good notes on screen, and says why.
   const loadNotes = () => {
@@ -192,6 +196,7 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
     ready,
     connections: () => listeners.size,
     close() {
+      void shots.close();
       for (const w of watchers) w.close();
       for (const res of listeners) res.end();
     },
@@ -206,6 +211,14 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
       };
 
       if (route === 'GET /state') return send(200, state);
+      const snippetRoute = /^GET \/notes\/([\w-]+)\/snippet$/.exec(route);
+      if (snippetRoute) {
+        const note = state.notes.find((n) => n.id === snippetRoute[1]);
+        if (!note?.snippet || !existsSync(join(folder, note.snippet))) return send(404, { error: 'No snippet for this note.' });
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('Cache-Control', 'no-store');
+        return res.end(readFileSync(join(folder, note.snippet)));
+      }
       if (route === 'GET /soundtrack.wav') {
         if (!soundtrack) return send(404, { error: 'Not prepared yet.' });
         res.setHeader('Content-Type', 'audio/wav');
@@ -264,6 +277,21 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
           state.notes.push(note);
           state.notes.sort((a, b) => a.ms - b.ms);
           saveNotes();
+          // A note that points at part of the screen gets a picture of that part, saved beside notes.json.
+          // It comes a moment later; the note is saved first, so nothing waits on the browser.
+          if (note.rect && state.timeline && req.headers.host) {
+            const relative = snippetFile(note.id);
+            const url = `http://${req.headers.host}${PLAYER_PATH}`;
+            shots.take(url, state.timeline, note.frame, note.rect, join(folder, relative)).then(
+              () => {
+                const saved = state.notes.find((n) => n.id === note.id);
+                if (!saved) return removeSnippet(folder, note.id);
+                saved.snippet = relative;
+                saveNotes();
+              },
+              (error: unknown) => log(`Could not save a snippet for note ${note.id}: ${(error as Error).message}`),
+            );
+          }
           return send(200, note);
         }
         const noteRoute = /^(PATCH|DELETE|POST) \/notes\/([\w-]+)(\/reply)?$/.exec(route);
@@ -278,6 +306,7 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
           if (change.scope !== undefined && !NOTE_SCOPES.includes(change.scope)) return send(400, { error: badScope(change.scope) });
           if (noteRoute[1] === 'DELETE') {
             state.notes.splice(index, 1);
+            removeSnippet(folder, note.id);
           } else if (noteRoute[3]) {
             // A reply from the user hands the note back to the agent, unless it says otherwise.
             if (!change.text?.trim()) return send(400, { error: 'The reply is empty.\nFix: write what you want the agent to know, then send it.' });

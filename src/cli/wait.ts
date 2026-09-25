@@ -4,7 +4,7 @@
 // hands the video over and never hears that it was approved, or keeps asking.
 
 import { existsSync, statSync } from 'node:fs';
-import { relative } from 'node:path';
+import { dirname, relative } from 'node:path';
 import type { ResolvedConfig } from '../config/config.ts';
 import { scriptPath } from '../config/walkthroughs.ts';
 import type { Note, Review } from '../studio/protocol.ts';
@@ -60,7 +60,7 @@ export async function runWait(config: ResolvedConfig, name: string, options: Wai
       const alsoOpen = notes.filter((n) => n.status === 'open' && !ids.includes(n.id));
       console.log(`${formatReview(name, state)}\n`);
       console.log(`The user sent ${sent.length ? `${sent.length} note${sent.length === 1 ? '' : 's'}` : 'a request'} for you to handle:\n`);
-      for (const note of [...sent, ...alsoOpen]) printNote(note);
+      for (const note of [...sent, ...alsoOpen]) printNote(note, dirname(scriptPath(config, name)));
       console.log(settled(notes, before));
       console.log(handle(name));
       return WAIT.feedback;
@@ -78,7 +78,7 @@ export async function runWait(config: ResolvedConfig, name: string, options: Wai
         const was = before.get(note.id)!.status;
         const what = was === 'question' ? 'answered your question' : was === 'fixed' ? 'says this is not fixed yet' : was === 'closed' ? 'reopened this note' : note.text !== before.get(note.id)!.text ? 'reworded a note they sent you' : 'replied';
         console.log(`The user ${what}:\n`);
-        printNote(note);
+        printNote(note, dirname(scriptPath(config, name)));
       }
       console.log(settled(notes, before));
       console.log(handle(name));

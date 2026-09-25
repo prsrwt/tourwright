@@ -208,7 +208,7 @@ function Studio() {
   const [loop, setLoop] = useState(false);
   const loopRange = useRef<{ from: number; to: number }>(undefined);
   const [message, setMessage] = useState<string>();
-  const [picking, setPicking] = useState<((target: string) => void) | undefined>();
+  const [picking, setPicking] = useState<Picker | undefined>();
   const [tab, setTab] = useState<Tab>('notes');
   const [filter, setFilter] = useState<Filter>('all');
   const [help, setHelp] = useState(false);
@@ -379,13 +379,13 @@ function Studio() {
   if (!state) return <Centered>Loading Muse...</Centered>;
 
   const waiting = state.notes.filter((n) => n.status === 'question' || n.status === 'fixed').length;
-  const pick = (done: (target: string) => void) => setPicking(() => done);
+  const pick = (done: (target: string) => void, area?: (rect: Rect) => void) => setPicking({ target: done, ...(area && { area }) });
   const seekPaused = (f: number) => (pause(), seek(f));
 
   const video = (
     <main style={{ display: 'flex', flexDirection: 'column', minWidth: 0, padding: S.gap * 2, ...(narrow && { height: '62vh', flex: 'none' }) }}>
       {timeline ? (
-        <Preview timeline={timeline} frameRef={frameRef} api={api} picking={picking} onPick={(t) => (picking?.(t), setPicking(undefined))} onCancelPick={() => setPicking(undefined)} frame={frame}>
+        <Preview timeline={timeline} frameRef={frameRef} api={api} picking={picking} onPick={(t) => (picking?.target(t), setPicking(undefined))} onPickArea={(r) => (picking?.area?.(r), setPicking(undefined))} onCancelPick={() => setPicking(undefined)} frame={frame}>
           <Transport
             timeline={timeline}
             frame={frame}
@@ -611,18 +611,29 @@ function ReviewBar({ state }: { state: StudioState }) {
 // ---------------------------------------------------------------------------------------------
 // Preview: the player, scaled to fit, with target outlines to click when picking.
 
+/** What picking is for: a target, and for a note, optionally a box drawn around anything. */
+interface Picker {
+  target: (name: string) => void;
+  area?: (rect: Rect) => void;
+}
+
 function Preview(props: {
   timeline: Timeline;
   frameRef: React.RefObject<HTMLIFrameElement | null>;
   api: TourApi | undefined;
-  picking: ((t: string) => void) | undefined;
+  picking: Picker | undefined;
   onPick: (target: string) => void;
+  onPickArea: (rect: Rect) => void;
   onCancelPick: () => void;
   frame: number;
   /** The transport, drawn under the video at its width, so the two read as one player. */
   children?: ReactNode;
 }) {
   const { timeline, frameRef, api, picking, frame } = props;
+  // A box being dragged while picking, in layout pixels.
+  const drag = useRef<{ x: number; y: number; moved: boolean } | undefined>(undefined);
+  const ignoreClick = useRef(false);
+  const [drawn, setDrawn] = useState<Rect>();
   const box = useRef<HTMLDivElement>(null);
   const below = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.5);
@@ -656,13 +667,51 @@ function Preview(props: {
           style={{ border: 0, width: timeline.layout.width, height: timeline.layout.height, transform: `scale(${scale})`, transformOrigin: '0 0', pointerEvents: 'none', background: C.surface }}
         />
         {picking && (
-          <div style={{ position: 'absolute', inset: 0, background: C.shade, cursor: 'crosshair' }} onClick={props.onCancelPick}>
+          <div
+            data-picker=""
+            style={{ position: 'absolute', inset: 0, background: C.shade, cursor: 'crosshair', touchAction: 'none' }}
+            onPointerDown={(e) => {
+              if (!picking.area) return;
+              const r = e.currentTarget.getBoundingClientRect();
+              drag.current = { x: (e.clientX - r.left) / scale, y: (e.clientY - r.top) / scale, moved: false };
+            }}
+            onPointerMove={(e) => {
+              const d = drag.current;
+              if (!d) return;
+              const r = e.currentTarget.getBoundingClientRect();
+              const x = (e.clientX - r.left) / scale;
+              const y = (e.clientY - r.top) / scale;
+              // A few pixels of wobble is still a click on a target, not a box.
+              if (!d.moved && Math.hypot((x - d.x) * scale, (y - d.y) * scale) < 6) return;
+              // Captured only once it is a drag, so a plain click still reaches the target under it.
+              if (!d.moved) e.currentTarget.setPointerCapture(e.pointerId);
+              d.moved = true;
+              setDrawn({ x: Math.min(d.x, x), y: Math.min(d.y, y), w: Math.abs(x - d.x), h: Math.abs(y - d.y) });
+            }}
+            onPointerUp={() => {
+              const d = drag.current;
+              drag.current = undefined;
+              if (!d?.moved) return;
+              ignoreClick.current = true;
+              const b = drawn;
+              setDrawn(undefined);
+              if (b && b.w >= 4 && b.h >= 4) props.onPickArea({ x: Math.round(b.x), y: Math.round(b.y), w: Math.round(b.w), h: Math.round(b.h) });
+            }}
+            onClick={() => {
+              if (ignoreClick.current) return void (ignoreClick.current = false);
+              props.onCancelPick();
+            }}
+          >
             {targets.map((t) => (
               <button
                 key={t.name}
                 title={t.name}
                 data-target={t.name}
-                onClick={(e) => (e.stopPropagation(), props.onPick(t.name))}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (ignoreClick.current) return void (ignoreClick.current = false);
+                  props.onPick(t.name);
+                }}
                 style={{
                   position: 'absolute',
                   left: t.rect.x * scale,
@@ -679,8 +728,9 @@ function Preview(props: {
                 <span style={{ position: 'absolute', left: 0, top: 0, background: C.accent, color: C.surface, padding: '1px 6px', fontSize: 12, borderBottomRightRadius: 4 }}>{t.name}</span>
               </button>
             ))}
+            {drawn && <div data-box="" style={{ position: 'absolute', left: drawn.x * scale, top: drawn.y * scale, width: drawn.w * scale, height: drawn.h * scale, border: `2px solid ${C.accent}`, background: C.accentWash, pointerEvents: 'none' }} />}
             <div style={{ position: 'absolute', left: S.gap, bottom: S.gap, background: C.ink, color: C.surface, padding: `${S.gap / 2}px ${S.gap}px`, borderRadius: S.radius }}>
-              Click a target, or anywhere else (or Esc) to cancel. Scrub first if it is not in view.
+              {picking.area ? 'Click a target, or drag a box around anything. Click outside (or Esc) to cancel.' : 'Click a target, or anywhere else (or Esc) to cancel.'} Scrub first if it is not in view.
             </div>
           </div>
         )}
@@ -876,13 +926,14 @@ function Notes({
   filter: Filter;
   onFilter: (filter: Filter) => void;
   onSeek: (f: number) => void;
-  onPick: (done: (target: string) => void) => void;
+  onPick: (done: (target: string) => void, area?: (rect: Rect) => void) => void;
   /** Called when the note box gets the cursor: playback pauses, so the note's moment holds still. */
   onWrite: () => void;
 }) {
   const [text, setText] = useState('');
   const [scope, setScope] = useState<NoteScope>('moment');
-  const [attached, setAttached] = useState<{ target: string; rect: Rect }>();
+  // Where the note points: a target, or a box drawn around anything, with the text inside it.
+  const [attached, setAttached] = useState<{ target?: string; rect: Rect; text: string[] }>();
   const [focused, setFocused] = useState(false);
   // The playhead to the millisecond: the audio clock while it has one, else the frame.
   const ms = () => Math.round(audio.current && !audio.current.paused ? audio.current.currentTime * 1000 : (frame / (timeline?.fps ?? 30)) * 1000);
@@ -920,7 +971,7 @@ function Notes({
       ...(sentence && { sentence }),
       text: text.trim(),
       scope,
-      ...(attached && { target: attached.target, rect: attached.rect }),
+      ...(attached && { ...(attached.target && { target: attached.target }), rect: attached.rect, ...(attached.text.length && { areaText: attached.text }) }),
       ...(screen && { screen }),
       ...(screens?.length && { screens }),
     };
@@ -933,10 +984,15 @@ function Notes({
   };
   // Where the target is on screen now, in layout pixels: the picker shows the current frame.
   const attach = () =>
-    onPick((target) => {
-      const rect = api?.targetsOnScreen().find((t) => t.name === target)?.rect;
-      if (rect) setAttached({ target, rect: { x: Math.round(rect.x), y: Math.round(rect.y), w: Math.round(rect.w), h: Math.round(rect.h) } });
-    });
+    onPick(
+      (target) => {
+        const rect = api?.targetsOnScreen().find((t) => t.name === target)?.rect;
+        if (!rect) return;
+        const r = { x: Math.round(rect.x), y: Math.round(rect.y), w: Math.round(rect.w), h: Math.round(rect.h) };
+        setAttached({ target, rect: r, text: api?.textIn(r) ?? [] });
+      },
+      (rect) => setAttached({ rect, text: api?.textIn(rect) ?? [] }),
+    );
   // Whatever needs the user comes first; closed notes sink to the bottom.
   const order: Record<NoteStatus, number> = { question: 0, fixed: 1, open: 2, closed: 3 };
   const count = (f: (typeof FILTERS)[number]) => state.notes.filter((n) => f.statuses.includes(n.status)).length;
@@ -980,14 +1036,17 @@ function Notes({
             </select>
             {attached ? (
               <span style={{ color: C.ink }}>
-                on <strong>{attached.target}</strong>{' '}
+                on{' '}
+                <strong title={attached.text.join(' · ')}>
+                  {attached.target ?? (attached.text.length ? `"${attached.text.slice(0, 3).join(' ')}${attached.text.length > 3 ? '...' : ''}"` : 'the area you drew')}
+                </strong>{' '}
                 <button onClick={() => setAttached(undefined)} style={subtle}>
                   remove
                 </button>
               </span>
             ) : (
               <button style={quiet} onMouseDown={(e) => e.preventDefault()} onClick={attach} disabled={!api}>
-                Attach to a target
+                Point at part of the screen
               </button>
             )}
             <button onClick={() => void add()} style={{ ...primary, marginLeft: 'auto' }} disabled={!text.trim()} title="Ctrl+Enter">
@@ -1108,7 +1167,7 @@ function NoteCard({ note, sent, onSeek }: { note: Note; sent: boolean; onSeek: (
         <span style={{ flex: 1, minWidth: 0, color: C.muted, fontSize: S.small }}>
           {note.scene}
           {note.scope !== 'moment' && ` · ${SCOPE[note.scope]}`}
-          {note.target && ` · on ${note.target}`}
+          {note.target ? ` · on ${note.target}` : note.rect && ' · on an area you drew'}
         </span>
       </div>
       {turn.detail && <div style={turn === UNSENT ? { marginTop: S.gap, color: C.muted, fontSize: S.small } : { marginTop: S.gap, color: C.yoursText, fontWeight: 600 }}>{turn.detail}</div>}
@@ -1126,6 +1185,12 @@ function NoteCard({ note, sent, onSeek }: { note: Note; sent: boolean; onSeek: (
         </div>
       ) : (
         <div style={{ marginTop: S.gap, whiteSpace: 'pre-wrap', color: C.ink }}>{note.text}</div>
+      )}
+      {/* The part of the frame the note points at, as the agent sees it. */}
+      {note.snippet && (
+        <button onClick={() => onSeek(note.frame)} title="Jump to this moment" style={{ display: 'block', marginTop: S.gap, padding: 0, border: `1px solid ${C.line}`, borderRadius: S.radius, background: C.surface, cursor: 'pointer', maxWidth: '100%' }}>
+          <img data-snippet="" src={`${API}/notes/${note.id}/snippet?${note.snippet}`} alt={note.areaText?.join(' ') || 'The part of the screen this note points at'} style={{ display: 'block', maxWidth: '100%', maxHeight: 120, borderRadius: S.radius }} />
+        </button>
       )}
       {note.replies.map((r, i) => (
         <div key={i} style={{ marginTop: S.gap, padding: `${S.gap / 2}px ${S.gap}px`, borderRadius: S.radius, background: r.from === 'agent' ? C.agentBg : C.peachSoft, whiteSpace: 'pre-wrap', color: C.ink }}>

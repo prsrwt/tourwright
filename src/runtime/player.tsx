@@ -70,6 +70,8 @@ export interface TourApi {
   stageText(): { text: string; labels: string[] };
   /** Every target of the current stage and where it is on screen, for picking one by clicking. */
   targetsOnScreen(): { name: string; rect: Rect }[];
+  /** The stage's text inside an area of the screen at the current frame, in reading order: what a box drawn in Muse points at. */
+  textIn(area: Rect): string[];
   /**
    * What a viewer sees at the current frame, read from the page: how much of the frame each
    * target fills, the highlight and the text inside it, the caption and the stage's values.
@@ -301,6 +303,25 @@ export function mountPlayer(stages: Stages): void {
       return worldEl()?.innerHTML ?? '';
     },
     targetsOnScreen: () => targetsOnScreen(),
+    textIn(area) {
+      const world = worldEl();
+      if (!world) return [];
+      // Client rects include the camera's transform, so relative to the frame they are screen pixels.
+      const origin = host.getBoundingClientRect();
+      const walker = document.createTreeWalker(world, NodeFilter.SHOW_TEXT);
+      const found: string[] = [];
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const text = node.textContent?.replace(/\s+/g, ' ').trim();
+        if (!text) continue;
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        const r = range.getBoundingClientRect();
+        const cx = r.x - origin.x + r.width / 2;
+        const cy = r.y - origin.y + r.height / 2;
+        if (r.width && cx >= area.x && cx <= area.x + area.w && cy >= area.y && cy <= area.y + area.h && found.at(-1) !== text) found.push(text);
+      }
+      return found;
+    },
     describe() {
       const t = timeline!;
       const video = { w: t.layout.width, h: t.layout.height };

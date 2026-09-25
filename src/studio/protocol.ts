@@ -47,9 +47,16 @@ export interface Note {
   text: string;
   /** What the note covers. Default "moment". */
   scope: NoteScope;
-  /** A target the user clicked in the preview, and where it was on screen, in layout pixels. */
+  /**
+   * Where on screen the note points, in layout pixels: the target the user clicked in the preview,
+   * or, with no target, a box they drew around any part of the frame.
+   */
   target?: string;
   rect?: Rect;
+  /** The text inside that box or target, in reading order: often all it takes to know what was meant. */
+  areaText?: string[];
+  /** A picture of exactly that part of the frame, relative to the walkthrough's folder, once Muse has saved it. */
+  snippet?: string;
   /** What was on screen when the note was written, read from the player's page. */
   screen?: ScreenDescription;
   /**
@@ -117,6 +124,7 @@ export interface NewNoteRequest {
   scope?: NoteScope;
   target?: string;
   rect?: Rect;
+  areaText?: string[];
   screen?: ScreenDescription;
   screens?: { label: string; screen: ScreenDescription }[];
 }

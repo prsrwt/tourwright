@@ -21,7 +21,11 @@ Each note has a `"status"` that says whose turn it is:
 A note also has a `"scope"`: `moment` (the time it is pinned to, the default), `scene` (the whole
 scene) or `all` (the whole video). It may name a `"target"` the user clicked in the preview, with
 its `"rect"` on screen in layout pixels, so you know exactly which element they meant. Its
-`"replies"` are the conversation so far, oldest first.
+`"replies"` are the conversation so far, oldest first. A note that points at part of the screen
+without a target is on a box the user drew around it, such as one button inside a banner: its
+`"rect"` is that box, `"areaText"` the text inside it, and `"snippet"` a picture of exactly that part
+(a PNG beside `notes.json`). `notes` and `wait` print all three; open the picture when the text
+does not settle what they meant.
 
 When the user asks you to handle notes ("check my notes in Muse", "fix my notes"):
 

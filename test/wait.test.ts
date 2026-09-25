@@ -121,3 +121,12 @@ test('every answer on a note wakes the agent; approving a fix or deleting a note
   assert.equal(sentEdit.code, WAIT.feedback);
   assert.match(sentEdit.out, /The user reworded a note they sent you:\n\n\[s\][^]*Zoom to 3x, not 2x\./);
 });
+
+test('a note on an area the user drew reaches the agent with its text and its snippet', async () => {
+  const config = app();
+  const area = { ...note('a', 'open'), rect: { x: 100, y: 200, w: 80, h: 24 }, areaText: ['Export'], snippet: 'notes/a.png' };
+  writeFileSync(join(config.walkthroughs, 'intro', 'notes.json'), JSON.stringify({ notes: [area] }));
+  const sent = await wait(config, () => writeReview(config, 'intro', { status: 'changes-requested', scriptHash: hash(config), at: '2026-09-25T10:30:00Z', notes: ['a'] }));
+  assert.equal(sent.code, WAIT.feedback);
+  assert.match(sent.out, /\[a\][^\n]*\n {2}on an area the user drew, on screen at x 100, y 200, 80 by 24 \(layout pixels\)\n {2}the text there: "Export"\n {2}a picture of exactly that part: .*intro[\\/]notes[\\/]a\.png/);
+});
