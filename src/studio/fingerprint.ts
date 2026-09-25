@@ -14,13 +14,43 @@ export type Inputs = Record<string, string>;
 
 const LOCKFILES = ['package-lock.json', 'pnpm-lock.yaml', 'yarn.lock', 'bun.lock', 'bun.lockb'];
 
-/** A short hash of a file's bytes, or undefined if it cannot be read. */
+/**
+ * A short hash of a file's contents, or undefined if it cannot be read. Text is hashed with its
+ * line endings as "\n": git on Windows checks files out with "\r\n" (core.autocrlf), so a pull or
+ * a branch switch rewrites the bytes of files nobody edited, and that must not undo an approval.
+ */
 export function hashFile(file: string): string | undefined {
   try {
-    return createHash('sha256').update(readFileSync(file)).digest('hex').slice(0, 16);
+    return shortHash(normalise(readFileSync(file)));
   } catch {
     return undefined;
   }
+}
+
+/**
+ * The hashes a file may have been recorded under. Approvals written by earlier versions hashed the
+ * raw bytes, with whichever line endings that checkout had, so those count too: the text with "\n"
+ * and with "\r\n" endings.
+ */
+export function fileHashes(file: string): string[] {
+  try {
+    const text = normalise(readFileSync(file));
+    const hashes = [shortHash(text)];
+    if (!text.subarray(0, 8000).includes(0)) hashes.push(shortHash(Buffer.from(text.toString('latin1').replace(/\n/g, '\r\n'), 'latin1')));
+    return hashes;
+  } catch {
+    return [];
+  }
+}
+
+function shortHash(bytes: Buffer | string): string {
+  return createHash('sha256').update(bytes).digest('hex').slice(0, 16);
+}
+
+/** Text with "\r\n" line endings as "\n"; anything with a zero byte near the start is binary, and left alone. */
+export function normalise(bytes: Buffer): Buffer {
+  if (bytes.subarray(0, 8000).includes(0) || !bytes.includes(13)) return bytes;
+  return Buffer.from(bytes.toString('latin1').replace(/\r\n/g, '\n'), 'latin1');
 }
 
 /** The nearest lockfile at or above the app's root: in a monorepo it sits at the top. */
@@ -59,7 +89,7 @@ export function fingerprint(config: ResolvedConfig, name: string, sources: Itera
 /** The files among `inputs` that are different now, or gone, in the order recorded. */
 export function changedInputs(config: ResolvedConfig, inputs: Inputs): string[] {
   return Object.entries(inputs)
-    .filter(([file, hash]) => hashFile(resolve(config.root, file)) !== hash)
+    .filter(([file, hash]) => !fileHashes(resolve(config.root, file)).includes(hash))
     .map(([file]) => file);
 }
 

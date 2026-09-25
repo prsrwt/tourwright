@@ -13,6 +13,7 @@ import { writeMuseRecord } from '../src/cli/launch.ts';
 import { runWait, WAIT } from '../src/cli/wait.ts';
 import { resolveConfig, type ResolvedConfig } from '../src/config/config.ts';
 import { API, type StudioState } from '../src/studio/protocol.ts';
+import { revealCommand, revealFile } from '../src/studio/final.ts';
 import { createStudio } from '../src/studio/server.ts';
 
 function app(): ResolvedConfig {
@@ -129,4 +130,12 @@ test('"Not now" leaves the render to the user: the agent does not make it either
   } finally {
     await m.close();
   }
+});
+
+test('Show in folder opens the folder on each platform, and says where the video is when it cannot', async () => {
+  // explorer takes the path quoted after "/select," and nothing else, so a space in it (C:\Users\First Last) works.
+  assert.deepEqual(revealCommand('C:\\Users\\Paras Rawat\\app\\out\\intro.mp4', 'win32'), { command: 'explorer.exe', args: ['/select,"C:\\Users\\Paras Rawat\\app\\out\\intro.mp4"'], verbatim: true });
+  assert.deepEqual(revealCommand('/Users/p/app/out/intro.mp4', 'darwin'), { command: 'open', args: ['-R', '/Users/p/app/out/intro.mp4'], verbatim: false });
+  assert.deepEqual(revealCommand('/home/p/app/out/intro.mp4', 'linux'), { command: 'xdg-open', args: ['/home/p/app/out'], verbatim: false });
+  assert.equal(await revealFile('/srv/app/out/intro.mp4', 'linux', {}), 'There is no desktop on the machine Muse runs on to open a folder in. The video is at /srv/app/out/intro.mp4');
 });

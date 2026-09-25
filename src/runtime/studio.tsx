@@ -541,7 +541,7 @@ function sentNoteIds(state: StudioState): string[] {
 
 /** Whether the review is for what Muse shows now: the same script.json, and no stage file changed since. */
 function isCurrent(state: StudioState): boolean {
-  return state.review?.scriptHash === state.scriptHash && !state.reviewChanged.length;
+  return !!state.review && !state.reviewChanged.length;
 }
 
 /** Records the review: sending the open notes to the agent, or approving the video. Returns the error, if any. */

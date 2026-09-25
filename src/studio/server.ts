@@ -13,7 +13,7 @@ import { buildSoundtrack } from '../timing/audio.ts';
 import { API, NOTE_SCOPES, NOTE_STATUSES, type NewNoteRequest, type Note, type NotesFile, type ReplyRequest, type Review, type ReviewRequest, type SaveScriptRequest, type StudioState } from './protocol.ts';
 import { changedInputs, fingerprint, inputKey, listFiles, writtenSince } from './fingerprint.ts';
 import { finalState, revealFile, startFinalRender, type FinalRender } from './final.ts';
-import { hashScript as hash, readReview, reviewPath, reviewState, writeReview } from './review.ts';
+import { hashScript as hash, readReview, reviewPath, reviewState, scriptMatches, writeReview } from './review.ts';
 import { videoPath } from '../render/record.ts';
 import { removeSnippet, snippetFile, snippets } from './snippet.ts';
 import { PLAYER_PATH } from '../bundle/server.ts';
@@ -124,6 +124,8 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
     for (const res of listeners) res.write(`data: ${state.version}\n\n`);
   };
 
+  // The script.json the page shows: a review is compared with it, not with a file the page has not loaded yet.
+  let shownScript: string | undefined;
   let running: Promise<void> | undefined;
   let again = false;
   // Set by make's new version: the preview reloads its stage code with the timeline prepared next.
@@ -139,6 +141,7 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
         again = false;
         const text = readFileSync(file, 'utf8');
         state.scriptHash = hash(text);
+        shownScript = text;
         try {
           state.script = JSON.parse(text);
         } catch {
@@ -240,9 +243,13 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
       };
 
       if (route === 'GET /state') {
-        // script.json is compared by its hash on the page; the rest of what the review covered, here.
+        // What the review covered, compared with the version the page shows. The stage files are
+        // compared here as wait and make compare them; script.json with the version loaded, so a file
+        // written a moment ago does not read as changed before the page can show it.
         const script = inputKey(config, file);
-        state.reviewChanged = state.review?.inputs ? changedInputs(config, state.review.inputs).filter((f) => f !== script) : [];
+        const changed = state.review?.inputs ? changedInputs(config, state.review.inputs).filter((f) => f !== script) : [];
+        if (state.review && shownScript !== undefined && !scriptMatches(state.review.scriptHash, shownScript)) changed.unshift(script);
+        state.reviewChanged = changed;
         state.final = finalState(config, name);
         if (render) state.render = render.job;
         return send(200, state);
@@ -359,8 +366,8 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
         if (route === 'POST /reveal') {
           const video = videoPath(config, name);
           if (!existsSync(video)) return send(404, { error: 'There is no video yet.' });
-          revealFile(video);
-          return send(200, {});
+          const why = await revealFile(video);
+          return why ? send(500, { error: why }) : send(200, {});
         }
         if (route === 'POST /notes') {
           const { scope = 'moment', ...input } = body as NewNoteRequest;

@@ -13,9 +13,19 @@ import type { Review } from './protocol.ts';
 
 export class ReviewError extends Error {}
 
-/** A short hash of script.json's text: what the studio's saves and reviews are checked against. */
+/**
+ * A short hash of script.json's text: what the studio's saves and reviews are checked against.
+ * Line endings count as "\n", as in fingerprint.ts, so a checkout with "\r\n" is the same script.
+ */
 export function hashScript(text: string): string {
-  return createHash('sha256').update(text).digest('hex').slice(0, 16);
+  return createHash('sha256').update(text.replace(/\r\n/g, '\n')).digest('hex').slice(0, 16);
+}
+
+/** Whether a review's scriptHash is for this text, including one recorded before line endings were ignored. */
+export function scriptMatches(recorded: string, text: string): boolean {
+  const lf = text.replace(/\r\n/g, '\n');
+  const raw = (t: string) => createHash('sha256').update(t).digest('hex').slice(0, 16);
+  return recorded === raw(lf) || recorded === raw(lf.replace(/\n/g, '\r\n'));
 }
 
 export function reviewPath(config: ResolvedConfig, name: string): string {
@@ -58,7 +68,7 @@ export function reviewState(config: ResolvedConfig, name: string): ReviewState {
   const file = inputKey(config, scriptPath(config, name));
   // A review from before inputs were recorded covers script.json alone.
   const changed = review.inputs ? changedInputs(config, review.inputs) : [];
-  if (review.scriptHash !== hashScript(readFileSync(scriptPath(config, name), 'utf8')) && !changed.includes(file)) changed.unshift(file);
+  if (!scriptMatches(review.scriptHash, readFileSync(scriptPath(config, name), 'utf8')) && !changed.includes(file)) changed.unshift(file);
   const current = !changed.length;
   return { review, current, changed, approved: current && review.status === 'approved' };
 }

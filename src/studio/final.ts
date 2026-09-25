@@ -82,11 +82,37 @@ export function startFinalRender(config: ResolvedConfig, name: string, changed: 
   };
 }
 
-/** Opens the folder holding a file, with the file selected where the platform can. */
-export function revealFile(file: string, platform: NodeJS.Platform = process.platform): void {
-  const [command, args] =
-    platform === 'win32' ? ['explorer', [`/select,${file}`]] : platform === 'darwin' ? ['open', ['-R', file]] : ['xdg-open', [dirname(file)]];
-  spawn(command, args, { stdio: 'ignore', detached: true, windowsHide: true }).on('error', () => undefined).unref();
+/**
+ * How to open the folder holding a file, with the file selected where the platform can. On Windows,
+ * explorer reads its own command line: the path goes in quotes after "/select," with nothing
+ * escaped, so the arguments are passed verbatim, and its window is not hidden (Muse runs with no
+ * console, and explorer takes windowsHide to mean a hidden folder window).
+ */
+export function revealCommand(file: string, platform: NodeJS.Platform): { command: string; args: string[]; verbatim: boolean } {
+  if (platform === 'win32') return { command: 'explorer.exe', args: [`/select,"${file}"`], verbatim: true };
+  if (platform === 'darwin') return { command: 'open', args: ['-R', file], verbatim: false };
+  return { command: 'xdg-open', args: [dirname(file)], verbatim: false };
+}
+
+/**
+ * Opens the folder holding a file. Resolves to why it could not, if it could not, so Muse can say
+ * so and show the path rather than do nothing.
+ */
+export function revealFile(file: string, platform: NodeJS.Platform = process.platform, env: NodeJS.ProcessEnv = process.env): Promise<string | undefined> {
+  if (platform === 'linux' && !env.DISPLAY && !env.WAYLAND_DISPLAY) {
+    return Promise.resolve(`There is no desktop on the machine Muse runs on to open a folder in. The video is at ${file}`);
+  }
+  const { command, args, verbatim } = revealCommand(file, platform);
+  return new Promise((done) => {
+    const child = spawn(command, args, { stdio: 'ignore', detached: true, windowsHide: false, windowsVerbatimArguments: verbatim });
+    const failed = (why: string) => done(`Could not open the folder (${why}). The video is at ${file}`);
+    child.on('error', (error) => failed(error.message));
+    // explorer exits with 1 even when it opened the folder, so only the others' exit codes count.
+    child.on('exit', (code) => (platform !== 'win32' && code ? failed(`${command} exited with ${code}`) : done(undefined)));
+    // Some openers stay running; one still going after a moment has opened it.
+    setTimeout(() => done(undefined), 3000).unref();
+    child.unref();
+  });
 }
 
 /** What a line of make's output says it is doing. */
