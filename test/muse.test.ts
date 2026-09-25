@@ -15,7 +15,7 @@ const app = fileURLToPath(new URL('../examples/next-app/', import.meta.url));
 // its git-ignored out folder. Each test has its own app, so they cannot share a Muse.
 const scratch = join(app, 'out', '.test', `muse-${process.pid}`);
 const started: number[] = [];
-after(() => {
+after(async () => {
   for (const pid of started) {
     try {
       process.kill(pid);
@@ -23,7 +23,10 @@ after(() => {
       // Already closed itself.
     }
   }
-  rmSync(scratch, { recursive: true, force: true });
+  // Windows will not delete a folder a process still has files open in, and a killed Muse takes a
+  // moment to go: wait for each, then retry the delete through any lingering handles.
+  await until(() => started.every((pid) => !alive(pid)), 'the background Muses to exit', 30_000).catch(() => undefined);
+  rmSync(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 });
 
 /** A scratch app with the example's stages and a copy of its intro, and its own config. */

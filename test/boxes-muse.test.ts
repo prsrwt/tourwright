@@ -11,6 +11,7 @@ import { chromium } from 'playwright';
 import { startStageServer, STUDIO_PATH } from '../src/bundle/server.ts';
 import { resolveConfig } from '../src/config/config.ts';
 import { API, type StudioState } from '../src/studio/protocol.ts';
+import { hashScript } from '../src/studio/review.ts';
 import { createStudio } from '../src/studio/server.ts';
 
 const app = fileURLToPath(new URL('../examples/next-app/', import.meta.url));
@@ -33,7 +34,18 @@ test('a narration box is placed, retimed and deleted from Muse', async () => {
     page.setDefaultTimeout(120_000);
     await page.goto(new URL(STUDIO_PATH, origin).href);
     await page.locator('[data-scrubber]').waitFor();
-    const version = async () => (await state()).timelineVersion;
+    // An edit has landed once script.json has changed and Muse has prepared that version. Waiting on
+    // the timeline's version alone is not enough: Muse may still be preparing the copy it started on.
+    const saved = async (before: string) => {
+      const deadline = Date.now() + 60_000;
+      while (Date.now() < deadline) {
+        const text = readFileSync(file, 'utf8');
+        const now = await state();
+        if (text !== before && now.scriptHash === hashScript(text) && !now.preparing) return;
+        await new Promise((done) => setTimeout(done, 100));
+      }
+      throw new Error('The edit never reached script.json.');
+    };
 
     // Onto the first sentence of the "tasks" scene, then put a box on the status column there.
     const timeline = (await state()).timeline!;
@@ -41,10 +53,10 @@ test('a narration box is placed, retimed and deleted from Muse', async () => {
     const bar = (await page.locator('[data-scrubber]').boundingBox())!;
     await page.mouse.click(bar.x + (bar.width * (tasks.sentences[0]!.from + 20)) / timeline.frames, bar.y + 10);
     await page.waitForTimeout(500);
-    const before = await version();
+    const before = readFileSync(file, 'utf8');
     await page.locator('[data-action="add-box"]').click();
     await page.locator('[data-picker] [data-target="status-column"]').click();
-    await page.waitForFunction(async (v) => (await (await fetch('/__tourwright/api/state')).json()).timelineVersion > v, before);
+    await saved(before);
     let scene = script().scenes[2];
     // The agent's box on the same target came next, so the two merge into one, and its cue goes.
     assert.equal(scene.say, '[table]Below them is every task due this week, with who owns it. The status shows where each one stands.');
@@ -61,12 +73,12 @@ test('a narration box is placed, retimed and deleted from Muse', async () => {
     const edge = (await segment.locator('[data-edge="start"]').boundingBox())!;
     const track = (await page.locator('[data-box-track]').boundingBox())!;
     const target = track.x + (track.width * tasks.sentences[1]!.from) / timeline.frames;
-    const moved = await version();
+    const moved = readFileSync(file, 'utf8');
     await page.mouse.move(edge.x + 2, edge.y + 5);
     await page.mouse.down();
     await page.mouse.move(target, edge.y + 5, { steps: 10 });
     await page.mouse.up();
-    await page.waitForFunction(async (v) => (await (await fetch('/__tourwright/api/state')).json()).timelineVersion > v, moved);
+    await saved(moved);
     scene = script().scenes[2];
     assert.equal(scene.say, '[table]Below them is every task due this week, with who owns it. [status-column]The status shows where each one stands.');
     assert.deepEqual(scene.beats, [
@@ -77,9 +89,9 @@ test('a narration box is placed, retimed and deleted from Muse', async () => {
 
     // Deleting it leaves the scene with no box there.
     await page.locator('[data-segment="status-column"]').first().click();
-    const deleted = await version();
+    const deleted = readFileSync(file, 'utf8');
     await page.locator('[data-action="delete-box"]').click();
-    await page.waitForFunction(async (v) => (await (await fetch('/__tourwright/api/state')).json()).timelineVersion > v, deleted);
+    await saved(deleted);
     assert.deepEqual(script().scenes[2].beats, [
       { at: 'table', camera: { to: 'tasks', zoom: 'width', align: 'top' } },
       { at: 'end', highlight: false },
