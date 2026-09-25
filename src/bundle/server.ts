@@ -53,7 +53,12 @@ export interface StageServerOptions {
 export function loadedFiles(vite: ViteDevServer, config: ResolvedConfig): string[] {
   const fold = (path: string) => (process.platform === 'win32' ? resolve(path).toLowerCase() : resolve(path));
   const skip = [join(packageRoot, 'src'), join(packageRoot, 'dist'), config.out].map((dir) => fold(dir) + sep);
-  return [...vite.moduleGraph.fileToModulesMap.keys()]
+  // Modules with an id are the ones the page imported. Files a plugin only watches (Tailwind
+  // registers every file it scans for class names, docs and tests included) have none, and are not
+  // part of the video: a class they name that no loaded component uses changes nothing on screen.
+  const imported = new Set<string>();
+  for (const mod of vite.moduleGraph.idToModuleMap.values()) if (mod.file) imported.add(mod.file);
+  return [...imported]
     .map((file) => resolve(file))
     .filter((file) => !file.split(sep).includes('node_modules') && !skip.some((dir) => fold(file).startsWith(dir)) && existsSync(file));
 }

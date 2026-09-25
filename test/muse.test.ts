@@ -26,7 +26,12 @@ after(async () => {
   // Windows will not delete a folder a process still has files open in, and a killed Muse takes a
   // moment to go: wait for each, then retry the delete through any lingering handles.
   await until(() => started.every((pid) => !alive(pid)), 'the background Muses to exit', 30_000).catch(() => undefined);
-  rmSync(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  try {
+    rmSync(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  } catch {
+    // Windows can hold a handle past all that (EBUSY). The folder is git-ignored scratch, named by
+    // this run's process id, so leaving it is harmless; failing the run over it is not.
+  }
 });
 
 /** A scratch app with the example's stages and a copy of its intro, and its own config. */
