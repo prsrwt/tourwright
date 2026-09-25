@@ -410,14 +410,20 @@ export function mountPlayer(stages: Stages): void {
       if (!world || current.stage !== stage) return null;
       const elements = select(world, target, stages[stage]?.targets ?? {}, areasOn(stage));
       let smallest: number | null = null;
+      // How much an element is drawn larger or smaller than it is laid out: its ancestors' CSS
+      // transforms. The world's own is the camera (and the page's scale), counted separately below.
+      const drawnScale = (el: HTMLElement) => (el.offsetWidth ? el.getBoundingClientRect().width / el.offsetWidth : 1);
+      const worldScale = drawnScale(world);
       for (const el of elements) {
         const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
         for (let node = walker.nextNode(); node; node = walker.nextNode()) {
           if (!node.textContent?.trim() || !node.parentElement) continue;
           const style = getComputedStyle(node.parentElement);
           if (style.visibility === 'hidden' || style.display === 'none') continue;
-          // In video pixels: the camera's scale, then the page's scale up to the video.
-          const size = parseFloat(style.fontSize) * current.view.s * (timeline?.layout.scale ?? 1);
+          // In video pixels: any scaling in the stage itself (a component shown zoomed in), the
+          // camera's scale, then the page's scale up to the video.
+          const inStage = drawnScale(node.parentElement) / worldScale || 1;
+          const size = parseFloat(style.fontSize) * inStage * current.view.s * (timeline?.layout.scale ?? 1);
           if (smallest === null || size < smallest) smallest = size;
         }
       }

@@ -136,9 +136,25 @@ agent can read and write:
   dev server does not watch files) and stays on the sentence the reviewer was on. It closes itself once no tab has had its event stream open for 10 minutes. It
   never opens a browser where nobody would see it: in CI it starts nothing and prints the
   command, and on a Linux machine with no display it prints the link.
-- `review.json`: the user's verdict on the whole video, with a hash of the `script.json` it was
-  given for. The approval counts only while the hash matches, so any later edit, however small,
-  asks for another look. `notes` and `make` print where it stands.
+- `review.json`: the user's verdict on the whole video, with a hash of each file that version was
+  made from: `script.json`, the config, the lockfile (standing in for `node_modules`) and every
+  app file the preview loaded, which Vite's module graph lists (the stages file, fixtures,
+  components, CSS). The review counts only while every hash matches, so any later edit, however
+  small and to whichever file, asks for another look, and `notes`, `make` and `wait` name the
+  files that changed. Muse does not watch the app's files, so a review is refused (and the stage
+  reloaded) when one was written after the tab loaded the stage: nobody approves code they have
+  not seen.
+- `out/<name>/render.json`: what the MP4 beside it was made from (the same file hashes, taken from
+  the render's own stage server) and which voice narrated it. `wait` calls the MP4 the approved
+  version only when the approval and this record both match the files as they are now and the
+  voice was the real one; `make --require-approval` refuses the silent stand-in.
+- The final render from Muse. Once the reviewer approves a version whose MP4 is not the final video,
+  Muse asks whether to render it now, listing what is still in progress, and on a yes runs
+  `make <name> --require-approval --no-review` as its own process with the real voice (Muse may be
+  running with the stand-in), reporting each step and the percentage on the page. The question is
+  held in Muse's state (`renderOffer`), so `wait` can see it: while Muse is asking or rendering,
+  the agent waits instead of rendering a second copy. A background Muse does not close itself
+  while it renders.
 
 ### Cue timing
 

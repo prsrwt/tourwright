@@ -96,5 +96,5 @@ Before calling a walkthrough done:
 - Don't write durations, frame numbers or seconds in a script. Move the cue or rewrite the sentence.
 - Don't animate with timers (`setTimeout`, `setInterval`, `requestAnimationFrame`) or `Date.now` in a stage: the clock is frozen. Use a stage value (`references/stages.md`). The app's own CSS transitions are fine.
 - Don't hide or unmount parts of the app for a tighter shot. Zoom instead.
-- Don't write `review.json`, and never call a video finished until it approves the current script.
+- Don't write `review.json`, and never call a video finished until it approves the current version.
 - Don't commit anything under `tourwright/out/`.

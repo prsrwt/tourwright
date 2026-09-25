@@ -2,7 +2,7 @@
 // PostCSS config and tsconfig paths. There is no app dev server to start and no login to script.
 
 import { existsSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Connect, Plugin, ViteDevServer } from 'vite';
 import type { ResolvedConfig } from '../config/config.ts';
@@ -43,6 +43,24 @@ export class StagesMissingError extends Error {}
 export interface StageServerOptions {
   /** Extra routes, served before the player's. The studio uses this for its API. */
   middleware?: Connect.NextHandleFunction;
+}
+
+/**
+ * The app's own files a stage server has loaded so far: the stages file and everything it imports
+ * that is not installed in node_modules, CSS included. Tourwright's own code and Vite's cache are
+ * left out, so this is what the video shows of the app.
+ */
+export function loadedFiles(vite: ViteDevServer, config: ResolvedConfig): string[] {
+  const fold = (path: string) => (process.platform === 'win32' ? resolve(path).toLowerCase() : resolve(path));
+  const skip = [join(packageRoot, 'src'), join(packageRoot, 'dist'), config.out].map((dir) => fold(dir) + sep);
+  // Modules with an id are the ones the page imported. Files a plugin only watches (Tailwind
+  // registers every file it scans for class names, docs and tests included) have none, and are not
+  // part of the video: a class they name that no loaded component uses changes nothing on screen.
+  const imported = new Set<string>();
+  for (const mod of vite.moduleGraph.idToModuleMap.values()) if (mod.file) imported.add(mod.file);
+  return [...imported]
+    .map((file) => resolve(file))
+    .filter((file) => !file.split(sep).includes('node_modules') && !skip.some((dir) => fold(file).startsWith(dir)) && existsSync(file));
 }
 
 export async function startStageServer(config: ResolvedConfig, options: StageServerOptions = {}): Promise<StageServer> {

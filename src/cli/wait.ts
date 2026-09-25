@@ -3,16 +3,17 @@
 // and what to do next, with an exit code a script or agent can branch on. Without it an agent
 // hands the video over and never hears that it was approved, or keeps asking.
 
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { dirname, relative } from 'node:path';
 import type { ResolvedConfig } from '../config/config.ts';
 import { scriptPath } from '../config/walkthroughs.ts';
 import { describeBoxes, type BoxScript } from '../studio/boxes.ts';
-import type { Note, Review } from '../studio/protocol.ts';
+import type { Note, Review, StudioState } from '../studio/protocol.ts';
 import { formatReview, reviewState, type ReviewState } from '../studio/review.ts';
 import { readNotes } from '../studio/server.ts';
+import { museState } from './launch.ts';
 import { printNote } from './notes.ts';
-import { videoPath } from './render.ts';
+import { finalVideo } from '../render/record.ts';
 
 /** Exit codes, so a caller can branch without reading the text. */
 export const WAIT = { approved: 0, feedback: 2, timeout: 3 } as const;
@@ -35,14 +36,14 @@ export async function runWait(config: ResolvedConfig, name: string, options: Wai
   const interval = options.interval ?? 500;
   const start = reviewState(config, name);
   const boxesBefore = boxes(config, name);
-  if (start.approved) return approved(config, name, start);
+  const deadline = timeout ? Date.now() + timeout * 1000 : Infinity;
+  if (start.approved) return approved(config, name, start, deadline, interval);
 
   // What the user had already said before the wait began does not end it; only something new does.
   const seen = verdictKey(start.review);
   const before = new Map(readNotes(config, name).map((n) => [n.id, { status: n.status, text: n.text, userReplies: userReplies(n) }]));
   console.log(`Waiting for the user to review "${name}" in Muse (npx tourwright muse ${name})${timeout ? `, for up to ${timeout} s` : ''}...`);
 
-  const deadline = timeout ? Date.now() + timeout * 1000 : Infinity;
   while (Date.now() < deadline) {
     await new Promise((done) => setTimeout(done, Math.min(interval, Math.max(0, deadline - Date.now()))));
     let state: ReviewState;
@@ -54,7 +55,7 @@ export async function runWait(config: ResolvedConfig, name: string, options: Wai
       // Muse may be halfway through writing a file: look again next time.
       continue;
     }
-    if (state.approved) return (logIf(boxChanges(config, name, boxesBefore)), approved(config, name, state));
+    if (state.approved) return (logIf(boxChanges(config, name, boxesBefore)), await approved(config, name, state, deadline, interval));
     if (state.current && state.review?.status === 'changes-requested' && verdictKey(state.review) !== seen) {
       // The notes the user sent with the request, in full, so the agent can start on them at once.
       const ids = state.review.notes ?? [];
@@ -97,17 +98,43 @@ export async function runWait(config: ResolvedConfig, name: string, options: Wai
   return WAIT.timeout;
 }
 
-function approved(config: ResolvedConfig, name: string, state: ReviewState): number {
+async function approved(config: ResolvedConfig, name: string, state: ReviewState, deadline: number, interval: number): Promise<number> {
   console.log(`${formatReview(name, state)}\n`);
-  const video = videoPath(config, name);
-  const shown = relative(process.cwd(), video) || video;
-  // Edits made in Muse change script.json after the last render, so the MP4 may be an earlier cut.
-  const fresh = existsSync(video) && statSync(video).mtimeMs >= statSync(scriptPath(config, name)).mtimeMs;
-  console.log(
-    fresh
-      ? `Done: "${name}" is finished, and ${shown} is the approved version. Tell the user it is finished and carry on with what comes next. There is nothing more to ask about this video.`
-      : `Done: the user approved "${name}". ${existsSync(video) ? `${shown} is older than the approved script.json, so` : 'There is no video yet, so'} render the final cut with "npx tourwright make ${name} --require-approval --no-review", then tell the user it is finished and carry on with what comes next.`,
-  );
+  // Edits made in Muse change script.json after the last render, and a draft has the silent voice,
+  // so the MP4 on disk is the final video only when its render record says so.
+  let video = finalVideo(config, name, state);
+  const shown = relative(process.cwd(), video.file) || video.file;
+  const done = `Done: "${name}" is finished, and ${shown} is the approved version. Tell the user it is finished and carry on with what comes next. There is nothing more to ask about this video.`;
+  if (video.ready) return (console.log(done), WAIT.approved);
+
+  // Muse asks the reviewer whether to render the final video once they approve it, and renders it
+  // itself: leave that to them, rather than render it a second time.
+  let muse = await museState(config, name);
+  const inMuse = (s: StudioState | undefined) => s?.renderOffer === 'pending' || s?.render?.status === 'running';
+  if (inMuse(muse)) console.log(muse!.render?.status === 'running' ? 'The user is rendering the final video in Muse. Waiting for it to finish...' : 'Muse is asking the user whether to render the final video now. Waiting for their answer...');
+  while (inMuse(muse) && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, Math.min(interval, Math.max(0, deadline - Date.now()))));
+    muse = await museState(config, name);
+    video = finalVideo(config, name, reviewState(config, name));
+  }
+  if (video.ready) return (console.log(done), WAIT.approved);
+  if (inMuse(muse)) {
+    const where = muse!.render?.status === 'running' ? `Muse is rendering the final video (${muse!.render.step.toLowerCase()}, ${muse!.render.percent}%)` : 'Muse is still asking the user whether to render the final video now';
+    console.log(`Still waiting: the user approved "${name}", and ${where}.\nNext: run "npx tourwright wait ${name}" again to keep waiting. Don't render it yourself meanwhile.`);
+    return WAIT.timeout;
+  }
+  // A render from Muse for this approval that failed: the approval stands, but the video needs you.
+  const render = muse?.render;
+  if (render?.status === 'failed' && state.review && render.started >= state.review.at) {
+    console.log(`The user tried to render the final video in Muse, and it failed:\n\n${render.error ?? '(no output)'}\n`);
+    console.log(`Next: fix what it says, then render the final cut with "npx tourwright make ${name} --require-approval --no-review" (with the real voice, so without --fake-voice), and tell the user it is finished.`);
+    return WAIT.feedback;
+  }
+  if (muse?.renderOffer === 'declined') {
+    console.log(`Done: the user approved "${name}", and chose not to render the final video yet (${video.why.charAt(0).toLowerCase()}${video.why.slice(1)}). Don't render it unless they ask: tell the user it is approved, and that Muse can render it whenever they are ready, then carry on with what comes next.`);
+    return WAIT.approved;
+  }
+  console.log(`Done: the user approved "${name}". ${video.why}, so render the final cut with "npx tourwright make ${name} --require-approval --no-review" (with the real voice, so without --fake-voice), then tell the user it is finished and carry on with what comes next.`);
   return WAIT.approved;
 }
 

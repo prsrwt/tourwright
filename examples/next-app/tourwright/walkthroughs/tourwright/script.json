@@ -1,0 +1,341 @@
+{
+  "$schema": "../../../node_modules/tourwright/schema/script.schema.json",
+  "title": "Meet Tourwright",
+  "subtitle": "Narrated videos of your real app, reviewed in Muse",
+  "lexicon": {
+    "Tourwright": "Tour-right",
+    "Next.js": "Next J S",
+    "Vite": "Veet",
+    "MP4": "M P 4"
+  },
+  "scenes": [
+    {
+      "id": "what",
+      "stage": "dashboard",
+      "say": "[open]Tourwright makes narrated videos of your app, using your real React components. [how]You write a script. Tourwright speaks it with a voice that runs on your machine, moves a camera around your own interface, and renders an MP4. [this]This video was made with it.",
+      "beats": [
+        {
+          "at": "open",
+          "camera": {
+            "to": "all"
+          }
+        },
+        {
+          "at": "how",
+          "camera": {
+            "to": "stats",
+            "zoom": "fit"
+          },
+          "highlight": "stats",
+          "animate": "counts"
+        },
+        {
+          "at": "this",
+          "camera": {
+            "to": "all"
+          },
+          "highlight": false
+        }
+      ]
+    },
+    {
+      "id": "install",
+      "stage": "terminal",
+      "say": "[install]To start, add Tourwright to a Next.js or Vite React app. [init]Then run init. [files]It creates a config, a starter stage, an intro script, and a skill for your coding agent.",
+      "beats": [
+        {
+          "at": "install",
+          "camera": {
+            "to": "all"
+          },
+          "highlight": "install"
+        },
+        {
+          "at": "init",
+          "highlight": "init"
+        },
+        {
+          "at": "files",
+          "highlight": "init-files"
+        }
+      ]
+    },
+    {
+      "id": "stage",
+      "stage": "stages-file",
+      "say": "[stage]A stage is your real component, rendered with sample data, so there's no login and no server to run. [values]Stages can have values that move, like a meter filling up or a toggle switching on.",
+      "beats": [
+        {
+          "at": "stage",
+          "camera": {
+            "to": "all"
+          },
+          "highlight": "imports"
+        },
+        {
+          "at": "values",
+          "highlight": "values"
+        }
+      ]
+    },
+    {
+      "id": "script",
+      "stage": "script-file",
+      "say": "[scenes]The script is a list of scenes. Each one names a stage and says what to narrate. [cues]A marker in the narration is a cue. [beats]At each cue, the camera moves, the narration box outlines what you're talking about, or a value animates.",
+      "beats": [
+        {
+          "at": "scenes",
+          "camera": {
+            "to": "all"
+          }
+        },
+        {
+          "at": "cues",
+          "highlight": "say",
+          "camera": {
+            "to": "say",
+            "zoom": "fit"
+          }
+        },
+        {
+          "at": "beats",
+          "highlight": "beat",
+          "camera": {
+            "to": "beat",
+            "zoom": "fit"
+          }
+        }
+      ]
+    },
+    {
+      "id": "agent",
+      "stage": "agent",
+      "say": "[agent]You rarely write any of this by hand. [steps]Ask your coding agent for a video, and the skill tells it how to plan the scenes, build the stage, and check its work.",
+      "beats": [
+        {
+          "at": "agent",
+          "camera": {
+            "to": "all"
+          },
+          "highlight": "prompt"
+        },
+        {
+          "at": "steps",
+          "highlight": "agent-steps"
+        }
+      ]
+    },
+    {
+      "id": "make",
+      "stage": "make-review",
+      "say": "[make]One command, make, does the rest. [check]It checks the script and takes a still of every moment, to catch blank or hidden screens. [render]Then it renders the video. [muse]And it opens Muse in your browser.",
+      "beats": [
+        {
+          "at": "make",
+          "camera": {
+            "to": "all"
+          },
+          "highlight": "make"
+        },
+        {
+          "at": "check",
+          "highlight": "make-check"
+        },
+        {
+          "at": "render",
+          "highlight": "make-render"
+        },
+        {
+          "at": "muse",
+          "highlight": "make-muse"
+        }
+      ]
+    },
+    {
+      "id": "muse",
+      "stage": "muse",
+      "say": "[muse]Muse is where you review the video. [player]It plays with the narration and captions. [strip]Go scene by scene, at any speed, or loop one scene.",
+      "beats": [
+        {
+          "at": "muse",
+          "camera": {
+            "to": "muse-window",
+            "zoom": "fit"
+          }
+        },
+        {
+          "at": "player",
+          "highlight": "player",
+          "animate": "playhead"
+        },
+        {
+          "at": "strip",
+          "camera": {
+            "to": "transport",
+            "zoom": "width",
+            "align": "top"
+          },
+          "highlight": "scrubber"
+        }
+      ]
+    },
+    {
+      "id": "notes",
+      "stage": "muse",
+      "say": "[note]See something to change? Press N. [pinned]The note is pinned to that exact moment, to the millisecond. [box]You can also draw a box around any part of the screen, and the note keeps a picture of it.",
+      "beats": [
+        {
+          "at": "note",
+          "camera": {
+            "to": "muse-window",
+            "zoom": "fit"
+          },
+          "highlight": "composer",
+          "animate": "muse"
+        },
+        {
+          "at": "pinned",
+          "highlight": "note-a1",
+          "animate": "muse"
+        },
+        {
+          "at": "box",
+          "highlight": "note-b2",
+          "animate": "muse"
+        }
+      ]
+    },
+    {
+      "id": "boxes",
+      "stage": "muse",
+      "say": "[track]You can place narration boxes too. [add]Add one on anything, then drag its edges to time it. [snap]They snap to the start of a sentence.",
+      "beats": [
+        {
+          "at": "track",
+          "camera": {
+            "to": "transport",
+            "zoom": "width",
+            "align": "top"
+          },
+          "highlight": "box-track"
+        },
+        {
+          "at": "add",
+          "highlight": "new-box",
+          "animate": "muse"
+        },
+        {
+          "at": "snap",
+          "animate": "muse",
+          "highlight": "new-box"
+        }
+      ]
+    },
+    {
+      "id": "send",
+      "stage": "muse",
+      "say": "[send]When you're ready, send your notes to the agent.",
+      "beats": [
+        {
+          "at": "send",
+          "camera": {
+            "to": "muse-window",
+            "zoom": "fit"
+          },
+          "highlight": "send-bar"
+        },
+        {
+          "at": "end",
+          "animate": "muse",
+          "highlight": "review"
+        }
+      ]
+    },
+    {
+      "id": "agent-loop",
+      "stage": "agent-loop",
+      "say": "[wait]It's been waiting for you. [reply]It makes each change and replies on each note.",
+      "beats": [
+        {
+          "at": "wait",
+          "camera": {
+            "to": "all"
+          },
+          "highlight": "wait-notes"
+        },
+        {
+          "at": "reply",
+          "highlight": "reply"
+        }
+      ]
+    },
+    {
+      "id": "fixed",
+      "stage": "muse",
+      "say": "[fixed]You approve each fix, or say it isn't fixed yet.",
+      "beats": [
+        {
+          "at": "fixed",
+          "camera": {
+            "to": "muse-window",
+            "zoom": "fit"
+          },
+          "highlight": "note-a1",
+          "animate": "muse"
+        }
+      ]
+    },
+    {
+      "id": "approve",
+      "stage": "muse",
+      "say": "[approve]When the video is right, approve it. [dialog]Muse asks whether to render the final video, and lists anything still in progress, so nothing unfinished goes out by accident. [progress]It renders with the real voice. [ready]Then the final video is ready to play or share.",
+      "beats": [
+        {
+          "at": "approve",
+          "highlight": "approve",
+          "animate": "muse"
+        },
+        {
+          "at": "dialog",
+          "highlight": "dialog",
+          "animate": "muse"
+        },
+        {
+          "at": "progress",
+          "highlight": "render-status",
+          "animate": [
+            "muse",
+            "rendered"
+          ]
+        },
+        {
+          "at": "ready",
+          "highlight": "render-status",
+          "animate": "muse"
+        }
+      ]
+    },
+    {
+      "id": "wrap",
+      "stage": "dashboard",
+      "say": "[covers]An approval covers everything the video is made from: the script, the stage, and your components. If any of them changes, Muse asks you to look again. [yours]To make your own, install Tourwright and ask your agent for a video.",
+      "beats": [
+        {
+          "at": "covers",
+          "camera": {
+            "to": "tasks",
+            "zoom": "fit"
+          },
+          "highlight": "tasks"
+        },
+        {
+          "at": "yours",
+          "highlight": false,
+          "camera": {
+            "to": "all"
+          }
+        }
+      ]
+    }
+  ]
+}

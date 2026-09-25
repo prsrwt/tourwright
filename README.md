@@ -7,6 +7,8 @@ Everything runs locally: the voice is a model on your machine, and nothing is up
 
 > Status: pre-v0.1, in development. See `docs/ROADMAP.md`.
 
+**[Watch the introduction: Tourwright and Muse, from install to the final video](docs/media/tourwright-intro.mp4)** (3 minutes). Made with Tourwright, and reviewed and approved in Muse.
+
 **[Watch the setup walkthrough](docs/media/setup.mp4)** 
 
 
@@ -82,7 +84,7 @@ npm install --no-save tourwright ffmpeg-static
 | `render <name>` | Render the MP4 |
 | `make <name>` | Check and verify, then render only if every still passes, then open Muse in the browser to review it. `--no-review`, or `"review": false` in the config, leaves it closed; in CI, or with no screen, it prints the link or command instead. `--require-approval` renders only a version the user has approved in Muse |
 | `doctor` | Report ffmpeg, the browser and the voice. `--voice` downloads the model and speaks a test sentence. |
-| `muse <name>` | Open Muse, the review page, in a browser tab (`studio` works too): play it with narration and captions (at any speed, a scene on loop, or scene by scene), click a target to move the camera or narration box to it, put a narration box on anything (a target, or a box you draw) and time it by dragging its edges on a track under the scrubber, edit beats and narration, leave notes for the agent pinned to the millisecond (or on a clicked target), talk each one through with the agent (filter them by whose turn it is, reword, reopen or delete them), and approve the video |
+| `muse <name>` | Open Muse, the review page, in a browser tab (`studio` works too): play it with narration and captions (at any speed, a scene on loop, or scene by scene), click a target to move the camera or narration box to it, put a narration box on anything (a target, or a box you draw) and time it by dragging its edges on a track under the scrubber, edit beats and narration, leave notes for the agent pinned to the millisecond (or on a clicked target), talk each one through with the agent (filter them by whose turn it is, reword, reopen or delete them), approve the video, and render the final video with the real voice (Muse asks once you approve, saying what is still in progress) |
 | `notes <name>` | List the notes left in Muse by status, questions first, with their threads, and whether the current version is approved |
 | `reply <name> <id>` | Answer a note left in Muse: `--fixed "what changed"` or `--question "what you need to know"`. Only the user closes a note |
 | `wait <name>` | Wait until the user approves the video in Muse, asks for changes or answers the agent's question, then say what to do next. Exits 0 when approved, 2 with feedback to handle, 3 after `--timeout <seconds>` (540 by default, 0 for no limit). This is how an agent learns the video is finished and moves on |

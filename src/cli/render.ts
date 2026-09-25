@@ -1,15 +1,14 @@
 import { mkdirSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { relative } from 'node:path';
 import { formatDiagnostics } from '../check/diagnostic.ts';
 import type { ResolvedConfig } from '../config/config.ts';
 import { prepare, type Prepared } from '../pipeline/prepare.ts';
 import { openSession } from '../pipeline/session.ts';
 import { findFfmpeg, ffmpegMissing } from '../render/ffmpeg.ts';
+import { videoPath, writeRenderRecord } from '../render/record.ts';
 import { renderVideo, type RenderResult } from '../render/render.ts';
 
-export function videoPath(config: ResolvedConfig, name: string): string {
-  return join(config.out, `${name}.mp4`);
-}
+export { videoPath };
 
 /** Renders out/<name>.mp4. Returns undefined, having printed why, when it cannot. */
 export async function renderWalkthrough(config: ResolvedConfig, prepared: Prepared, log: (line: string) => void): Promise<RenderResult | undefined> {
@@ -27,7 +26,9 @@ export async function renderWalkthrough(config: ResolvedConfig, prepared: Prepar
     mkdirSync(config.out, { recursive: true });
     const seconds = (prepared.timeline.frames / prepared.timeline.fps).toFixed(1);
     log(`Rendering ${prepared.timeline.frames} frames (${seconds} s at ${prepared.timeline.fps} fps) with ffmpeg ${ffmpeg.version} from ${ffmpeg.source}...`);
-    return await renderVideo(prepared.timeline, session.player, { ffmpeg, file: videoPath(config, prepared.name), workDir: prepared.outDir, log });
+    const result = await renderVideo(prepared.timeline, session.player, { ffmpeg, file: videoPath(config, prepared.name), workDir: prepared.outDir, log });
+    writeRenderRecord(config, prepared.name, session.sources());
+    return result;
   } finally {
     await session.close();
   }

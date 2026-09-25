@@ -5,10 +5,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { cpSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { startStageServer, STUDIO_PATH } from '../src/bundle/server.ts';
+import { loadedFiles, startStageServer, STUDIO_PATH } from '../src/bundle/server.ts';
 import { resolveConfig } from '../src/config/config.ts';
 import { API, type StudioState } from '../src/studio/protocol.ts';
 import { createStudio } from '../src/studio/server.ts';
@@ -34,6 +34,14 @@ test('a new version shows in the open tab, on the same sentence, with the stage 
     await page.goto(new URL(STUDIO_PATH, origin).href);
     await page.locator('[data-scrubber]').waitFor();
     const counter = page.locator('span', { hasText: /^frame / }).first();
+
+    // What a review covers: the app's files the preview loaded, and none of Tourwright's or node_modules'.
+    // The player in Muse's iframe may still be loading its modules when Muse's own page is ready.
+    const loadedNow = () => loadedFiles(server!.vite, config).map((f) => relative(app, f).split(sep).join('/'));
+    for (const deadline = Date.now() + 60_000; !loadedNow().includes('tourwright/fixtures.ts') && Date.now() < deadline; ) await new Promise((done) => setTimeout(done, 200));
+    const loaded = loadedNow();
+    for (const file of ['tourwright/stages.tsx', 'tourwright/fixtures.ts', 'components/StatCards.tsx', 'app/globals.css']) assert.ok(loaded.includes(file), `${file} is not in ${loaded.join(', ')}`);
+    assert.ok(loaded.every((f) => !f.includes('node_modules') && !f.startsWith('../')), loaded.join(', '));
     const shownFrame = async () => Number((await counter.textContent())!.replace('frame ', ''));
 
     // The reviewer is partway through the second sentence of the second scene.
@@ -67,7 +75,12 @@ test('a new version shows in the open tab, on the same sentence, with the stage 
     const after = (await state()).timeline!;
     const moved = after.scenes[1]!.sentences[1]!;
     assert.ok(moved.from > sentence.from, 'the sentence starts later in the new version');
-    await page.waitForFunction(([el, want]) => el?.textContent === `frame ${want}`, [await counter.elementHandle(), moved.from + into] as const);
+    // Looked up afresh each time: the transport may be drawn again while the new version loads,
+    // and a handle to the old counter would never change.
+    const want = moved.from + into;
+    await page
+      .waitForFunction((f) => [...document.querySelectorAll('span')].some((el) => el.textContent === `frame ${f}`), want, { timeout: 60_000 })
+      .catch(async () => assert.fail(`The playhead never reached frame ${want}, the same place in the moved sentence; it shows "${await counter.textContent()}".`));
     assert.equal(await shownFrame(), moved.from + into, 'same sentence, as far into it as before');
     // The preview itself was loaded again, not only restarted.
     assert.equal(await page.frameLocator('iframe').locator('body').evaluate(() => (window as unknown as { marker?: number }).marker), undefined);

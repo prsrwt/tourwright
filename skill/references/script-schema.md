@@ -99,7 +99,7 @@ Put only what you are changing in `script.json`. These are the defaults:
 ```json
 "settings": {
   "video":     { "width": 1920, "height": 1080, "fps": 30, "crf": 23 },
-  "voice":     { "voice": "bm_fable", "speed": 1, "dtype": "fp32", "sentenceGap": 0.3, "tail": 0.7 },
+  "voice":     { "voice": "af_bella", "speed": 1, "dtype": "fp32", "sentenceGap": 0.3, "tail": 0.7 },
   "camera":    { "ease": "inOutCubic", "duration": 0.9, "lead": 0.4, "padding": 48, "maxZoom": 2.5 },
   "highlight": { "color": "#2563eb", "stroke": 3, "radius": 12, "padding": 10, "dim": 0.5, "slide": 0.5, "fade": 0.3 },
   "captions":  { "mode": "burned", "size": 40, "position": "bottom" },
@@ -109,7 +109,7 @@ Put only what you are changing in `script.json`. These are the defaults:
 ```
 
 - `video`: output size, frame rate and quality. Width and height must be even. `fps` is one of 24, 25, 30, 50 or 60. A lower `crf` gives higher quality and a bigger file. For a quick draft, `{ "width": 1280, "height": 720 }`.
-- `voice.voice`: any Kokoro voice ID. `bm_fable`, `bm_george` and `bm_lewis` are British male; `bf_emma` and `bf_isabella` are British female; `af_heart`, `af_bella`, `am_adam` and `am_michael` are American. `speed` runs from 0.5 to 2. `dtype` trades quality for download size: `fp32` (about 326 MB), `fp16`, `q8` (about 92 MB) or `q4`.
+- `voice.voice`: any Kokoro voice ID. The default, `af_bella`, and `af_heart` are the best rated (American female); `bm_fable`, `bm_george` and `bm_lewis` are British male; `bf_emma` and `bf_isabella` are British female; `am_michael` and `am_puck` are American male. `speed` runs from 0.5 to 2. `dtype` trades quality for download size: `fp32` (about 326 MB), `fp16`, `q8` (about 92 MB) or `q4`.
 - `camera.padding` is pixels of space kept around a framed target. `maxZoom` limits how close the camera gets, as a multiple of the whole-stage width.
 - `highlight.color` is any CSS colour. `dim` is the opacity of the darkening outside the narration box, from 0 to 1. `slide` and `fade` are seconds.
 - `captions`: the narration, one sentence at a time, each shown from when it starts until the next sentence starts. They show the written words, not the lexicon's respellings. `mode` is `"burned"` (drawn into the video, so they show everywhere, including Slack and GitHub), `"soft"` (a subtitle track inside the MP4, which players show and viewers can turn off) or `"off"`. `burned` and `soft` both write `<name>.vtt` next to the MP4, for web pages that add subtitles with a `<track>`. `size` is pixels at 1080p. Verify warns when a caption covers more than 10% of a target; frame the target higher, or use `"position": "top"`.

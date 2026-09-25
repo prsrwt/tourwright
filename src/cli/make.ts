@@ -6,6 +6,7 @@ import type { ResolvedConfig } from '../config/config.ts';
 import { prepare } from '../pipeline/prepare.ts';
 import { openSession } from '../pipeline/session.ts';
 import { findFfmpeg, ffmpegMissing } from '../render/ffmpeg.ts';
+import { writeRenderRecord } from '../render/record.ts';
 import { renderVideo } from '../render/render.ts';
 import { formatReview, reviewState } from '../studio/review.ts';
 import { launchMuse } from './launch.ts';
@@ -29,6 +30,11 @@ export async function runMake(config: ResolvedConfig, name: string, options: Mak
       console.error(`Not rendered: --require-approval renders only a version approved in Muse. ${formatReview(name, review)}\nFix: ask the user to review it in Muse ("npx tourwright muse ${name}") and approve it, then run make again.`);
       return 1;
     }
+    // The approved version is the final video, and a final video with the silent stand-in is no use.
+    if (config.voice.backend === 'fake') {
+      console.error('Not rendered: --require-approval makes the final video, which needs the real voice, and this run has the silent stand-in (--fake-voice, or TOURWRIGHT_VOICE=fake).\nFix: run it again without --fake-voice.');
+      return 1;
+    }
   }
   const ffmpeg = findFfmpeg(config.root);
   if (!ffmpeg) {
@@ -48,6 +54,7 @@ export async function runMake(config: ResolvedConfig, name: string, options: Mak
     const t = prepared.timeline;
     log(`\nRendering ${t.frames} frames (${(t.frames / t.fps).toFixed(1)} s at ${t.fps} fps)...`);
     const result = await renderVideo(t, session.player, { ffmpeg, file: videoPath(config, name), workDir: prepared.outDir, log });
+    writeRenderRecord(config, name, session.sources());
     console.log(`Wrote ${relative(process.cwd(), result.file) || result.file} (${result.seconds.toFixed(1)} s).`);
     // Rendered is not finished: the video is done only once the user approves this version.
     console.log(formatReview(name, reviewState(config, name)));

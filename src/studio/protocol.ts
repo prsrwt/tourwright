@@ -2,6 +2,7 @@
 // sides share them.
 
 import type { Diagnostic } from '../check/diagnostic.ts';
+import type { Inputs } from './fingerprint.ts';
 import type { Rect } from '../runtime/motion.ts';
 import type { ScreenDescription } from '../runtime/screen.ts';
 import type { Timeline } from '../timing/timeline.ts';
@@ -109,6 +110,42 @@ export interface StudioState {
   review?: Review;
   /** Why review.json could not be read, when it could not. */
   reviewError?: string;
+  /**
+   * Files other than script.json that the review covered and that have changed since, such as a
+   * fixture the agent edited: the review then no longer counts, as with an edit to the script.
+   */
+  reviewChanged: string[];
+  /** Whether the MP4 on disk is the final video: the approved version, with the real voice. */
+  final: FinalState;
+  /** The final render Muse started, while it runs and once it has finished. */
+  render?: RenderJob;
+  /**
+   * After an approval, when the MP4 is not the final video yet: "pending" while Muse asks whether
+   * to render it now, "declined" once the reviewer said not now. An agent waiting on the review
+   * leaves the render to Muse meanwhile.
+   */
+  renderOffer?: 'pending' | 'declined';
+}
+
+export interface FinalState {
+  ready: boolean;
+  /** Why it is not the final video, when it is not. */
+  why?: string;
+  /** Where the MP4 goes, relative to the app's root. */
+  file: string;
+}
+
+/** A final render that Muse runs: make, with the real voice, for the approved version. */
+export interface RenderJob {
+  status: 'running' | 'done' | 'failed';
+  /** What it is doing now, in a few words. */
+  step: string;
+  /** How far through the frames, 0 to 100. */
+  percent: number;
+  started: string;
+  finished?: string;
+  /** With "failed": what make said, its last lines. */
+  error?: string;
 }
 
 /** walkthroughs/<name>/review.json: the user's verdict on one exact version of script.json. */
@@ -119,6 +156,12 @@ export interface Review {
   comment?: string;
   /** With changes-requested: the ids of the notes that were open when the user sent them, for the agent to handle. */
   notes?: string[];
+  /**
+   * Everything the reviewed version was made from, file by file (script.json, the config, the app
+   * files the preview loaded, the lockfile), so a later change to any of them is noticed. Reviews
+   * written before this existed have none, and cover script.json alone.
+   */
+  inputs?: Inputs;
 }
 
 export interface NewNoteRequest {

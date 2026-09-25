@@ -6,9 +6,9 @@
 import { spawn } from 'node:child_process';
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import type { ResolvedConfig } from '../config/config.ts';
-import { API } from '../studio/protocol.ts';
+import { API, type StudioState } from '../studio/protocol.ts';
+import { cliEntry } from './entry.ts';
 import { openBrowser } from './studio.ts';
 
 /** How long a background Muse waits with no tab open before it closes itself. */
@@ -73,6 +73,18 @@ export async function liveMuse(config: ResolvedConfig, name: string): Promise<Mu
   }
 }
 
+/** What the Muse running for this walkthrough shows, if one is running. */
+export async function museState(config: ResolvedConfig, name: string): Promise<StudioState | undefined> {
+  const record = await liveMuse(config, name);
+  if (!record) return undefined;
+  try {
+    const res = await fetch(new URL(`${API}/state`, record.url), { signal: AbortSignal.timeout(3000) });
+    return res.ok ? ((await res.json()) as StudioState) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export type LaunchOutcome =
   /** Started a background Muse and opened the browser to it. */
   | 'opened'
@@ -116,8 +128,6 @@ export function canOpenBrowser(env: NodeJS.ProcessEnv, platform: NodeJS.Platform
   return true;
 }
 
-// The CLI entry this module belongs to: TypeScript when running from source, JavaScript once built.
-const cliEntry = fileURLToPath(new URL(import.meta.url.endsWith('.ts') ? './index.ts' : './index.js', import.meta.url));
 
 /**
  * Starts Muse for a walkthrough in the background (or finds the one already running), opens the
