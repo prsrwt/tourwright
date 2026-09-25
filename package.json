@@ -34,7 +34,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "schema": "node src/schema/emit.ts",
     "test": "node --test \"test/**/*.test.ts\"",
-    "prepack": "npm run build"
+    "prepack": "npm run build",
+    "bench": "node bench/render.ts"
   },
   "dependencies": {
     "kokoro-js": "^1.2.1",

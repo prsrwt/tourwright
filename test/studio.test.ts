@@ -48,6 +48,21 @@ test('the studio plays back, edits script.json, and pins notes to the millisecon
     await guide.waitFor({ state: 'detached' });
     assert.equal(await page.evaluate(() => localStorage.getItem('tourwright.muse.guide-dismissed')), '1');
 
+    // Playback follows the soundtrack: it is as long as the timeline, and pressing Play runs the
+    // audio clock and moves the picture with it. (Headless Chromium plays to no speaker, but the
+    // clock and the media element behave as in a browser.)
+    const state = (await (await fetch(`${new URL(server.url).origin}${API}/state`)).json()) as { timeline: { frames: number; fps: number } };
+    const audio = page.locator('audio');
+    await page.waitForFunction((el) => (el as HTMLAudioElement).readyState >= 1, await audio.elementHandle());
+    const duration = await audio.evaluate((el) => (el as HTMLAudioElement).duration);
+    assert.ok(Math.abs(duration - state.timeline.frames / state.timeline.fps) < 0.1, `the soundtrack lasts ${duration} s`);
+    await page.getByRole('button', { name: 'Play' }).click();
+    await page.waitForFunction((el) => (el as HTMLAudioElement).currentTime > 0.5, await audio.elementHandle());
+    await page.getByRole('button', { name: 'Pause' }).click();
+    const heard = await audio.evaluate((el) => (el as HTMLAudioElement).currentTime);
+    const showing = Number((await page.locator('span', { hasText: /^frame / }).first().textContent())!.replace('frame ', ''));
+    assert.ok(Math.abs(showing - Math.floor(heard * state.timeline.fps)) <= 2, `the picture (frame ${showing}) follows the audio (${heard.toFixed(3)} s)`);
+
     // Seek halfway along the scrubber.
     const bar = page.locator('[data-scrubber]');
     const box = (await bar.boundingBox())!;
