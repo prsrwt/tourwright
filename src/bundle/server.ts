@@ -137,42 +137,60 @@ export async function startStageServer(config: ResolvedConfig, options: StageSer
     },
   };
 
-  const server = await vite.createServer({
-    root: config.root,
-    // A plain Vite React app keeps its own config (plugins, aliases); a Next app has none to load.
-    configFile: config.preset === 'vite-react' ? undefined : false,
-    appType: 'custom',
-    logLevel: 'error',
-    clearScreen: false,
-    cacheDir: join(config.out, '.cache', 'vite'),
-    plugins: [plugin],
-    define,
-    resolve: { alias: aliases, dedupe: ['react', 'react-dom'], tsconfigPaths: true },
-    oxc: { jsx: { runtime: 'automatic' } },
-    optimizeDeps: {
-      entries: [posix(config.stages)],
-      include: ['react', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'react-dom', 'react-dom/client'],
-    },
-    server: {
-      host: '127.0.0.1',
-      // Not port 0: the operating system can hand out a port Chromium refuses to load pages from
-      // (6566, 6665 and others on its unsafe list). None of those is at or above 20000; if this one
-      // is taken, Vite tries the next.
-      port: 20000 + Math.floor(Math.random() * 40000),
-      strictPort: false,
-      // The Vite client loads anyway (CSS is injected through it), so let its websocket connect
-      // rather than log errors. With no file watcher it never reloads the page.
-      watch: null,
-      // Browser errors are collected and reported by verify and render, not echoed to the terminal.
-      forwardConsole: false,
-      fs: { allow: [vite.searchForWorkspaceRoot(config.root), packageRoot] },
-    },
-  });
-  await server.listen();
-  const url = server.resolvedUrls?.local[0];
-  if (!url) {
-    await server.close();
-    throw new Error('The stage server started but reported no address.');
+  // Windows reserves whole ranges of ports (for Hyper-V and WinNAT) and refuses to listen on
+  // them with EACCES, which Vite does not retry the way it does a port in use: try another.
+  for (let attempt = 1; ; attempt++) {
+    const port = 20000 + Math.floor(Math.random() * 40000);
+    try {
+      return await listen(port);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EACCES' || attempt === 5) throw error;
+    }
   }
-  return { url: new URL(PLAYER_PATH, url).href, vite: server, close: () => server.close() };
+
+  async function listen(port: number): Promise<StageServer> {
+    const server = await vite.createServer({
+      root: config.root,
+      // A plain Vite React app keeps its own config (plugins, aliases); a Next app has none to load.
+      configFile: config.preset === 'vite-react' ? undefined : false,
+      appType: 'custom',
+      logLevel: 'error',
+      clearScreen: false,
+      cacheDir: join(config.out, '.cache', 'vite'),
+      plugins: [plugin],
+      define,
+      resolve: { alias: aliases, dedupe: ['react', 'react-dom'], tsconfigPaths: true },
+      oxc: { jsx: { runtime: 'automatic' } },
+      optimizeDeps: {
+        entries: [posix(config.stages)],
+        include: ['react', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'react-dom', 'react-dom/client'],
+      },
+      server: {
+        host: '127.0.0.1',
+        // Not port 0: the operating system can hand out a port Chromium refuses to load pages from
+        // (6566, 6665 and others on its unsafe list). None of those is at or above 20000; if this one
+        // is taken, Vite tries the next.
+        port,
+        strictPort: false,
+        // The Vite client loads anyway (CSS is injected through it), so let its websocket connect
+        // rather than log errors. With no file watcher it never reloads the page.
+        watch: null,
+        // Browser errors are collected and reported by verify and render, not echoed to the terminal.
+        forwardConsole: false,
+        fs: { allow: [vite.searchForWorkspaceRoot(config.root), packageRoot] },
+      },
+    });
+    try {
+      await server.listen();
+    } catch (error) {
+      await server.close();
+      throw error;
+    }
+    const url = server.resolvedUrls?.local[0];
+    if (!url) {
+      await server.close();
+      throw new Error('The stage server started but reported no address.');
+    }
+    return { url: new URL(PLAYER_PATH, url).href, vite: server, close: () => server.close() };
+  }
 }
