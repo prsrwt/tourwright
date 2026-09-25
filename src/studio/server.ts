@@ -66,7 +66,7 @@ export interface Studio {
 
 export function createStudio(config: ResolvedConfig, name: string, log: (line: string) => void): Studio {
   const file = scriptPath(config, name);
-  const state: StudioState = { name, version: 0, scriptHash: '', script: undefined, diagnostics: [], preparing: false, notes: [] };
+  const state: StudioState = { name, version: 0, timelineVersion: 0, scriptHash: '', script: undefined, diagnostics: [], preparing: false, notes: [] };
   // A notes file that cannot be read keeps the last good notes on screen, and says why.
   const loadNotes = () => {
     try {
@@ -119,6 +119,7 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
         try {
           const prepared = await prepare(config, name, { log });
           state.timeline = prepared.timeline;
+          state.timelineVersion += 1;
           state.diagnostics = prepared.warnings;
           delete state.error;
           soundtrack = buildSoundtrack(prepared.timeline);

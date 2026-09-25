@@ -66,6 +66,11 @@ export interface StudioState {
   name: string;
   /** Changes whenever the script, timeline or notes change. */
   version: number;
+  /**
+   * Changes only when a new timeline has been prepared. The player and the soundtrack reload on
+   * this, not on `version`, so a note or a review arriving mid-playback does not interrupt it.
+   */
+  timelineVersion: number;
   /** A hash of script.json as last read, so a save can tell whether someone else changed it. */
   scriptHash: string;
   /** script.json as written, for editing. */

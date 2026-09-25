@@ -90,6 +90,19 @@ test('the studio plays back, edits script.json, and pins notes to the millisecon
     assert.equal(note?.screen?.highlight?.target, 'stats');
     assert.ok(note?.screen?.targets.some((t) => t.name === 'stats' && t.cut.length === 0));
 
+    // From here on, count how often the player restarts. Notes and replies arriving must not
+    // restart it or reload the soundtrack, which would stop playback; only a new timeline does.
+    const preview = page.frames().find((f) => f.url().includes('/__tourwright/') && f !== page.mainFrame())!;
+    await preview.evaluate(() => {
+      const tour = window.__tour;
+      const start = tour.start.bind(tour);
+      const w = window as unknown as { starts: number };
+      w.starts = 0;
+      tour.start = (t) => ((w.starts += 1), start(t));
+    });
+    const starts = () => preview.evaluate(() => (window as unknown as { starts: number }).starts);
+    const soundtrack = await page.locator('audio').getAttribute('src');
+
     // The agent resolves it in the file, the old way ("done" and a resolution): the studio reads
     // that as fixed, shows what it did, and the user approves it.
     writeFileSync(notesFile, JSON.stringify({ notes: [{ ...note!, status: 'done', resolution: 'Zoomed to 2x on the stats.' }] }, null, 2));
@@ -152,7 +165,9 @@ test('the studio plays back, edits script.json, and pins notes to the millisecon
     const onTarget = readNotesFile().find((n) => n.text === 'This card needs its label')!;
     assert.equal(onTarget.target, 'stat-overdue');
     assert.equal(onTarget.scope, 'scene');
-    const player = page.frames().find((f) => f.url().includes('/__tourwright/') && f !== page.mainFrame())!;
+    assert.equal(await starts(), 0, 'notes and replies restarted the player');
+    assert.equal(await page.locator('audio').getAttribute('src'), soundtrack, 'notes and replies reloaded the soundtrack');
+    const player = preview;
     const onScreen = (await player.evaluate(() => window.__tour.targetsOnScreen())).find((t) => t.name === 'stat-overdue')!;
     assert.deepEqual(onTarget.rect, { x: Math.round(onScreen.rect.x), y: Math.round(onScreen.rect.y), w: Math.round(onScreen.rect.w), h: Math.round(onScreen.rect.h) });
     await card(onTarget.id).getByText(/the whole scene · on stat-overdue/).waitFor();
@@ -182,6 +197,13 @@ test('the studio plays back, edits script.json, and pins notes to the millisecon
     // Editing script.json afterwards (here, as an agent would) means the approval no longer counts.
     writeFileSync(scriptFile, readFileSync(scriptFile, 'utf8').replace('Your team at a glance', 'Your team this week'));
     await reviewBar.getByText('Edited since approval').waitFor();
+    // A changed script is a new timeline: that does restart the player, and reload the soundtrack.
+    await (async () => {
+      const deadline = Date.now() + 120_000;
+      while ((await starts()) < 1 && Date.now() < deadline) await new Promise((done) => setTimeout(done, 200));
+    })();
+    assert.ok((await starts()) >= 1, 'a new timeline did not restart the player');
+    assert.notEqual(await page.locator('audio').getAttribute('src'), soundtrack);
     assert.equal(reviewState(config, 'intro').approved, false);
     assert.match(formatReview('intro', reviewState(config, 'intro')), /^Review: edited since approval\./);
 

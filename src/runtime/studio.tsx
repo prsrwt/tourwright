@@ -134,7 +134,12 @@ async function saveScript(state: StudioState, change: (script: RawScript) => voi
 // ---------------------------------------------------------------------------------------------
 // The player in its iframe
 
-function usePlayer(timeline: Timeline | undefined, version: number | undefined) {
+/**
+ * The player in its iframe, (re)started once per prepared timeline. `key` is the state's
+ * timelineVersion: the timeline object itself is new on every state fetch, and restarting on each
+ * one (a note arriving, say) would stop playback and measure every stage again.
+ */
+function usePlayer(timeline: Timeline | undefined, key: number | undefined) {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const [ready, setReady] = useState<ReadyReport>();
   const [api, setApi] = useState<TourApi>();
@@ -159,7 +164,8 @@ function usePlayer(timeline: Timeline | undefined, version: number | undefined) 
     return () => {
       cancelled = true;
     };
-  }, [timeline, version]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, timeline === undefined]);
 
   return { frameRef, ready, api };
 }
@@ -172,7 +178,7 @@ type Tab = 'notes' | 'scenes';
 function Studio() {
   const [state] = useStudioState();
   const timeline = state?.timeline;
-  const { frameRef, ready, api } = usePlayer(timeline, state?.version);
+  const { frameRef, ready, api } = usePlayer(timeline, state?.timelineVersion);
   const audio = useRef<HTMLAudioElement>(null);
   const [frame, setFrame] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -309,7 +315,7 @@ function Studio() {
             <Centered>{state.preparing ? 'Voicing the narration...' : 'This walkthrough could not be prepared. See the problems under Scenes.'}</Centered>
           )}
           {timeline && <Transport timeline={timeline} frame={frame} playing={playing} onToggle={toggle} onSeek={seekPaused} />}
-          <audio ref={audio} src={`${API}/soundtrack.wav?v=${state.version}`} preload="auto" onEnded={() => setPlaying(false)} />
+          <audio ref={audio} src={`${API}/soundtrack.wav?v=${state.timelineVersion}`} preload="auto" onEnded={() => setPlaying(false)} />
         </main>
         <aside style={{ borderLeft: `1px solid ${C.line}`, background: C.surface, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <div role="tablist" aria-label="Side panel" style={{ display: 'flex', gap: S.gap, padding: `${S.gap * 1.5}px ${S.gap * 2}px 0`, borderBottom: `1px solid ${C.line}` }}>
