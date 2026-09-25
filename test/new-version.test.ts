@@ -75,7 +75,12 @@ test('a new version shows in the open tab, on the same sentence, with the stage 
     const after = (await state()).timeline!;
     const moved = after.scenes[1]!.sentences[1]!;
     assert.ok(moved.from > sentence.from, 'the sentence starts later in the new version');
-    await page.waitForFunction(([el, want]) => el?.textContent === `frame ${want}`, [await counter.elementHandle(), moved.from + into] as const);
+    // Looked up afresh each time: the transport may be drawn again while the new version loads,
+    // and a handle to the old counter would never change.
+    const want = moved.from + into;
+    await page
+      .waitForFunction((f) => [...document.querySelectorAll('span')].some((el) => el.textContent === `frame ${f}`), want, { timeout: 60_000 })
+      .catch(async () => assert.fail(`The playhead never reached frame ${want}, the same place in the moved sentence; it shows "${await counter.textContent()}".`));
     assert.equal(await shownFrame(), moved.from + into, 'same sentence, as far into it as before');
     // The preview itself was loaded again, not only restarted.
     assert.equal(await page.frameLocator('iframe').locator('body').evaluate(() => (window as unknown as { marker?: number }).marker), undefined);
