@@ -98,7 +98,9 @@ export async function startStageServer(config: ResolvedConfig, options: StageSer
     <!-- Muse's page colour, text colour and accent, as in the style constants in runtime/studio.tsx. -->
     <style>
       html, body { margin: 0; height: 100%; background: #FBF8F6; color: #1F2328; font: 14px/1.4 ui-sans-serif, system-ui, sans-serif; }
-      button:disabled { opacity: 0.5; cursor: default; }
+      *, *::before, *::after { box-sizing: border-box; }
+      button:disabled { opacity: 0.45; cursor: default; }
+      button:not(:disabled):hover { filter: brightness(0.96); }
       :focus-visible { outline: 2px solid #1F5FCC; outline-offset: 2px; }
       [hidden] { display: none !important; }
     </style>
