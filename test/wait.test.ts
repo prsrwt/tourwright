@@ -130,3 +130,18 @@ test('a note on an area the user drew reaches the agent with its text and its sn
   assert.equal(sent.code, WAIT.feedback);
   assert.match(sent.out, /\[a\][^\n]*\n {2}on an area the user drew, on screen at x 100, y 200, 80 by 24 \(layout pixels\)\n {2}the text there: "Export"\n {2}a picture of exactly that part: .*intro[\\/]notes[\\/]a\.png/);
 });
+
+test('narration boxes the user placed in Muse reach the agent with whatever ends the wait', async () => {
+  const config = app();
+  const file = join(config.walkthroughs, 'intro', 'script.json');
+  const script = JSON.parse(readFileSync(file, 'utf8'));
+  const sent = await wait(config, () => {
+    const placed = structuredClone(script);
+    placed.areas = { 'area-export': { stage: placed.scenes[0].stage, x: 10, y: 20, w: 80, h: 24 } };
+    placed.scenes[0].beats = [...(placed.scenes[0].beats ?? []), { at: 'end', highlight: 'area-export' }];
+    writeFileSync(file, JSON.stringify(placed, null, 2));
+    writeReview(config, 'intro', { status: 'changes-requested', scriptHash: hash(config), at: '2026-09-25T11:00:00Z', comment: 'See the box I added.' });
+  });
+  assert.equal(sent.code, WAIT.feedback);
+  assert.match(sent.out, /The user changed the narration boxes themselves in Muse\. They are in script\.json now; keep them unless a note asks otherwise:\n {2}now: scene "[^"]+" \(scenes\[0\]\), at the end of the scene: puts the narration box on area-export \(an area of stage \w+: x 10, y 20, 80 by 24\)/);
+});

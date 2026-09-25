@@ -21,6 +21,7 @@ Location: `tourwright/walkthroughs/<name>/script.json`. Keep the `$schema` line 
 | `settings` | no | Overrides for this walkthrough (section 6). Anything left out uses the default. |
 | `lexicon` | no | Map of written word to how the voice should say it, such as `{ "SQL": "sequel" }`. Whole words, case-sensitive. It only changes the audio. |
 | `scenes` | yes | Scenes, played in order |
+| `areas` | no | Named boxes on a stage, `{ "area-export": { "stage": "invoice", "x": 1369, "y": 96, "w": 257, "h": 57 } }` in the stage's own layout pixels. Usually drawn by the user in Muse. A camera or narration box can go to one by name, like any target. |
 
 ## 2. Scenes
 
@@ -78,6 +79,8 @@ The camera never shows space beyond the edge of the stage: near an edge, it stop
 - `false`: fade the outline and the dimming out.
 
 The narration box carries into the next scene if that scene uses the same stage, and clears at a cut to a different stage.
+
+The target can also be an area from the top-level `areas`: a box the user drew in Muse around something with no target of its own, such as one button in a toolbar. verify reports the text inside it like any target's.
 
 ## 5. How timing works
 

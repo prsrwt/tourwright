@@ -76,5 +76,17 @@ for changes the user made before you started waiting does not end the wait: that
 already seen. Notes on their own don't end it either, because the user may still be adding them;
 it ends when they send them to you or approve. Approving one of your fixes, or deleting a note, needs nothing from you, so it does not end the wait on its own; `wait` reports it with whatever does. A review's `"notes"` lists the ids they sent.
 
+## Narration boxes the user placed
+
+In Muse the user can put a narration box on something themselves: "Add narration box", then a
+target or a box they draw, and drag its edges on the narration box track under the scrubber to
+set when it shows and when it goes. Both edges snap to sentence starts. Each edit is written into
+`script.json` as you would write it: a `[cue]` at the sentence where it starts (reusing one that is
+there), a beat moving the narration box there, one where it ends putting back whatever showed
+before, and a drawn box added to `areas` under a name made from its text (`area-overdue`). Cues
+and beats the edit left unused are removed. `wait` lists these changes with whatever ends the wait.
+They are the user's choices: keep them, and do not put your own narration box back over them unless
+a note asks you to.
+
 Edits made in Muse are written to `script.json` too. If the user has Muse open, it
 reloads when you change the file, so you both always see the same script.

@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Diagnostic } from '../check/diagnostic.ts';
+import { addArea, deleteBox, moveBox, segments, setBox, type BoxScript, type Place, type Segment } from '../studio/boxes.ts';
 import type { NewNoteRequest, Note, NoteScope, NoteStatus, ReplyRequest, Review, ReviewRequest, StudioState } from '../studio/protocol.ts';
 import type { TimedBeat, TimedScene, Timeline } from '../timing/timeline.ts';
 import type { Rect } from './motion.ts';
@@ -388,6 +389,24 @@ function Studio() {
   const waiting = state.notes.filter((n) => n.status === 'question' || n.status === 'fixed').length;
   const pick = (done: (target: string) => void, area?: (rect: Rect) => void) => setPicking({ target: done, ...(area && { area }) });
   const seekPaused = (f: number) => (pause(), seek(f));
+  const boxes = timeline ? segments(timeline) : [];
+  const editBoxes = (change: (script: BoxScript) => void) => void edit((script) => change(script as unknown as BoxScript));
+  // A narration box placed by hand: on the target clicked (or the area drawn), from the sentence
+  // playing now to the next sentence start. Its edges are then dragged on the track to time it.
+  const addBox = () => {
+    if (!timeline) return;
+    pause();
+    const scene = sceneAt(timeline, frame) ?? timeline.scenes[0];
+    if (!scene) return;
+    const start = Math.max(0, scene.sentences.findLastIndex((s) => frame >= s.from));
+    const put = (target: string) => editBoxes((s) => setBox(s, { scene: scene.index, target, start, end: start + 1 }));
+    pick(put, (rect) => {
+      if (!api) return;
+      const { stage, rect: onStage } = api.toStage(rect);
+      const text = api.textIn(rect);
+      editBoxes((s) => setBox(s, { scene: scene.index, target: addArea(s, { stage, ...onStage }, text), start, end: start + 1 }));
+    });
+  };
 
   const video = (
     <main style={{ display: 'flex', flexDirection: 'column', minWidth: 0, padding: S.gap * 2, ...(narrow && { height: '62vh', flex: 'none' }) }}>
@@ -407,6 +426,10 @@ function Studio() {
             onLoop={toggleLoop}
             onNote={startNote}
             onHelp={() => setHelp(!help)}
+            boxes={boxes}
+            onAddBox={addBox}
+            onMoveBox={(b, start, end) => editBoxes((s) => moveBox(s, b.scene, b.beat, start, end))}
+            onDeleteBox={(b) => editBoxes((s) => deleteBox(s, b.scene, b.beat))}
           />
         </Preview>
       ) : (
@@ -775,6 +798,10 @@ function Transport(props: {
   onLoop: () => void;
   onNote: () => void;
   onHelp: () => void;
+  boxes: Segment[];
+  onAddBox: () => void;
+  onMoveBox: (box: Segment, start: Place, end: Place) => void;
+  onDeleteBox: (box: Segment) => void;
 }) {
   const { timeline, frame, playing } = props;
   const bar = useRef<HTMLDivElement>(null);
@@ -804,6 +831,7 @@ function Transport(props: {
         )}
         <div style={{ position: 'absolute', left: percent(frame), top: 0, bottom: 0, width: 2, marginLeft: -1, background: C.ink }} />
       </div>
+      <NarrationTrack timeline={timeline} frame={frame} boxes={props.boxes} onSeek={props.onSeek} onMove={props.onMoveBox} onDelete={props.onDeleteBox} />
       <div style={{ display: 'flex', alignItems: 'center', gap: S.gap, flexWrap: 'wrap' }}>
         <button onClick={() => props.onJump(-1)} aria-label="Previous scene" title="Previous scene  [" style={round}>
           <Icon d="M5 4v12M16 4.5v11L7.5 10z" />
@@ -833,12 +861,122 @@ function Transport(props: {
           <button onClick={props.onHelp} aria-label="Keyboard shortcuts" aria-expanded={props.help} title="Keyboard shortcuts  ?" style={{ ...round, fontWeight: 700, color: C.muted }}>
             ?
           </button>
+          <button onClick={props.onAddBox} data-action="add-box" style={quiet} title="Put a narration box on something, from the sentence playing now">
+            Add narration box
+          </button>
           <button onClick={props.onNote} style={primary} title="Note at this moment  N">
             Write a note
           </button>
         </div>
       </div>
       {props.help && <Shortcuts />}
+    </div>
+  );
+}
+
+/**
+ * The narration boxes under the scrubber, one bar each, like clips on an editor's timeline. Drag an
+ * edge to change when a box shows or goes: edges snap to sentence starts, the only times a script
+ * can name. Click a bar to select it, then delete it or jump to it.
+ */
+function NarrationTrack(props: { timeline: Timeline; frame: number; boxes: Segment[]; onSeek: (f: number) => void; onMove: (box: Segment, start: Place, end: Place) => void; onDelete: (box: Segment) => void }) {
+  const { timeline, boxes } = props;
+  const track = useRef<HTMLDivElement>(null);
+  const [drag, setDrag] = useState<{ box: Segment; edge: 'start' | 'end'; start: Place; end: Place }>();
+  const [selected, setSelected] = useState<string>();
+  const key = (b: Segment) => `${b.scene}-${b.beat}`;
+  const percent = (f: number) => `${(f / timeline.frames) * 100}%`;
+  const at = (scene: TimedScene, p: Place) => (p >= scene.sentences.length ? scene.cues.end! : scene.sentences[p]!.from);
+  const nearest = (box: Segment, clientX: number): Place => {
+    const r = track.current!.getBoundingClientRect();
+    const f = ((clientX - r.left) / r.width) * timeline.frames;
+    const scene = timeline.scenes[box.scene]!;
+    let best = 0;
+    for (let p = 0; p <= scene.sentences.length; p++) if (Math.abs(at(scene, p) - f) < Math.abs(at(scene, best) - f)) best = p;
+    return best;
+  };
+  const chosen = boxes.find((b) => key(b) === selected);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: S.gap / 2 }}>
+      <div ref={track} data-box-track="" aria-label="Narration boxes" style={{ position: 'relative', height: 26, background: C.track, borderRadius: S.radius, overflow: 'hidden' }}>
+        {!boxes.length && <span style={{ position: 'absolute', left: S.gap, top: 4, fontSize: S.small, color: C.muted }}>No narration boxes. Add one to highlight something while it is talked about.</span>}
+        {boxes.map((b) => {
+          const scene = timeline.scenes[b.scene]!;
+          const live = drag && key(drag.box) === key(b) ? drag : undefined;
+          const from = live ? at(scene, live.start) : b.from;
+          const to = live ? (live.end === scene.sentences.length && b.carries ? b.to : at(scene, live.end)) : b.to;
+          const isSelected = selected === key(b);
+          const handle = (edge: 'start' | 'end') => (
+            <span
+              data-edge={edge}
+              onClick={(e) => e.stopPropagation()}
+              title={edge === 'start' ? 'Drag to change when it shows' : 'Drag to change when it goes'}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                e.currentTarget.setPointerCapture(e.pointerId);
+                setSelected(key(b));
+                setDrag({ box: b, edge, start: b.start, end: b.end });
+              }}
+              onPointerMove={(e) => {
+                if (!drag || key(drag.box) !== key(b)) return;
+                const p = nearest(b, e.clientX);
+                if (edge === 'start') setDrag({ ...drag, start: Math.min(p, drag.end - 1) });
+                else setDrag({ ...drag, end: Math.max(p, drag.start + 1) });
+              }}
+              onPointerUp={() => {
+                const d = drag;
+                setDrag(undefined);
+                if (d && (d.start !== b.start || d.end !== b.end)) props.onMove(b, d.start, d.end);
+              }}
+              style={{ position: 'absolute', top: 0, bottom: 0, [edge === 'start' ? 'left' : 'right']: 0, width: 8, cursor: 'ew-resize', background: isSelected ? C.accent : 'transparent' }}
+            />
+          );
+          return (
+            <div
+              key={key(b)}
+              data-segment={b.target}
+              title={`Narration box on ${b.target}. Drag its edges to change when it shows; they snap to sentence starts.`}
+              onClick={() => (setSelected(isSelected ? undefined : key(b)), props.onSeek(Math.min(b.to - 1, b.from + timeline.highlightFrames.slide)))}
+              style={{
+                position: 'absolute',
+                left: percent(from),
+                width: percent(Math.max(1, to - from)),
+                top: 3,
+                bottom: 3,
+                borderRadius: 4,
+                // The box being dragged, or the selected one, is drawn over those it would cover.
+                zIndex: live ? 2 : isSelected ? 1 : 0,
+                background: live ? '#DCE7F9' : isSelected ? C.accentWash : C.surface,
+                boxShadow: `inset 0 0 0 ${isSelected ? 2 : 1}px ${C.accent}${live ? `, 0 2px 8px ${C.shadow}` : ''}`,
+                color: C.accent,
+                fontSize: S.small,
+                fontWeight: 600,
+                padding: '0 10px',
+                lineHeight: '20px',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                cursor: 'pointer',
+              }}
+            >
+              {b.target}
+              {handle('start')}
+              {handle('end')}
+            </div>
+          );
+        })}
+        <div style={{ position: 'absolute', left: percent(props.frame), top: 0, bottom: 0, width: 2, marginLeft: -1, background: C.ink, pointerEvents: 'none' }} />
+      </div>
+      {chosen && (
+        <div data-box-selected="" style={{ display: 'flex', alignItems: 'center', gap: S.gap, fontSize: S.small, color: C.muted, flexWrap: 'wrap' }}>
+          <span>
+            Narration box on <b style={{ color: C.ink }}>{chosen.target}</b>, in scene {timeline.scenes[chosen.scene]!.id}: from sentence {chosen.start + 1} {chosen.end >= timeline.scenes[chosen.scene]!.sentences.length ? (chosen.carries ? 'on into the next scene' : 'to the end of the scene') : `until sentence ${chosen.end + 1}`}. Drag its edges to retime it.
+          </span>
+          <button data-action="delete-box" onClick={() => (setSelected(undefined), props.onDelete(chosen))} style={{ ...subtle, color: C.errText }}>
+            Delete narration box
+          </button>
+        </div>
+      )}
     </div>
   );
 }

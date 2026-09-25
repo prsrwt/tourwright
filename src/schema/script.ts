@@ -1,7 +1,9 @@
 import { z } from 'zod';
 import { EASE_NAMES, SettingsInput } from './settings.ts';
 
-export const NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+import { NAME_PATTERN } from './names.ts';
+
+export { NAME_PATTERN };
 
 const kebabName = z.string().regex(NAME_PATTERN, {
   error: 'Use lowercase letters, digits and single hyphens, for example "claim-total".',

@@ -565,7 +565,10 @@ function inArea(world: HTMLElement, area: Rect): Element[] {
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     const el = node.parentElement;
     if (!node.textContent?.trim() || !el) continue;
-    const r = el.getBoundingClientRect();
+    // The text's own box, not its element's: a label's element can be far wider than its words.
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    const r = range.getBoundingClientRect();
     const cx = (r.left + r.width / 2 - origin.left) / scale;
     const cy = (r.top + r.height / 2 - origin.top) / scale;
     if (cx >= area.x && cx <= area.x + area.w && cy >= area.y && cy <= area.y + area.h) found.add(el);

@@ -3,10 +3,11 @@
 // and what to do next, with an exit code a script or agent can branch on. Without it an agent
 // hands the video over and never hears that it was approved, or keeps asking.
 
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, relative } from 'node:path';
 import type { ResolvedConfig } from '../config/config.ts';
 import { scriptPath } from '../config/walkthroughs.ts';
+import { describeBoxes, type BoxScript } from '../studio/boxes.ts';
 import type { Note, Review } from '../studio/protocol.ts';
 import { formatReview, reviewState, type ReviewState } from '../studio/review.ts';
 import { readNotes } from '../studio/server.ts';
@@ -33,6 +34,7 @@ export async function runWait(config: ResolvedConfig, name: string, options: Wai
   const timeout = options.timeout ?? DEFAULT_TIMEOUT;
   const interval = options.interval ?? 500;
   const start = reviewState(config, name);
+  const boxesBefore = boxes(config, name);
   if (start.approved) return approved(config, name, start);
 
   // What the user had already said before the wait began does not end it; only something new does.
@@ -52,7 +54,7 @@ export async function runWait(config: ResolvedConfig, name: string, options: Wai
       // Muse may be halfway through writing a file: look again next time.
       continue;
     }
-    if (state.approved) return approved(config, name, state);
+    if (state.approved) return (logIf(boxChanges(config, name, boxesBefore)), approved(config, name, state));
     if (state.current && state.review?.status === 'changes-requested' && verdictKey(state.review) !== seen) {
       // The notes the user sent with the request, in full, so the agent can start on them at once.
       const ids = state.review.notes ?? [];
@@ -62,6 +64,7 @@ export async function runWait(config: ResolvedConfig, name: string, options: Wai
       console.log(`The user sent ${sent.length ? `${sent.length} note${sent.length === 1 ? '' : 's'}` : 'a request'} for you to handle:\n`);
       for (const note of [...sent, ...alsoOpen]) printNote(note, dirname(scriptPath(config, name)));
       console.log(settled(notes, before));
+      logIf(boxChanges(config, name, boxesBefore));
       console.log(handle(name));
       return WAIT.feedback;
     }
@@ -81,6 +84,7 @@ export async function runWait(config: ResolvedConfig, name: string, options: Wai
         printNote(note, dirname(scriptPath(config, name)));
       }
       console.log(settled(notes, before));
+      logIf(boxChanges(config, name, boxesBefore));
       console.log(handle(name));
       return WAIT.feedback;
     }
@@ -88,6 +92,7 @@ export async function runWait(config: ResolvedConfig, name: string, options: Wai
   const state = reviewState(config, name);
   console.log(`${formatReview(name, state)}\n`);
   console.log(settled(readNotes(config, name), before));
+  logIf(boxChanges(config, name, boxesBefore));
   console.log(`Still waiting: the user has not approved "${name}" or asked for changes yet. ${openCount(readNotes(config, name))}\nNext: run "npx tourwright wait ${name}" again to keep waiting.`);
   return WAIT.timeout;
 }
@@ -122,6 +127,36 @@ function settled(notes: Note[], before: Map<string, { status: string }>): string
     ...(deleted.length ? [`The user deleted ${deleted.join(', ')}: nothing to do for those.`] : []),
   ];
   return lines.length ? `${lines.join('\n')}\n` : '';
+}
+
+function logIf(text: string): void {
+  if (text) console.log(text);
+}
+
+function boxes(config: ResolvedConfig, name: string): string[] {
+  try {
+    return describeBoxes(JSON.parse(readFileSync(scriptPath(config, name), 'utf8')) as BoxScript);
+  } catch {
+    // A script mid-edit, or broken: nothing to compare, and check will say what is wrong.
+    return [];
+  }
+}
+
+/**
+ * Narration boxes the user placed, moved or deleted in Muse while the agent waited. They are the
+ * user's own choices, so the agent should know them and not put its own back over them.
+ */
+function boxChanges(config: ResolvedConfig, name: string, before: string[]): string {
+  const now = boxes(config, name);
+  const added = now.filter((line) => !before.includes(line));
+  const removed = before.filter((line) => !now.includes(line));
+  if (!added.length && !removed.length) return '';
+  return [
+    'The user changed the narration boxes themselves in Muse. They are in script.json now; keep them unless a note asks otherwise:',
+    ...added.map((line) => `  now: ${line}`),
+    ...removed.map((line) => `  was: ${line}`),
+    '',
+  ].join('\n');
 }
 
 function handle(name: string): string {
