@@ -4,7 +4,7 @@
 // or the end of the text. In v0.1 a cue may only start a sentence, because sentence starts are the
 // only times the voice step knows exactly.
 
-import { NAME_PATTERN } from '../schema/script.ts';
+import { NAME_PATTERN } from '../schema/names.ts';
 
 export const RESERVED_CUES = ['start', 'end'] as const;
 
@@ -13,6 +13,8 @@ export interface Sentence {
   text: string;
   /** Cues written at the start of this sentence. */
   cues: string[];
+  /** Character offset in the original text where the sentence begins: its first marker or word. */
+  start: number;
 }
 
 export interface Marker {
@@ -43,18 +45,21 @@ export function parseNarration(say: string): Narration {
   const unclosed: number[] = [];
   let buffer = '';
   let pending: Marker[] = [];
+  let start = -1;
 
   const close = () => {
     const text = buffer.replace(/\s+/g, ' ').trim();
     buffer = '';
     if (text === '') return;
-    sentences.push({ text, cues: pending.filter((m) => m.atSentenceStart).map((m) => m.name) });
+    sentences.push({ text, cues: pending.filter((m) => m.atSentenceStart).map((m) => m.name), start });
     pending = [];
+    start = -1;
   };
 
   let i = 0;
   while (i < say.length) {
     const ch = say[i]!;
+    if (start < 0 && !/\s/.test(ch)) start = i;
     if (ch === '[') {
       MARKER.lastIndex = i;
       const match = MARKER.exec(say);

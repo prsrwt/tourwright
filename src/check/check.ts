@@ -163,7 +163,7 @@ function checkScene(scene: Scene, index: number): Diagnostic[] {
       out.push({
         level: 'error',
         path: `${path}.at`,
-        message: `beats[${earlier}] already uses "${beat.at}". Two beats on one cue would fight over the camera and highlight.`,
+        message: `beats[${earlier}] already uses "${beat.at}". Two beats on one cue would fight over the camera and the narration box.`,
         fix: `merge this beat into beats[${earlier}].`,
       });
     } else {

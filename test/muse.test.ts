@@ -15,7 +15,7 @@ const app = fileURLToPath(new URL('../examples/next-app/', import.meta.url));
 // its git-ignored out folder. Each test has its own app, so they cannot share a Muse.
 const scratch = join(app, 'out', '.test', `muse-${process.pid}`);
 const started: number[] = [];
-after(() => {
+after(async () => {
   for (const pid of started) {
     try {
       process.kill(pid);
@@ -23,7 +23,10 @@ after(() => {
       // Already closed itself.
     }
   }
-  rmSync(scratch, { recursive: true, force: true });
+  // Windows will not delete a folder a process still has files open in, and a killed Muse takes a
+  // moment to go: wait for each, then retry the delete through any lingering handles.
+  await until(() => started.every((pid) => !alive(pid)), 'the background Muses to exit', 30_000).catch(() => undefined);
+  rmSync(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 });
 
 /** A scratch app with the example's stages and a copy of its intro, and its own config. */
@@ -91,6 +94,16 @@ test('make starts one background Muse and returns, and a second make reuses it',
   assert.equal(record(config).pid, pid);
   assert.deepEqual(opened, [url, url]);
   assert.match(second.message, /^Muse was already open for it; showed it again: /);
+
+  // With a tab open on it, make opens no other: that tab shows the new version by itself.
+  const tab = new AbortController();
+  await fetch(new URL('/__tourwright/api/events', url), { signal: tab.signal });
+  const third = await launchMuse(config, 'intro', { ...desktop, open });
+  tab.abort();
+  assert.equal(third.outcome, 'updated', third.message);
+  assert.equal(third.url, url);
+  assert.deepEqual(opened, [url, url], 'no second tab');
+  assert.match(third.message, /^Muse is already open for it, and its tab now shows this version: http[^\n]*\nNo new tab opened\./);
 
   // Killed outright (on Windows, process.kill gives it no chance to tidy up), it may leave its
   // record behind: a record whose process has gone counts as no Muse. Muse removing its own record

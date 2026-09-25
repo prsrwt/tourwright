@@ -10,8 +10,10 @@ import type { ResolvedConfig } from '../config/config.ts';
 import { scriptPath } from '../config/walkthroughs.ts';
 import { prepare, PrepareError } from '../pipeline/prepare.ts';
 import { buildSoundtrack } from '../timing/audio.ts';
-import { API, NOTE_SCOPES, NOTE_STATUSES, type NewNoteRequest, type Note, type NotesFile, type ReplyRequest, type ReviewRequest, type SaveScriptRequest, type StudioState } from './protocol.ts';
+import { API, NOTE_SCOPES, NOTE_STATUSES, type NewNoteRequest, type Note, type NotesFile, type ReplyRequest, type Review, type ReviewRequest, type SaveScriptRequest, type StudioState } from './protocol.ts';
 import { hashScript as hash, readReview, reviewPath, writeReview } from './review.ts';
+import { removeSnippet, snippetFile, snippets } from './snippet.ts';
+import { PLAYER_PATH } from '../bundle/server.ts';
 
 export function notesPath(config: ResolvedConfig, name: string): string {
   return join(dirname(scriptPath(config, name)), 'notes.json');
@@ -69,9 +71,16 @@ export interface Studio {
   connections(): number;
 }
 
-export function createStudio(config: ResolvedConfig, name: string, log: (line: string) => void): Studio {
+export interface StudioOptions {
+  /** Forgets the stage code already compiled, so the next load of the preview reads it afresh. */
+  reloadStage?: () => void;
+}
+
+export function createStudio(config: ResolvedConfig, name: string, log: (line: string) => void, options: StudioOptions = {}): Studio {
   const file = scriptPath(config, name);
-  const state: StudioState = { name, version: 0, timelineVersion: 0, scriptHash: '', script: undefined, diagnostics: [], preparing: false, notes: [] };
+  const folder = dirname(file);
+  const shots = snippets();
+  const state: StudioState = { name, version: 0, timelineVersion: 0, stageVersion: 0, scriptHash: '', script: undefined, diagnostics: [], preparing: false, notes: [] };
   // A notes file that cannot be read keeps the last good notes on screen, and says why.
   const loadNotes = () => {
     try {
@@ -103,6 +112,8 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
 
   let running: Promise<void> | undefined;
   let again = false;
+  // Set by make's new version: the preview reloads its stage code with the timeline prepared next.
+  let stageChanged = false;
   const reprepare = (): Promise<void> => {
     // One preparation at a time; changes that arrive during one trigger one more afterwards.
     if (running) {
@@ -125,6 +136,8 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
           const prepared = await prepare(config, name, { log });
           state.timeline = prepared.timeline;
           state.timelineVersion += 1;
+          if (stageChanged) state.stageVersion += 1;
+          stageChanged = false;
           state.diagnostics = prepared.warnings;
           delete state.error;
           soundtrack = buildSoundtrack(prepared.timeline);
@@ -192,6 +205,7 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
     ready,
     connections: () => listeners.size,
     close() {
+      void shots.close();
       for (const w of watchers) w.close();
       for (const res of listeners) res.end();
     },
@@ -206,11 +220,28 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
       };
 
       if (route === 'GET /state') return send(200, state);
+      const snippetRoute = /^GET \/notes\/([\w-]+)\/snippet$/.exec(route);
+      if (snippetRoute) {
+        const note = state.notes.find((n) => n.id === snippetRoute[1]);
+        if (!note?.snippet || !existsSync(join(folder, note.snippet))) return send(404, { error: 'No snippet for this note.' });
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('Cache-Control', 'no-store');
+        return res.end(readFileSync(join(folder, note.snippet)));
+      }
       if (route === 'GET /soundtrack.wav') {
         if (!soundtrack) return send(404, { error: 'Not prepared yet.' });
         res.setHeader('Content-Type', 'audio/wav');
         res.setHeader('Cache-Control', 'no-store');
         return res.end(soundtrack);
+      }
+      if (route === 'POST /new-version') {
+        // make ran again: the agent has a new version. Whatever it changed (the script, the stage
+        // code, the voice), open tabs show it where they are, so make need not open another tab.
+        options.reloadStage?.();
+        stageChanged = true;
+        state.newVersionAt = new Date().toISOString();
+        void reprepare();
+        return send(200, { tabs: listeners.size });
       }
       if (route === 'GET /events') {
         res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
@@ -238,7 +269,18 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
           if (base !== current) {
             return send(409, { error: 'script.json changed since you started watching this version, so this review would be for a version you have not seen.\nFix: Muse has reloaded it; watch it again, then review.' });
           }
-          const review = { status, scriptHash: current, at: new Date().toISOString(), ...(comment?.trim() && { comment: comment.trim() }) };
+          // Asking for changes sends the open notes with it: the agent gets what to change, not only that something should.
+          const open = state.notes.filter((n) => n.status === 'open').map((n) => n.id);
+          if (status === 'changes-requested' && !open.length && !comment?.trim()) {
+            return send(400, { error: 'There is nothing to send yet.\nFix: leave a note where something should change, or say what should change.' });
+          }
+          const review: Review = {
+            status,
+            scriptHash: current,
+            at: new Date().toISOString(),
+            ...(comment?.trim() && { comment: comment.trim() }),
+            ...(status === 'changes-requested' && open.length && { notes: open }),
+          };
           writeReview(config, name, review);
           watchReview();
           state.review = review;
@@ -253,6 +295,21 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
           state.notes.push(note);
           state.notes.sort((a, b) => a.ms - b.ms);
           saveNotes();
+          // A note that points at part of the screen gets a picture of that part, saved beside notes.json.
+          // It comes a moment later; the note is saved first, so nothing waits on the browser.
+          if (note.rect && state.timeline && req.headers.host) {
+            const relative = snippetFile(note.id);
+            const url = `http://${req.headers.host}${PLAYER_PATH}`;
+            shots.take(url, state.timeline, note.frame, note.rect, join(folder, relative)).then(
+              () => {
+                const saved = state.notes.find((n) => n.id === note.id);
+                if (!saved) return removeSnippet(folder, note.id);
+                saved.snippet = relative;
+                saveNotes();
+              },
+              (error: unknown) => log(`Could not save a snippet for note ${note.id}: ${(error as Error).message}`),
+            );
+          }
           return send(200, note);
         }
         const noteRoute = /^(PATCH|DELETE|POST) \/notes\/([\w-]+)(\/reply)?$/.exec(route);
@@ -267,6 +324,7 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
           if (change.scope !== undefined && !NOTE_SCOPES.includes(change.scope)) return send(400, { error: badScope(change.scope) });
           if (noteRoute[1] === 'DELETE') {
             state.notes.splice(index, 1);
+            removeSnippet(folder, note.id);
           } else if (noteRoute[3]) {
             // A reply from the user hands the note back to the agent, unless it says otherwise.
             if (!change.text?.trim()) return send(400, { error: 'The reply is empty.\nFix: write what you want the agent to know, then send it.' });

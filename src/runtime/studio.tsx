@@ -7,7 +7,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Diagnostic } from '../check/diagnostic.ts';
-import type { NewNoteRequest, Note, NoteScope, NoteStatus, ReplyRequest, ReviewRequest, StudioState } from '../studio/protocol.ts';
+import { addArea, deleteBox, moveBox, segments, setBox, type BoxScript, type Place, type Segment } from '../studio/boxes.ts';
+import type { NewNoteRequest, Note, NoteScope, NoteStatus, ReplyRequest, Review, ReviewRequest, StudioState } from '../studio/protocol.ts';
 import type { TimedBeat, TimedScene, Timeline } from '../timing/timeline.ts';
 import type { Rect } from './motion.ts';
 import type { ReadyReport, TourApi } from './player.tsx';
@@ -143,7 +144,7 @@ async function saveScript(state: StudioState, change: (script: RawScript) => voi
  * timelineVersion: the timeline object itself is new on every state fetch, and restarting on each
  * one (a note arriving, say) would stop playback and measure every stage again.
  */
-function usePlayer(timeline: Timeline | undefined, key: number | undefined) {
+function usePlayer(timeline: Timeline | undefined, key: number | undefined, stageKey: number | undefined) {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const [ready, setReady] = useState<ReadyReport>();
   const [api, setApi] = useState<TourApi>();
@@ -169,7 +170,7 @@ function usePlayer(timeline: Timeline | undefined, key: number | undefined) {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, timeline === undefined]);
+  }, [key, stageKey, timeline === undefined]);
 
   return { frameRef, ready, api };
 }
@@ -199,7 +200,7 @@ function useNarrow(): boolean {
 function Studio() {
   const [state] = useStudioState();
   const timeline = state?.timeline;
-  const { frameRef, ready, api } = usePlayer(timeline, state?.timelineVersion);
+  const { frameRef, ready, api } = usePlayer(timeline, state?.timelineVersion, state?.stageVersion);
   const audio = useRef<HTMLAudioElement>(null);
   const [frame, setFrame] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -208,7 +209,7 @@ function Studio() {
   const [loop, setLoop] = useState(false);
   const loopRange = useRef<{ from: number; to: number }>(undefined);
   const [message, setMessage] = useState<string>();
-  const [picking, setPicking] = useState<((target: string) => void) | undefined>();
+  const [picking, setPicking] = useState<Picker | undefined>();
   const [tab, setTab] = useState<Tab>('notes');
   const [filter, setFilter] = useState<Filter>('all');
   const [help, setHelp] = useState(false);
@@ -242,10 +243,17 @@ function Studio() {
     [timeline],
   );
 
-  // Each (re)start leaves the player on its measuring render, so draw the current frame again.
+  // Each (re)start leaves the player on its measuring render, so draw the current frame again. On a
+  // new version the words may have moved, so stay on the same sentence rather than the same frame.
   // The player object is the same across restarts; the ready report is new each time.
+  const shownTimeline = useRef<Timeline>(undefined);
   useEffect(() => {
-    if (api) show(frame, 'settle');
+    if (!api || !timeline) return;
+    const before = shownTimeline.current;
+    shownTimeline.current = timeline;
+    const f = before && before !== timeline ? samePlace(before, timeline, frame) : frame;
+    const shown = show(f, 'settle');
+    if (audio.current) audio.current.currentTime = shown / fps;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [api, ready]);
 
@@ -379,13 +387,31 @@ function Studio() {
   if (!state) return <Centered>Loading Muse...</Centered>;
 
   const waiting = state.notes.filter((n) => n.status === 'question' || n.status === 'fixed').length;
-  const pick = (done: (target: string) => void) => setPicking(() => done);
+  const pick = (done: (target: string) => void, area?: (rect: Rect) => void) => setPicking({ target: done, ...(area && { area }) });
   const seekPaused = (f: number) => (pause(), seek(f));
+  const boxes = timeline ? segments(timeline) : [];
+  const editBoxes = (change: (script: BoxScript) => void) => void edit((script) => change(script as unknown as BoxScript));
+  // A narration box placed by hand: on the target clicked (or the area drawn), from the sentence
+  // playing now to the next sentence start. Its edges are then dragged on the track to time it.
+  const addBox = () => {
+    if (!timeline) return;
+    pause();
+    const scene = sceneAt(timeline, frame) ?? timeline.scenes[0];
+    if (!scene) return;
+    const start = Math.max(0, scene.sentences.findLastIndex((s) => frame >= s.from));
+    const put = (target: string) => editBoxes((s) => setBox(s, { scene: scene.index, target, start, end: start + 1 }));
+    pick(put, (rect) => {
+      if (!api) return;
+      const { stage, rect: onStage } = api.toStage(rect);
+      const text = api.textIn(rect);
+      editBoxes((s) => setBox(s, { scene: scene.index, target: addArea(s, { stage, ...onStage }, text), start, end: start + 1 }));
+    });
+  };
 
   const video = (
     <main style={{ display: 'flex', flexDirection: 'column', minWidth: 0, padding: S.gap * 2, ...(narrow && { height: '62vh', flex: 'none' }) }}>
       {timeline ? (
-        <Preview timeline={timeline} frameRef={frameRef} api={api} picking={picking} onPick={(t) => (picking?.(t), setPicking(undefined))} onCancelPick={() => setPicking(undefined)} frame={frame}>
+        <Preview timeline={timeline} stageVersion={state.stageVersion} frameRef={frameRef} api={api} picking={picking} onPick={(t) => (picking?.target(t), setPicking(undefined))} onPickArea={(r) => (picking?.area?.(r), setPicking(undefined))} onCancelPick={() => setPicking(undefined)} frame={frame}>
           <Transport
             timeline={timeline}
             frame={frame}
@@ -400,6 +426,10 @@ function Studio() {
             onLoop={toggleLoop}
             onNote={startNote}
             onHelp={() => setHelp(!help)}
+            boxes={boxes}
+            onAddBox={addBox}
+            onMoveBox={(b, start, end) => editBoxes((s) => moveBox(s, b.scene, b.beat, start, end))}
+            onDeleteBox={(b) => editBoxes((s) => deleteBox(s, b.scene, b.beat))}
           />
         </Preview>
       ) : (
@@ -490,15 +520,34 @@ function Header({ state, message }: { state: StudioState; message: string | unde
       <span aria-hidden="true" style={{ color: C.line, fontSize: 20 }}>/</span>
       <span style={{ fontSize: S.text + 1, fontWeight: 600, color: C.ink }}>{state.name}</span>
       {state.preparing && <span style={{ color: C.muted }}>Voicing changes...</span>}
+      {!state.preparing && state.newVersionAt && (
+        <span data-new-version="" style={{ color: C.muted }}>
+          Showing the agent's new version from {new Date(state.newVersionAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </span>
+      )}
       {message && <span style={{ color: message === 'Saving...' ? C.muted : C.errText }}>{message}</span>}
       <ReviewBar state={state} />
     </header>
   );
 }
 
+/** The notes sent to the agent with the current request for changes: with the agent now. */
+function sentNoteIds(state: StudioState): string[] {
+  const review = state.review;
+  return review?.scriptHash === state.scriptHash && review.status === 'changes-requested' ? (review.notes ?? []) : [];
+}
+
+/** Records the review: sending the open notes to the agent, or approving the video. Returns the error, if any. */
+async function sendReview(state: StudioState, status: Review['status'], comment = ''): Promise<string | undefined> {
+  const body: ReviewRequest = { base: state.scriptHash, status, ...(status === 'changes-requested' && comment.trim() && { comment: comment.trim() }) };
+  const res = await fetch(`${API}/review`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  return res.ok ? undefined : ((await res.json()) as { error: string }).error;
+}
+
 /**
- * The whole video's review: approve this exact version of script.json, or ask for changes.
- * Approving while notes are still open asks first, so nothing is signed off by accident.
+ * The whole video's review, as two plain actions: send the open notes to the agent, or approve the
+ * video as finished. Sending is the agent's signal to make the changes; approving tells it the
+ * video is done. Approving while notes are still open asks first, so nothing is signed off by accident.
  */
 function ReviewBar({ state }: { state: StudioState }) {
   const [mode, setMode] = useState<'idle' | 'asking' | 'confirming'>('idle');
@@ -506,38 +555,38 @@ function ReviewBar({ state }: { state: StudioState }) {
   const [error, setError] = useState<string>();
   const review = state.review;
   const current = review?.scriptHash === state.scriptHash;
+  const open = state.notes.filter((n) => n.status === 'open');
+  // Notes already sent with the current request for changes are with the agent; only new ones are left to send.
+  const sent = sentNoteIds(state);
+  const unsent = open.filter((n) => !sent.includes(n.id));
   const unresolved = state.notes.filter((n) => n.status !== 'closed').length;
-  const send = async (status: 'approved' | 'changes-requested') => {
-    const body: ReviewRequest = { base: state.scriptHash, status, ...(status === 'changes-requested' && comment.trim() && { comment: comment.trim() }) };
-    const res = await fetch(`${API}/review`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    setError(res.ok ? undefined : ((await res.json()) as { error: string }).error);
-    if (res.ok) {
+  const send = async (status: Review['status']) => {
+    const failed = await sendReview(state, status, comment);
+    setError(failed);
+    if (!failed) {
       setMode('idle');
       setComment('');
     }
   };
+  const plural = (n: number) => `${n} note${n === 1 ? '' : 's'}`;
   const [text, tone] = !review
     ? ['Not reviewed yet', pill(C.track, C.muted)]
     : review.status === 'approved'
       ? current
-        ? ['Approved', pill(C.okBg, C.okText)]
-        : ['Edited since approval', pill(C.warnBg, C.warnText)]
+        ? ['Approved: finished', pill(C.okBg, C.okText)]
+        : ['Edited since you approved it', pill(C.warnBg, C.warnText)]
       : current
-        ? ['Changes requested', pill(C.errBg, C.errText)]
-        : ['Changes requested on an earlier version', pill(C.warnBg, C.warnText)];
+        ? [sent.length ? `Sent ${plural(sent.length)} to the agent` : 'Sent to the agent', pill(C.warnBg, C.warnText)]
+        : ['Changed since you sent it: watch again', pill(C.warnBg, C.warnText)];
   // Reviewing a version that is still being voiced, or failed to prepare, would approve something unseen.
   const busy = state.preparing || !!state.error;
   const when = review && `${new Date(review.at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}${review.comment ? `: "${review.comment}"` : ''}`;
+  const approvedNow = current && review?.status === 'approved';
   return (
     <div data-review="" data-script-hash={state.scriptHash} style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: S.gap, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-      <span title={when} style={tone}>
+      <span data-review-status="" title={when} style={tone}>
         {text}
       </span>
-      {review?.status === 'changes-requested' && review.comment && mode === 'idle' && (
-        <span title={when} style={{ color: C.muted, maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          "{review.comment}"
-        </span>
-      )}
       {state.reviewError && <span style={{ color: C.errText, whiteSpace: 'pre-wrap' }}>{state.reviewError}</span>}
       {mode === 'asking' && (
         <>
@@ -550,7 +599,7 @@ function ReviewBar({ state }: { state: StudioState }) {
             autoFocus
           />
           <button style={primary} disabled={!comment.trim()} onClick={() => void send('changes-requested')}>
-            Send
+            Send to the agent
           </button>
           <button style={quiet} onClick={() => setMode('idle')}>
             Cancel
@@ -559,9 +608,7 @@ function ReviewBar({ state }: { state: StudioState }) {
       )}
       {mode === 'confirming' && (
         <>
-          <span style={{ color: C.ink }}>
-            {unresolved === 1 ? '1 note is' : `${unresolved} notes are`} not closed yet.
-          </span>
+          <span style={{ color: C.ink }}>{unresolved === 1 ? '1 note is' : `${unresolved} notes are`} not closed yet.</span>
           <button style={primary} onClick={() => void send('approved')}>
             Approve anyway
           </button>
@@ -572,13 +619,21 @@ function ReviewBar({ state }: { state: StudioState }) {
       )}
       {mode === 'idle' && (
         <>
-          <button style={quiet} disabled={busy} onClick={() => setMode('asking')}>
-            Request changes
-          </button>
-          {/* Approving the version already approved would change nothing, so the button goes. */}
-          {!(current && review?.status === 'approved') && (
-            <button style={primary} disabled={busy} onClick={() => (unresolved ? setMode('confirming') : void send('approved'))}>
-              Approve this version
+          {/* With notes to send, one click sends them. Without, say what should change in a line. */}
+          {unsent.length ? (
+            <button data-action="send" style={quiet} disabled={busy} title="The agent gets these notes and makes the changes" onClick={() => void send('changes-requested')}>
+              {sent.length ? `Send ${plural(unsent.length)} more to the agent` : `Send ${plural(unsent.length)} to the agent`}
+            </button>
+          ) : (
+            !sent.length && (
+              <button data-action="ask" style={quiet} disabled={busy} title="Tell the agent what should change, without pinning a note" onClick={() => setMode('asking')}>
+                Ask for changes
+              </button>
+            )
+          )}
+          {!approvedNow && (
+            <button data-action="approve" style={primary} disabled={busy} title="Tells the agent the video is finished" onClick={() => (unresolved ? setMode('confirming') : void send('approved'))}>
+              Approve: it's finished
             </button>
           )}
         </>
@@ -591,18 +646,31 @@ function ReviewBar({ state }: { state: StudioState }) {
 // ---------------------------------------------------------------------------------------------
 // Preview: the player, scaled to fit, with target outlines to click when picking.
 
+/** What picking is for: a target, and for a note, optionally a box drawn around anything. */
+interface Picker {
+  target: (name: string) => void;
+  area?: (rect: Rect) => void;
+}
+
 function Preview(props: {
   timeline: Timeline;
+  /** A new one loads the preview afresh, with the stage code as it is now. */
+  stageVersion: number;
   frameRef: React.RefObject<HTMLIFrameElement | null>;
   api: TourApi | undefined;
-  picking: ((t: string) => void) | undefined;
+  picking: Picker | undefined;
   onPick: (target: string) => void;
+  onPickArea: (rect: Rect) => void;
   onCancelPick: () => void;
   frame: number;
   /** The transport, drawn under the video at its width, so the two read as one player. */
   children?: ReactNode;
 }) {
   const { timeline, frameRef, api, picking, frame } = props;
+  // A box being dragged while picking, in layout pixels.
+  const drag = useRef<{ x: number; y: number; moved: boolean } | undefined>(undefined);
+  const ignoreClick = useRef(false);
+  const [drawn, setDrawn] = useState<Rect>();
   const box = useRef<HTMLDivElement>(null);
   const below = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.5);
@@ -630,19 +698,58 @@ function Preview(props: {
     <div ref={box} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: S.gap * 1.5 }}>
       <div style={{ position: 'relative', flex: 'none', width: timeline.layout.width * scale, height: timeline.layout.height * scale, borderRadius: S.radius, overflow: 'hidden', boxShadow: `0 0 0 1px ${C.line}, 0 8px 24px ${C.shadow}` }}>
         <iframe
+          key={props.stageVersion}
           ref={frameRef}
           src="/__tourwright/"
           title="Preview"
           style={{ border: 0, width: timeline.layout.width, height: timeline.layout.height, transform: `scale(${scale})`, transformOrigin: '0 0', pointerEvents: 'none', background: C.surface }}
         />
         {picking && (
-          <div style={{ position: 'absolute', inset: 0, background: C.shade, cursor: 'crosshair' }} onClick={props.onCancelPick}>
+          <div
+            data-picker=""
+            style={{ position: 'absolute', inset: 0, background: C.shade, cursor: 'crosshair', touchAction: 'none' }}
+            onPointerDown={(e) => {
+              if (!picking.area) return;
+              const r = e.currentTarget.getBoundingClientRect();
+              drag.current = { x: (e.clientX - r.left) / scale, y: (e.clientY - r.top) / scale, moved: false };
+            }}
+            onPointerMove={(e) => {
+              const d = drag.current;
+              if (!d) return;
+              const r = e.currentTarget.getBoundingClientRect();
+              const x = (e.clientX - r.left) / scale;
+              const y = (e.clientY - r.top) / scale;
+              // A few pixels of wobble is still a click on a target, not a box.
+              if (!d.moved && Math.hypot((x - d.x) * scale, (y - d.y) * scale) < 6) return;
+              // Captured only once it is a drag, so a plain click still reaches the target under it.
+              if (!d.moved) e.currentTarget.setPointerCapture(e.pointerId);
+              d.moved = true;
+              setDrawn({ x: Math.min(d.x, x), y: Math.min(d.y, y), w: Math.abs(x - d.x), h: Math.abs(y - d.y) });
+            }}
+            onPointerUp={() => {
+              const d = drag.current;
+              drag.current = undefined;
+              if (!d?.moved) return;
+              ignoreClick.current = true;
+              const b = drawn;
+              setDrawn(undefined);
+              if (b && b.w >= 4 && b.h >= 4) props.onPickArea({ x: Math.round(b.x), y: Math.round(b.y), w: Math.round(b.w), h: Math.round(b.h) });
+            }}
+            onClick={() => {
+              if (ignoreClick.current) return void (ignoreClick.current = false);
+              props.onCancelPick();
+            }}
+          >
             {targets.map((t) => (
               <button
                 key={t.name}
                 title={t.name}
                 data-target={t.name}
-                onClick={(e) => (e.stopPropagation(), props.onPick(t.name))}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (ignoreClick.current) return void (ignoreClick.current = false);
+                  props.onPick(t.name);
+                }}
                 style={{
                   position: 'absolute',
                   left: t.rect.x * scale,
@@ -659,8 +766,9 @@ function Preview(props: {
                 <span style={{ position: 'absolute', left: 0, top: 0, background: C.accent, color: C.surface, padding: '1px 6px', fontSize: 12, borderBottomRightRadius: 4 }}>{t.name}</span>
               </button>
             ))}
+            {drawn && <div data-box="" style={{ position: 'absolute', left: drawn.x * scale, top: drawn.y * scale, width: drawn.w * scale, height: drawn.h * scale, border: `2px solid ${C.accent}`, background: C.accentWash, pointerEvents: 'none' }} />}
             <div style={{ position: 'absolute', left: S.gap, bottom: S.gap, background: C.ink, color: C.surface, padding: `${S.gap / 2}px ${S.gap}px`, borderRadius: S.radius }}>
-              Click a target, or anywhere else (or Esc) to cancel. Scrub first if it is not in view.
+              {picking.area ? 'Click a target, or drag a box around anything. Click outside (or Esc) to cancel.' : 'Click a target, or anywhere else (or Esc) to cancel.'} Scrub first if it is not in view.
             </div>
           </div>
         )}
@@ -690,6 +798,10 @@ function Transport(props: {
   onLoop: () => void;
   onNote: () => void;
   onHelp: () => void;
+  boxes: Segment[];
+  onAddBox: () => void;
+  onMoveBox: (box: Segment, start: Place, end: Place) => void;
+  onDeleteBox: (box: Segment) => void;
 }) {
   const { timeline, frame, playing } = props;
   const bar = useRef<HTMLDivElement>(null);
@@ -719,6 +831,7 @@ function Transport(props: {
         )}
         <div style={{ position: 'absolute', left: percent(frame), top: 0, bottom: 0, width: 2, marginLeft: -1, background: C.ink }} />
       </div>
+      <NarrationTrack timeline={timeline} frame={frame} boxes={props.boxes} onSeek={props.onSeek} onMove={props.onMoveBox} onDelete={props.onDeleteBox} />
       <div style={{ display: 'flex', alignItems: 'center', gap: S.gap, flexWrap: 'wrap' }}>
         <button onClick={() => props.onJump(-1)} aria-label="Previous scene" title="Previous scene  [" style={round}>
           <Icon d="M5 4v12M16 4.5v11L7.5 10z" />
@@ -748,12 +861,122 @@ function Transport(props: {
           <button onClick={props.onHelp} aria-label="Keyboard shortcuts" aria-expanded={props.help} title="Keyboard shortcuts  ?" style={{ ...round, fontWeight: 700, color: C.muted }}>
             ?
           </button>
+          <button onClick={props.onAddBox} data-action="add-box" style={quiet} title="Put a narration box on something, from the sentence playing now">
+            Add narration box
+          </button>
           <button onClick={props.onNote} style={primary} title="Note at this moment  N">
             Write a note
           </button>
         </div>
       </div>
       {props.help && <Shortcuts />}
+    </div>
+  );
+}
+
+/**
+ * The narration boxes under the scrubber, one bar each, like clips on an editor's timeline. Drag an
+ * edge to change when a box shows or goes: edges snap to sentence starts, the only times a script
+ * can name. Click a bar to select it, then delete it or jump to it.
+ */
+function NarrationTrack(props: { timeline: Timeline; frame: number; boxes: Segment[]; onSeek: (f: number) => void; onMove: (box: Segment, start: Place, end: Place) => void; onDelete: (box: Segment) => void }) {
+  const { timeline, boxes } = props;
+  const track = useRef<HTMLDivElement>(null);
+  const [drag, setDrag] = useState<{ box: Segment; edge: 'start' | 'end'; start: Place; end: Place }>();
+  const [selected, setSelected] = useState<string>();
+  const key = (b: Segment) => `${b.scene}-${b.beat}`;
+  const percent = (f: number) => `${(f / timeline.frames) * 100}%`;
+  const at = (scene: TimedScene, p: Place) => (p >= scene.sentences.length ? scene.cues.end! : scene.sentences[p]!.from);
+  const nearest = (box: Segment, clientX: number): Place => {
+    const r = track.current!.getBoundingClientRect();
+    const f = ((clientX - r.left) / r.width) * timeline.frames;
+    const scene = timeline.scenes[box.scene]!;
+    let best = 0;
+    for (let p = 0; p <= scene.sentences.length; p++) if (Math.abs(at(scene, p) - f) < Math.abs(at(scene, best) - f)) best = p;
+    return best;
+  };
+  const chosen = boxes.find((b) => key(b) === selected);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: S.gap / 2 }}>
+      <div ref={track} data-box-track="" aria-label="Narration boxes" style={{ position: 'relative', height: 26, background: C.track, borderRadius: S.radius, overflow: 'hidden' }}>
+        {!boxes.length && <span style={{ position: 'absolute', left: S.gap, top: 4, fontSize: S.small, color: C.muted }}>No narration boxes. Add one to highlight something while it is talked about.</span>}
+        {boxes.map((b) => {
+          const scene = timeline.scenes[b.scene]!;
+          const live = drag && key(drag.box) === key(b) ? drag : undefined;
+          const from = live ? at(scene, live.start) : b.from;
+          const to = live ? (live.end === scene.sentences.length && b.carries ? b.to : at(scene, live.end)) : b.to;
+          const isSelected = selected === key(b);
+          const handle = (edge: 'start' | 'end') => (
+            <span
+              data-edge={edge}
+              onClick={(e) => e.stopPropagation()}
+              title={edge === 'start' ? 'Drag to change when it shows' : 'Drag to change when it goes'}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                e.currentTarget.setPointerCapture(e.pointerId);
+                setSelected(key(b));
+                setDrag({ box: b, edge, start: b.start, end: b.end });
+              }}
+              onPointerMove={(e) => {
+                if (!drag || key(drag.box) !== key(b)) return;
+                const p = nearest(b, e.clientX);
+                if (edge === 'start') setDrag({ ...drag, start: Math.min(p, drag.end - 1) });
+                else setDrag({ ...drag, end: Math.max(p, drag.start + 1) });
+              }}
+              onPointerUp={() => {
+                const d = drag;
+                setDrag(undefined);
+                if (d && (d.start !== b.start || d.end !== b.end)) props.onMove(b, d.start, d.end);
+              }}
+              style={{ position: 'absolute', top: 0, bottom: 0, [edge === 'start' ? 'left' : 'right']: 0, width: 8, cursor: 'ew-resize', background: isSelected ? C.accent : 'transparent' }}
+            />
+          );
+          return (
+            <div
+              key={key(b)}
+              data-segment={b.target}
+              title={`Narration box on ${b.target}. Drag its edges to change when it shows; they snap to sentence starts.`}
+              onClick={() => (setSelected(isSelected ? undefined : key(b)), props.onSeek(Math.min(b.to - 1, b.from + timeline.highlightFrames.slide)))}
+              style={{
+                position: 'absolute',
+                left: percent(from),
+                width: percent(Math.max(1, to - from)),
+                top: 3,
+                bottom: 3,
+                borderRadius: 4,
+                // The box being dragged, or the selected one, is drawn over those it would cover.
+                zIndex: live ? 2 : isSelected ? 1 : 0,
+                background: live ? '#DCE7F9' : isSelected ? C.accentWash : C.surface,
+                boxShadow: `inset 0 0 0 ${isSelected ? 2 : 1}px ${C.accent}${live ? `, 0 2px 8px ${C.shadow}` : ''}`,
+                color: C.accent,
+                fontSize: S.small,
+                fontWeight: 600,
+                padding: '0 10px',
+                lineHeight: '20px',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                cursor: 'pointer',
+              }}
+            >
+              {b.target}
+              {handle('start')}
+              {handle('end')}
+            </div>
+          );
+        })}
+        <div style={{ position: 'absolute', left: percent(props.frame), top: 0, bottom: 0, width: 2, marginLeft: -1, background: C.ink, pointerEvents: 'none' }} />
+      </div>
+      {chosen && (
+        <div data-box-selected="" style={{ display: 'flex', alignItems: 'center', gap: S.gap, fontSize: S.small, color: C.muted, flexWrap: 'wrap' }}>
+          <span>
+            Narration box on <b style={{ color: C.ink }}>{chosen.target}</b>, in scene {timeline.scenes[chosen.scene]!.id}: from sentence {chosen.start + 1} {chosen.end >= timeline.scenes[chosen.scene]!.sentences.length ? (chosen.carries ? 'on into the next scene' : 'to the end of the scene') : `until sentence ${chosen.end + 1}`}. Drag its edges to retime it.
+          </span>
+          <button data-action="delete-box" onClick={() => (setSelected(undefined), props.onDelete(chosen))} style={{ ...subtle, color: C.errText }}>
+            Delete narration box
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -818,10 +1041,12 @@ function Icon({ d, stroke }: { d: string; stroke?: boolean }) {
 
 const TURN: Record<NoteStatus, { label: string; detail?: string; tone: CSSProperties; edge: string }> = {
   question: { label: 'Your turn', detail: 'The agent has a question', tone: pill(C.yoursBg, C.yoursText), edge: C.yoursEdge },
-  fixed: { label: 'Your turn', detail: 'The agent says it is fixed: approve it, or request changes', tone: pill(C.yoursBg, C.yoursText), edge: C.yoursEdge },
+  fixed: { label: 'Your turn', detail: 'The agent says it is fixed: approve it, or say it is not fixed yet', tone: pill(C.yoursBg, C.yoursText), edge: C.yoursEdge },
   open: { label: "Agent's turn", tone: pill(C.agentBg, C.agentText), edge: C.line },
   closed: { label: 'Closed', tone: pill(C.okBg, C.okText), edge: C.line },
 };
+
+const UNSENT = { label: 'Not sent yet', detail: 'Goes to the agent when you press "Send to the agent".', tone: pill(C.track, C.muted), edge: C.line };
 
 const FILTERS: { id: Filter; label: string; statuses: NoteStatus[] }[] = [
   { id: 'all', label: 'All', statuses: ['question', 'fixed', 'open', 'closed'] },
@@ -854,13 +1079,14 @@ function Notes({
   filter: Filter;
   onFilter: (filter: Filter) => void;
   onSeek: (f: number) => void;
-  onPick: (done: (target: string) => void) => void;
+  onPick: (done: (target: string) => void, area?: (rect: Rect) => void) => void;
   /** Called when the note box gets the cursor: playback pauses, so the note's moment holds still. */
   onWrite: () => void;
 }) {
   const [text, setText] = useState('');
   const [scope, setScope] = useState<NoteScope>('moment');
-  const [attached, setAttached] = useState<{ target: string; rect: Rect }>();
+  // Where the note points: a target, or a box drawn around anything, with the text inside it.
+  const [attached, setAttached] = useState<{ target?: string; rect: Rect; text: string[] }>();
   const [focused, setFocused] = useState(false);
   // The playhead to the millisecond: the audio clock while it has one, else the frame.
   const ms = () => Math.round(audio.current && !audio.current.paused ? audio.current.currentTime * 1000 : (frame / (timeline?.fps ?? 30)) * 1000);
@@ -898,7 +1124,7 @@ function Notes({
       ...(sentence && { sentence }),
       text: text.trim(),
       scope,
-      ...(attached && { target: attached.target, rect: attached.rect }),
+      ...(attached && { ...(attached.target && { target: attached.target }), rect: attached.rect, ...(attached.text.length && { areaText: attached.text }) }),
       ...(screen && { screen }),
       ...(screens?.length && { screens }),
     };
@@ -911,16 +1137,24 @@ function Notes({
   };
   // Where the target is on screen now, in layout pixels: the picker shows the current frame.
   const attach = () =>
-    onPick((target) => {
-      const rect = api?.targetsOnScreen().find((t) => t.name === target)?.rect;
-      if (rect) setAttached({ target, rect: { x: Math.round(rect.x), y: Math.round(rect.y), w: Math.round(rect.w), h: Math.round(rect.h) } });
-    });
+    onPick(
+      (target) => {
+        const rect = api?.targetsOnScreen().find((t) => t.name === target)?.rect;
+        if (!rect) return;
+        const r = { x: Math.round(rect.x), y: Math.round(rect.y), w: Math.round(rect.w), h: Math.round(rect.h) };
+        setAttached({ target, rect: r, text: api?.textIn(r) ?? [] });
+      },
+      (rect) => setAttached({ rect, text: api?.textIn(rect) ?? [] }),
+    );
   // Whatever needs the user comes first; closed notes sink to the bottom.
   const order: Record<NoteStatus, number> = { question: 0, fixed: 1, open: 2, closed: 3 };
   const count = (f: (typeof FILTERS)[number]) => state.notes.filter((n) => f.statuses.includes(n.status)).length;
   const shown = FILTERS.find((f) => f.id === filter)!;
   const notes = state.notes.filter((n) => shown.statuses.includes(n.status)).sort((a, b) => order[a.status] - order[b.status] || a.ms - b.ms);
+  const sent = sentNoteIds(state);
   const withAgent = state.notes.filter((n) => n.status === 'open').length;
+  const unsent = state.notes.filter((n) => n.status === 'open' && !sent.includes(n.id)).length;
+  const [sendError, setSendError] = useState<string>();
 
   return (
     <>
@@ -955,14 +1189,17 @@ function Notes({
             </select>
             {attached ? (
               <span style={{ color: C.ink }}>
-                on <strong>{attached.target}</strong>{' '}
+                on{' '}
+                <strong title={attached.text.join(' · ')}>
+                  {attached.target ?? (attached.text.length ? `"${attached.text.slice(0, 3).join(' ')}${attached.text.length > 3 ? '...' : ''}"` : 'the area you drew')}
+                </strong>{' '}
                 <button onClick={() => setAttached(undefined)} style={subtle}>
                   remove
                 </button>
               </span>
             ) : (
               <button style={quiet} onMouseDown={(e) => e.preventDefault()} onClick={attach} disabled={!api}>
-                Attach to a target
+                Point at part of the screen
               </button>
             )}
             <button onClick={() => void add()} style={{ ...primary, marginLeft: 'auto' }} disabled={!text.trim()} title="Ctrl+Enter">
@@ -990,27 +1227,37 @@ function Notes({
           })}
         </div>
       )}
-      {withAgent > 0 && (filter === 'all' || filter === 'agent') && (
-        <p style={{ color: C.muted, fontSize: S.small, margin: `0 0 ${S.gap}px` }}>
-          The agent picks up notes when you ask it to, such as "fix my notes in Muse".
-        </p>
+      {/* Notes wait here until they are sent, so the agent gets them together rather than one at a time. */}
+      {unsent > 0 && (
+        <div data-send-bar="" style={{ display: 'flex', alignItems: 'center', gap: S.gap, margin: `0 0 ${S.gap}px`, flexWrap: 'wrap' }}>
+          <span style={{ color: C.ink, fontSize: S.small }}>
+            {unsent === 1 ? '1 note is' : `${unsent} notes are`} not sent yet.
+          </span>
+          <button style={primary} disabled={state.preparing || !!state.error} title="The agent gets these notes and makes the changes" onClick={() => void sendReview(state, 'changes-requested').then(setSendError)}>
+            Send to the agent
+          </button>
+          {sendError && <span style={{ color: C.errText, whiteSpace: 'pre-wrap' }}>{sendError}</span>}
+        </div>
+      )}
+      {!unsent && withAgent > 0 && (filter === 'all' || filter === 'agent') && (
+        <p style={{ color: C.muted, fontSize: S.small, margin: `0 0 ${S.gap}px` }}>The agent has your notes and replies on each one here.</p>
       )}
 
       {!state.notes.length && (
         <div style={{ color: C.muted, margin: `${S.gap * 3}px ${S.gap}px 0`, lineHeight: 1.6 }}>
           <div style={{ color: C.ink, fontWeight: 600, marginBottom: S.gap / 2 }}>No notes yet</div>
-          Play the video and press <Key>N</Key> wherever something should change. The agent replies here, and you approve the video at the top once it is right.
+          Play the video and press <Key>N</Key> wherever something should change, then send your notes to the agent. It replies here, and you approve the video at the top once it is right.
         </div>
       )}
       {state.notes.length > 0 && !notes.length && <p style={{ color: C.muted, margin: `${S.gap}px 0 0` }}>Nothing here.</p>}
       {notes.map((note) => (
-        <NoteCard key={note.id} note={note} onSeek={onSeek} />
+        <NoteCard key={note.id} note={note} sent={sent.includes(note.id)} onSeek={onSeek} />
       ))}
     </>
   );
 }
 
-function NoteCard({ note, onSeek }: { note: Note; onSeek: (f: number) => void }) {
+function NoteCard({ note, sent, onSeek }: { note: Note; sent: boolean; onSeek: (f: number) => void }) {
   const [reply, setReply] = useState('');
   const [mode, setMode] = useState<'idle' | 'replying' | 'editing' | 'deleting'>('idle');
   const [draft, setDraft] = useState(note.text);
@@ -1026,7 +1273,8 @@ function NoteCard({ note, onSeek }: { note: Note; onSeek: (f: number) => void })
     setMode('idle');
   };
   const remove = () => fetch(`${API}/notes/${note.id}`, { method: 'DELETE' });
-  const turn = TURN[note.status];
+  // An open note is the agent's only once it has been sent; until then it is waiting to go.
+  const turn = note.status === 'open' && !sent && !note.replies.length ? UNSENT : TURN[note.status];
   const yours = note.status === 'question' || note.status === 'fixed';
   const replyBox = (placeholder: string, action: string, cancel: boolean) => (
     <div style={{ marginTop: S.gap }}>
@@ -1072,10 +1320,10 @@ function NoteCard({ note, onSeek }: { note: Note; onSeek: (f: number) => void })
         <span style={{ flex: 1, minWidth: 0, color: C.muted, fontSize: S.small }}>
           {note.scene}
           {note.scope !== 'moment' && ` · ${SCOPE[note.scope]}`}
-          {note.target && ` · on ${note.target}`}
+          {note.target ? ` · on ${note.target}` : note.rect && ' · on an area you drew'}
         </span>
       </div>
-      {turn.detail && <div style={{ marginTop: S.gap, color: C.yoursText, fontWeight: 600 }}>{turn.detail}</div>}
+      {turn.detail && <div style={turn === UNSENT ? { marginTop: S.gap, color: C.muted, fontSize: S.small } : { marginTop: S.gap, color: C.yoursText, fontWeight: 600 }}>{turn.detail}</div>}
       {mode === 'editing' ? (
         <div style={{ marginTop: S.gap }}>
           <textarea aria-label="Note" value={draft} onChange={(e) => setDraft(e.target.value)} rows={3} style={{ ...input, width: '100%', resize: 'vertical', display: 'block' }} autoFocus />
@@ -1091,26 +1339,32 @@ function NoteCard({ note, onSeek }: { note: Note; onSeek: (f: number) => void })
       ) : (
         <div style={{ marginTop: S.gap, whiteSpace: 'pre-wrap', color: C.ink }}>{note.text}</div>
       )}
+      {/* The part of the frame the note points at, as the agent sees it. */}
+      {note.snippet && (
+        <button onClick={() => onSeek(note.frame)} title="Jump to this moment" style={{ display: 'block', marginTop: S.gap, padding: 0, border: `1px solid ${C.line}`, borderRadius: S.radius, background: C.surface, cursor: 'pointer', maxWidth: '100%' }}>
+          <img data-snippet="" src={`${API}/notes/${note.id}/snippet?${note.snippet}`} alt={note.areaText?.join(' ') || 'The part of the screen this note points at'} style={{ display: 'block', maxWidth: '100%', maxHeight: 120, borderRadius: S.radius }} />
+        </button>
+      )}
       {note.replies.map((r, i) => (
         <div key={i} style={{ marginTop: S.gap, padding: `${S.gap / 2}px ${S.gap}px`, borderRadius: S.radius, background: r.from === 'agent' ? C.agentBg : C.peachSoft, whiteSpace: 'pre-wrap', color: C.ink }}>
           <span style={{ fontWeight: 600 }}>{r.from === 'agent' ? 'Agent:' : 'You:'}</span> {r.text}
         </div>
       ))}
-      {note.status === 'question' && replyBox('Answer the agent', 'Send answer', false)}
+      {note.status === 'question' && replyBox('Answer the agent', 'Send answer to the agent', false)}
       {note.status === 'fixed' &&
         (mode === 'replying' ? (
-          replyBox('What still needs changing?', 'Send', true)
+          replyBox('What still needs changing?', 'Send to the agent', true)
         ) : (
           <div style={{ display: 'flex', gap: S.gap, marginTop: S.gap }}>
             <button style={primary} onClick={() => void patch({ status: 'closed' })}>
-              Approve
+              Approve fix
             </button>
             <button style={quiet} onClick={() => setMode('replying')}>
-              Request changes
+              Not fixed yet
             </button>
           </div>
         ))}
-      {note.status === 'closed' && mode === 'replying' && replyBox('What still needs changing?', 'Reopen', true)}
+      {note.status === 'closed' && mode === 'replying' && replyBox('What still needs changing?', 'Reopen and send to the agent', true)}
       {mode !== 'editing' && (
         <div style={{ display: 'flex', gap: S.gap * 1.5, marginTop: S.gap, justifyContent: 'flex-end', alignItems: 'center' }}>
           {mode === 'deleting' ? (
@@ -1156,7 +1410,7 @@ function Scenes(props: { state: StudioState; timeline: Timeline; ready: ReadyRep
   const current = sceneAt(timeline, props.frame);
   return (
     <>
-      <p style={{ color: C.muted, margin: `0 0 ${S.gap * 1.5}px` }}>Click a time to jump there, the narration to edit it, or edit on a beat to change the camera and highlight.</p>
+      <p style={{ color: C.muted, margin: `0 0 ${S.gap * 1.5}px` }}>Click a time to jump there, the narration to edit it, or edit on a beat to change the camera and the narration box.</p>
       {timeline.scenes.map((scene) => (
         <SceneCard key={scene.index} {...props} scene={scene} raw={script?.scenes?.[scene.index]} active={current?.index === scene.index} />
       ))}
@@ -1350,7 +1604,7 @@ function BeatEditor(props: {
         )}
       </div>
       <div style={row}>
-        <span style={label}>highlight</span>
+        <span style={label} title='The outline that lights up what the narration is talking about ("highlight" in script.json)'>narration box</span>
         <select value={highlight} onChange={(e) => setHighlight(e.target.value)} style={input}>
           <option value="">(unchanged)</option>
           <option value="(clear)">(clear)</option>
@@ -1428,6 +1682,24 @@ function Key({ children }: { children: ReactNode }) {
 // ---------------------------------------------------------------------------------------------
 // Helpers
 
+/**
+ * Where the reviewer was, in a new version of the timeline: the same sentence of the same scene,
+ * as far into it as before. Only where that sentence is gone does it fall back to the same frame.
+ */
+function samePlace(before: Timeline, after: Timeline, frame: number): number {
+  const scene = sceneAt(before, frame);
+  if (!scene) return frame;
+  const next = after.scenes.find((s) => s.id === scene.id) ?? after.scenes[scene.index];
+  if (!next) return frame;
+  const index = scene.sentences.findLastIndex((s) => frame >= s.from);
+  const from = index >= 0 ? scene.sentences[index]!.from : scene.from;
+  const target = index >= 0 ? next.sentences[index] : undefined;
+  if (index >= 0 && !target) return next.from;
+  const start = target ? target.from : next.from;
+  const end = target ? (next.sentences[index + 1]?.from ?? next.from + next.frames) : (next.sentences[0]?.from ?? next.from + next.frames);
+  return Math.min(start + (frame - from), Math.max(start, end - 1));
+}
+
 function sceneAt(timeline: Timeline, frame: number): TimedScene | undefined {
   let found: TimedScene | undefined;
   for (const scene of timeline.scenes) if (frame >= scene.from) found = scene;
@@ -1453,7 +1725,7 @@ function settle(timeline: Timeline, scene: TimedScene, beat: TimedBeat): number 
 function describe(beat: TimedBeat): string {
   const parts: string[] = [];
   if (beat.camera) parts.push(`camera to ${beat.camera.to}${beat.camera.to === 'all' ? '' : ` (${beat.camera.zoom})`}`);
-  if (beat.highlight) parts.push(beat.highlight.to === false ? 'clear highlight' : `highlight ${beat.highlight.to}`);
+  if (beat.highlight) parts.push(beat.highlight.to === false ? 'clear narration box' : `narration box on ${beat.highlight.to}`);
   if (beat.animate) parts.push(`animate ${beat.animate.values.join(', ')}`);
   return parts.join(', ');
 }

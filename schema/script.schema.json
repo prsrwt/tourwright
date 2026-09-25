@@ -237,6 +237,47 @@
         "type": "string"
       }
     },
+    "areas": {
+      "description": "Areas drawn in Muse, by name. A beat uses one like a target: the camera or the narration box goes to its box.",
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "stage": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The stage the area is on."
+          },
+          "x": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          },
+          "w": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "h": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          }
+        },
+        "required": [
+          "stage",
+          "x",
+          "y",
+          "w",
+          "h"
+        ],
+        "additionalProperties": false,
+        "description": "A box drawn on a stage in Muse, in stage pixels from its top left: a target without an element, such as one button inside a banner."
+      }
+    },
     "scenes": {
       "minItems": 1,
       "type": "array",
@@ -326,7 +367,7 @@
                   "description": "Move the camera to a target."
                 },
                 "highlight": {
-                  "description": "Outline a target, or false to clear the highlight.",
+                  "description": "The narration box: outline a target while the narration talks about it, dimming the rest. false clears it.",
                   "anyOf": [
                     {
                       "type": "string",

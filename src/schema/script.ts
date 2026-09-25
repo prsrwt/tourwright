@@ -1,7 +1,9 @@
 import { z } from 'zod';
 import { EASE_NAMES, SettingsInput } from './settings.ts';
 
-export const NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+import { NAME_PATTERN } from './names.ts';
+
+export { NAME_PATTERN };
 
 const kebabName = z.string().regex(NAME_PATTERN, {
   error: 'Use lowercase letters, digits and single hyphens, for example "claim-total".',
@@ -28,10 +30,10 @@ export const Beat = z
     camera: Camera.optional(),
     highlight: z
       .union([z.string().min(1), z.literal(false)], {
-        error: 'highlight must be a target name, or false to clear the highlight.',
+        error: 'highlight must be a target name, or false to clear the narration box.',
       })
       .optional()
-      .describe('Outline a target, or false to clear the highlight.'),
+      .describe('The narration box: outline a target while the narration talks about it, dimming the rest. false clears it.'),
     animate: z
       .union([z.string().min(1), z.array(z.string().min(1)).min(1)])
       .optional()
@@ -47,6 +49,18 @@ export const Scene = z.strictObject({
   beats: z.array(Beat).optional(),
 });
 
+export const Area = z
+  .strictObject({
+    stage: z.string().min(1).describe('The stage the area is on.'),
+    x: z.number(),
+    y: z.number(),
+    w: z.number().positive(),
+    h: z.number().positive(),
+  })
+  .describe('A box drawn on a stage in Muse, in stage pixels from its top left: a target without an element, such as one button inside a banner.');
+
+export type Area = z.infer<typeof Area>;
+
 export const Script = z.strictObject({
   $schema: z.string().optional(),
   title: z.string().min(1),
@@ -56,6 +70,10 @@ export const Script = z.strictObject({
     .record(z.string().min(1), z.string())
     .optional()
     .describe('Written word to how the voice should say it. Whole words, case-sensitive.'),
+  areas: z
+    .record(kebabName, Area)
+    .optional()
+    .describe('Areas drawn in Muse, by name. A beat uses one like a target: the camera or the narration box goes to its box.'),
   scenes: z.array(Scene).min(1, { error: 'A walkthrough needs at least one scene.' }),
 });
 

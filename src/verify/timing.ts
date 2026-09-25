@@ -26,7 +26,7 @@ export function timingMarkdown(name: string, timeline: Timeline): string {
         const starts = Math.min(beat.camera?.from ?? Infinity, beat.highlight?.from ?? Infinity, beat.animate?.from ?? Infinity);
         const actions = [
           beat.camera && `camera to "${beat.camera.to}" (${typeof beat.camera.zoom === 'number' ? `${beat.camera.zoom}x` : beat.camera.zoom})`,
-          beat.highlight && (beat.highlight.to === false ? 'clear highlight' : `highlight "${beat.highlight.to}"`),
+          beat.highlight && (beat.highlight.to === false ? 'clear the narration box' : `narration box on "${beat.highlight.to}"`),
           beat.animate &&
             `animate ${beat.animate.values.map((v) => `"${v}"`).join(', ')} from ${sceneSeconds(timeline, scene, beat.animate.from).toFixed(2)} s`,
         ].filter(Boolean);

@@ -47,9 +47,16 @@ export interface Note {
   text: string;
   /** What the note covers. Default "moment". */
   scope: NoteScope;
-  /** A target the user clicked in the preview, and where it was on screen, in layout pixels. */
+  /**
+   * Where on screen the note points, in layout pixels: the target the user clicked in the preview,
+   * or, with no target, a box they drew around any part of the frame.
+   */
   target?: string;
   rect?: Rect;
+  /** The text inside that box or target, in reading order: often all it takes to know what was meant. */
+  areaText?: string[];
+  /** A picture of exactly that part of the frame, relative to the walkthrough's folder, once Muse has saved it. */
+  snippet?: string;
   /** What was on screen when the note was written, read from the player's page. */
   screen?: ScreenDescription;
   /**
@@ -76,6 +83,13 @@ export interface StudioState {
    * this, not on `version`, so a note or a review arriving mid-playback does not interrupt it.
    */
   timelineVersion: number;
+  /**
+   * Changes when make hands Muse a new version from the agent: the stage code (components,
+   * fixtures) may have changed too, so the preview loads it afresh rather than only restarting.
+   */
+  stageVersion: number;
+  /** When make last handed Muse a new version, so an open tab can say it is showing it. */
+  newVersionAt?: string;
   /** A hash of script.json as last read, so a save can tell whether someone else changed it. */
   scriptHash: string;
   /** script.json as written, for editing. */
@@ -103,6 +117,8 @@ export interface Review {
   scriptHash: string;
   at: string;
   comment?: string;
+  /** With changes-requested: the ids of the notes that were open when the user sent them, for the agent to handle. */
+  notes?: string[];
 }
 
 export interface NewNoteRequest {
@@ -115,6 +131,7 @@ export interface NewNoteRequest {
   scope?: NoteScope;
   target?: string;
   rect?: Rect;
+  areaText?: string[];
   screen?: ScreenDescription;
   screens?: { label: string; screen: ScreenDescription }[];
 }

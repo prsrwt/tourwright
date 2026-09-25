@@ -1,11 +1,13 @@
 ---
 name: walkthrough
-description: Script, check, verify and render a narrated walkthrough video of this app's real React components with Tourwright. Use this whenever someone asks for a demo video, product tour, screen walkthrough, explainer or onboarding video, or "a video showing how X works", or wants to change an existing walkthrough's narration, camera moves, highlights or timing. Also use it when touching files under tourwright/.
+description: Script, check, verify and render a narrated walkthrough video of this app's real React components with Tourwright. Use this whenever someone asks for a demo video, product tour, screen walkthrough, explainer or onboarding video, or "a video showing how X works", or wants to change an existing walkthrough's narration, camera moves, narration box or timing. Also use it when touching files under tourwright/.
 ---
 
 # Walkthrough videos
 
-Tourwright turns one file, `script.json`, into a narrated MP4 of the app's real components. You write the narration and mark, with a `[cue]` at the start of a sentence, where the camera or highlight should move; the tool speaks it, times every move against the words and renders the video. You never write seconds or frame numbers.
+Tourwright turns one file, `script.json`, into a narrated MP4 of the app's real components. You write the narration and mark, with a `[cue]` at the start of a sentence, where the camera or the narration box should move; the tool speaks it, times every move against the words and renders the video. You never write seconds or frame numbers.
+
+**The narration box** is the outline Tourwright draws around a target while the narration talks about it, dimming the rest of the screen, so the viewer knows where to look. Call it that when you talk to the user and in notes; users and Muse use the same name. In `script.json` it is a beat's `"highlight"`: a target name moves the box there, and `false` clears it.
 
 You cannot watch the video, so everything worth checking comes back as text: what is on screen at each still (`screen.md`), where each cue lands in the words (`timing.md`), and errors with their fix. The loop is: write, `check`, `verify`, read, fix. Render only when verify is clean.
 
@@ -43,6 +45,7 @@ Read these when you reach the step that needs them, not before:
 | `make <name>` | Check, verify, render, then open Muse for the user to review. `--require-approval` for the final video |
 | `notes <name>` | The user's notes from Muse, questions first, and whether this version is approved |
 | `reply <name> <id> --fixed "..."` | Answer a note (`--question "..."` to ask instead) |
+| `wait <name>` | Wait until the user approves in Muse, asks for changes or answers your question. Exit 0: approved, finished. 2: feedback to handle. 3: still waiting |
 | `muse <name>` | Open Muse, the review page, in the browser |
 | `doctor` | Check ffmpeg, the browser and the voice, with the fix for anything missing |
 
@@ -70,15 +73,16 @@ Each turn and each file you read costs. The tool is built so you rarely need mor
 7. **Adjust cues and beats** where the storyboard differs from the draft (`references/planning.md`).
 8. **`check <name> --fix`.** Fix every error left; fix each warning or be able to say why it is fine.
 9. **`verify <name> --fix --fake-voice`**, then the checks under "Verifying" below. Repeat from 6 or 7.
-10. **`make <name>`** with the real voice. It verifies, renders, and opens Muse in the user's browser; its last lines say whether Muse opened, or give the link or command instead.
-11. **Hand over** the MP4 path, the duration and anything you were unsure about. Tell the user Muse has opened in their browser (or give them the link or command), that there they can watch it, leave notes at any moment and approve it, and that you will handle their notes whenever they ask. It is not finished until they approve it (`references/muse.md`).
+10. **`make <name>`** with the real voice. It verifies, renders, and opens Muse in the user's browser; its last lines say whether Muse opened, or give the link or command instead. If the user already has Muse open, that tab switches to the new version by itself and no new tab opens.
+11. **Hand over** the MP4 path, the duration and anything you were unsure about. Tell the user Muse has opened in their browser (or give them the link or command), that there they can watch it, leave notes at any moment, and then either press "Send notes to the agent" or approve it as finished. It is not finished until they approve it (`references/muse.md`).
+12. **`wait <name>`** to hear their decision, and act on what it says (`references/muse.md`). Approved (exit 0): the video is finished. Say so, render the final cut if it tells you to, and move on to what comes next without asking about this video again. Feedback (exit 2): it prints the notes the user sent, in full; handle them, `make` it again, and wait again. Still waiting (exit 3): run `wait` again, or stop if the user has said they will come back to it later.
 
 ## Verifying
 
 Before calling a walkthrough done:
 
 1. **verify is clean**: no errors, and a reason for each warning left.
-2. **Each still shows what its sentence talks about**: read `screen.md` (the framing, what is cut off, the highlight and its text, the caption).
+2. **Each still shows what its sentence talks about**: read `screen.md` (the framing, what is cut off, the narration box and its text, the caption).
 3. **Cues land on the right words**: `timing.md` marks each with `**[here]**`.
 4. **The length is sensible**: the total is at the top of `timing.md`.
 5. **Every must-show feature has a still**, and Explain parts get more time than Mention parts.

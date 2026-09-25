@@ -29,8 +29,9 @@ test('keeps closing quotes and brackets with the sentence they end', () => {
 test('attaches sentence-start cues to their sentence', () => {
   const n = parseNarration('[intro]This is the page. [total] [claim]It works out a total.');
   assert.deepEqual(n.sentences, [
-    { text: 'This is the page.', cues: ['intro'] },
-    { text: 'It works out a total.', cues: ['total', 'claim'] },
+    // start: where each sentence begins in the text, its first marker included.
+    { text: 'This is the page.', cues: ['intro'], start: 0 },
+    { text: 'It works out a total.', cues: ['total', 'claim'], start: 25 },
   ]);
   assert.ok(n.markers.every((m) => m.atSentenceStart));
 });

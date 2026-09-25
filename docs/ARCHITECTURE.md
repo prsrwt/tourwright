@@ -130,8 +130,10 @@ agent can read and write:
 - Muse opens by itself. Most people who get a video never open a terminal: they ask an agent,
   so they would never learn the page exists. After a successful render, `make` starts Muse as a
   detached background process and opens the browser to it, then returns as usual. The process
-  records itself in `out/<name>/muse.json`, so the next make reopens it rather than starting a
-  second one, and it closes itself once no tab has had its event stream open for 10 minutes. It
+  records itself in `out/<name>/muse.json`, so the next make reuses it rather than starting a
+  second one. One tab per walkthrough: when a tab already has it open, make opens none and tells
+  Muse there is a new version, and that tab reloads the preview (stage code included, since the
+  dev server does not watch files) and stays on the sentence the reviewer was on. It closes itself once no tab has had its event stream open for 10 minutes. It
   never opens a browser where nobody would see it: in CI it starts nothing and prints the
   command, and on a Linux machine with no display it prints the link.
 - `review.json`: the user's verdict on the whole video, with a hash of the `script.json` it was

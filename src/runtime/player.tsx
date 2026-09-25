@@ -4,6 +4,7 @@
 import { Component, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
+import type { Area } from '../schema/script.ts';
 import type { Timeline } from '../timing/timeline.ts';
 import { buildMotion, highlightAt, toScreen, type Motion, type Rect, type StageMeasure, type View } from './motion.ts';
 import { stageThrew } from './messages.ts';
@@ -70,6 +71,10 @@ export interface TourApi {
   stageText(): { text: string; labels: string[] };
   /** Every target of the current stage and where it is on screen, for picking one by clicking. */
   targetsOnScreen(): { name: string; rect: Rect }[];
+  /** The stage's text inside an area of the screen at the current frame, in reading order: what a box drawn in Muse points at. */
+  textIn(area: Rect): string[];
+  /** A box on the screen at the current frame, in the stage's own pixels (where it sits whatever the camera does), with the stage it is on. */
+  toStage(rect: Rect): { stage: string; rect: Rect };
   /**
    * What a viewer sees at the current frame, read from the page: how much of the frame each
    * target fills, the highlight and the text inside it, the caption and the stage's values.
@@ -207,10 +212,11 @@ export function mountPlayer(stages: Stages): void {
     const world = worldEl();
     if (!world || !timeline) return [];
     const selectors = stages[current.stage]?.targets ?? {};
-    const names = new Set([...Object.keys(selectors), ...[...world.querySelectorAll(`[${FOCUS}]`)].map((el) => el.getAttribute(FOCUS)!)]);
+    const areas = areasOn(current.stage);
+    const names = new Set([...Object.keys(selectors), ...[...world.querySelectorAll(`[${FOCUS}]`)].map((el) => el.getAttribute(FOCUS)!), ...Object.keys(areas)]);
     const video = { w: timeline.layout.width, h: timeline.layout.height };
     return [...names].flatMap((name) => {
-      const rect = measure(world, name, selectors);
+      const rect = measure(world, name, selectors, areas);
       return rect ? [{ name, rect: toScreen(rect, current.view, video) }] : [];
     });
   };
@@ -220,6 +226,7 @@ export function mountPlayer(stages: Stages): void {
     async start(next) {
       timeline = next;
       definitions = {};
+      drawnAreas = next.areas ?? {};
       for (const [name, stage] of Object.entries(stages)) definitions[name] = stage.values ?? {};
       const stageValues = buildValues(next, definitions);
       values = stageValues;
@@ -274,13 +281,14 @@ export function mountPlayer(stages: Stages): void {
               stage.invalid[target] = `"${selector}" is not a valid CSS selector.`;
             }
           }
-          const here = [...world.querySelectorAll(`[${FOCUS}]`)].map((el) => el.getAttribute(FOCUS)!);
+          // Areas drawn in Muse are there in every state: they are boxes, not elements.
+          const here = [...[...world.querySelectorAll(`[${FOCUS}]`)].map((el) => el.getAttribute(FOCUS)!), ...Object.keys(areasOn(name))];
           for (const target of here) available.add(target);
           // Selector targets count only where they match something in this state.
           const matched = Object.keys(selectors).filter((t) => measure(world, t, selectors));
           stage.availableIn[state] = [...new Set([...here, ...matched])].sort();
           const boxes: Record<string, Rect | null> = {};
-          for (const target of targets) boxes[target] = registered ? measure(world, target, selectors) : null;
+          for (const target of targets) boxes[target] = registered ? measure(world, target, selectors, areasOn(name)) : null;
           stage.states[state] = { world: { w: world.scrollWidth, h: world.scrollHeight }, targets: boxes };
         }
         stage.available = [...available].sort();
@@ -294,13 +302,39 @@ export function mountPlayer(stages: Stages): void {
     targetOnScreen(stage, target) {
       const world = worldEl();
       if (!world || current.stage !== stage) return null;
-      const rect = measure(world, target, stages[stage]?.targets ?? {});
+      const rect = measure(world, target, stages[stage]?.targets ?? {}, areasOn(stage));
       return rect && timeline ? toScreen(rect, current.view, { w: timeline.layout.width, h: timeline.layout.height }) : null;
     },
     stageMarkup() {
       return worldEl()?.innerHTML ?? '';
     },
     targetsOnScreen: () => targetsOnScreen(),
+    toStage(rect) {
+      const { cx, cy, s: zoom } = current.view;
+      const w = timeline?.layout.width ?? 0;
+      const h = timeline?.layout.height ?? 0;
+      // The inverse of toScreen.
+      return { stage: current.stage, rect: { x: (rect.x - w / 2) / zoom + cx, y: (rect.y - h / 2) / zoom + cy, w: rect.w / zoom, h: rect.h / zoom } };
+    },
+    textIn(area) {
+      const world = worldEl();
+      if (!world) return [];
+      // Client rects include the camera's transform, so relative to the frame they are screen pixels.
+      const origin = host.getBoundingClientRect();
+      const walker = document.createTreeWalker(world, NodeFilter.SHOW_TEXT);
+      const found: string[] = [];
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const text = node.textContent?.replace(/\s+/g, ' ').trim();
+        if (!text) continue;
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        const r = range.getBoundingClientRect();
+        const cx = r.x - origin.x + r.width / 2;
+        const cy = r.y - origin.y + r.height / 2;
+        if (r.width && cx >= area.x && cx <= area.x + area.w && cy >= area.y && cy <= area.y + area.h && found.at(-1) !== text) found.push(text);
+      }
+      return found;
+    },
     describe() {
       const t = timeline!;
       const video = { w: t.layout.width, h: t.layout.height };
@@ -330,7 +364,7 @@ export function mountPlayer(stages: Stages): void {
       const world = worldEl();
       let highlight: ScreenDescription['highlight'] = null;
       if (lit && world) {
-        const elements = lit.target === 'all' ? [world] : select(world, lit.target, stages[current.stage]?.targets ?? {});
+        const elements = lit.target === 'all' ? [world] : select(world, lit.target, stages[current.stage]?.targets ?? {}, areasOn(current.stage));
         highlight = { target: lit.target, text: clipText(visibleText(elements, host)) };
       }
 
@@ -374,7 +408,7 @@ export function mountPlayer(stages: Stages): void {
     minTextSize(stage, target) {
       const world = worldEl();
       if (!world || current.stage !== stage) return null;
-      const elements = select(world, target, stages[stage]?.targets ?? {});
+      const elements = select(world, target, stages[stage]?.targets ?? {}, areasOn(stage));
       let smallest: number | null = null;
       for (const el of elements) {
         const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
@@ -511,7 +545,39 @@ function findScene(t: Timeline, frame: number): number {
   return 0;
 }
 
-function select(world: HTMLElement, target: string, selectors: Record<string, string>): Element[] {
+/**
+ * Areas drawn in Muse, by name, on the stage they belong to: targets given as a box in world
+ * coordinates rather than an element. Set when a timeline starts.
+ */
+let drawnAreas: Record<string, Area> = {};
+
+/** The drawn areas on one stage, by name. */
+function areasOn(stage: string): Record<string, Rect> {
+  return Object.fromEntries(Object.entries(drawnAreas).flatMap(([name, a]) => (a.stage === stage ? [[name, { x: a.x, y: a.y, w: a.w, h: a.h }]] : [])));
+}
+
+/** The elements with text inside an area: what an area target is made of, for its text and font sizes. */
+function inArea(world: HTMLElement, area: Rect): Element[] {
+  const origin = world.getBoundingClientRect();
+  const scale = origin.width / world.offsetWidth || 1;
+  const found = new Set<Element>();
+  const walker = document.createTreeWalker(world, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const el = node.parentElement;
+    if (!node.textContent?.trim() || !el) continue;
+    // The text's own box, not its element's: a label's element can be far wider than its words.
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    const r = range.getBoundingClientRect();
+    const cx = (r.left + r.width / 2 - origin.left) / scale;
+    const cy = (r.top + r.height / 2 - origin.top) / scale;
+    if (cx >= area.x && cx <= area.x + area.w && cy >= area.y && cy <= area.y + area.h) found.add(el);
+  }
+  return [...found];
+}
+
+function select(world: HTMLElement, target: string, selectors: Record<string, string>, areas: Record<string, Rect> = {}): Element[] {
+  if (areas[target]) return inArea(world, areas[target]);
   const selector = selectors[target] ?? `[${FOCUS}="${CSS.escape(target)}"]`;
   try {
     return [...world.querySelectorAll(selector)];
@@ -521,7 +587,8 @@ function select(world: HTMLElement, target: string, selectors: Record<string, st
 }
 
 /** The box around every element a target matches, in unscaled world coordinates. */
-function measure(world: HTMLElement, target: string, selectors: Record<string, string>): Rect | null {
+function measure(world: HTMLElement, target: string, selectors: Record<string, string>, areas: Record<string, Rect> = {}): Rect | null {
+  if (areas[target]) return { ...areas[target] };
   const origin = world.getBoundingClientRect();
   const scale = origin.width / world.offsetWidth || 1;
   let box: { l: number; t: number; r: number; b: number } | null = null;

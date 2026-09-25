@@ -9,7 +9,7 @@ export function screenMarkdown(name: string, shots: { label: string; screen: Scr
   const lines = [
     `# Screen: ${name}`,
     '',
-    'What is on screen at each still, read from the page rather than the image: how much of the frame each target fills, the highlight and the text inside it, the caption and the stage\'s values.',
+    'What is on screen at each still, read from the page rather than the image: how much of the frame each target fills, the narration box and the text inside it, the caption and the stage\'s values.',
     '',
     ...(compared ? [changed.length ? `Changed since the last verify: ${changed.join(', ')}. The others are pixel for pixel the same.` : 'No still changed since the last verify.', ''] : []),
   ];

@@ -1,4 +1,4 @@
-import { relative } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import type { ResolvedConfig } from '../config/config.ts';
 import { formatScreen } from '../runtime/screen.ts';
 import type { Note, NoteStatus } from '../studio/protocol.ts';
@@ -26,7 +26,7 @@ export function runNotes(config: ResolvedConfig, name: string, options: { json: 
     return 0;
   }
   const file = relative(process.cwd(), notesPath(config, name)) || notesPath(config, name);
-  console.log(`${formatReview(name, review)}\n`);
+  console.log(`${formatReview(name, review)}${review.approved ? ' The video is finished: nothing here needs you.' : ''}\n`);
   if (!notes.length) {
     console.log(`No notes for "${name}" (${file}).`);
     return 0;
@@ -43,7 +43,7 @@ export function runNotes(config: ResolvedConfig, name: string, options: { json: 
         console.log(`[${note.id}] at ${(note.ms / 1000).toFixed(3)} s, ${where(note)}: ${oneLine(note.text)}`);
         continue;
       }
-      printNote(note);
+      printNote(note, dirname(notesPath(config, name)));
     }
     if (group.status === 'closed') console.log('');
   }
@@ -57,12 +57,18 @@ export function runNotes(config: ResolvedConfig, name: string, options: { json: 
   return 0;
 }
 
-function printNote(note: Note): void {
+/** Prints one note in full. `dir` is the walkthrough's folder, to say where its snippet is. */
+export function printNote(note: Note, dir?: string): void {
   const scope = note.scope === 'scene' ? ', about the whole scene' : note.scope === 'all' ? ', about the whole video' : '';
   console.log(`[${note.id}] at ${(note.ms / 1000).toFixed(3)} s (frame ${note.frame}), in ${where(note)}${scope}`);
-  if (note.target) {
-    const r = note.rect;
-    console.log(`  on target "${note.target}"${r ? `, on screen at x ${r.x}, y ${r.y}, ${r.w} by ${r.h} (layout pixels)` : ''}`);
+  const r = note.rect;
+  const at = r ? `, on screen at x ${r.x}, y ${r.y}, ${r.w} by ${r.h} (layout pixels)` : '';
+  if (note.target) console.log(`  on target "${note.target}"${at}`);
+  else if (r) console.log(`  on an area the user drew${at}`);
+  if (note.areaText?.length) console.log(`  the text there: ${note.areaText.map((t) => JSON.stringify(t)).join(', ')}`);
+  if (note.snippet && dir) {
+    const file = join(dir, note.snippet);
+    console.log(`  a picture of exactly that part: ${relative(process.cwd(), file) || file}`);
   }
   if (note.sentence) console.log(`  while saying: "${note.sentence}"`);
   console.log(`  ${note.text.replace(/\n/g, '\n  ')}`);
