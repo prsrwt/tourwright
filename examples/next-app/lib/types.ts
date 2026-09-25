@@ -20,3 +20,20 @@ export interface Dashboard {
   stats: Stat[];
   tasks: Task[];
 }
+
+export interface Member {
+  id: string;
+  name: string;
+  role: string;
+  /** Tasks assigned this week. */
+  assigned: number;
+  /** How many tasks a week this person has said they can take. */
+  capacity: number;
+  /** Away until this ISO date, if away. */
+  awayUntil?: string;
+}
+
+export interface Team {
+  team: string;
+  members: Member[];
+}
