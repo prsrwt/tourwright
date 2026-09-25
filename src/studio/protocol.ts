@@ -111,8 +111,8 @@ export interface StudioState {
   /** Why review.json could not be read, when it could not. */
   reviewError?: string;
   /**
-   * Files other than script.json that the review covered and that have changed since, such as a
-   * fixture the agent edited: the review then no longer counts, as with an edit to the script.
+   * Files the review covered that have changed since, script.json included, such as a fixture the
+   * agent edited: the review then no longer counts.
    */
   reviewChanged: string[];
   /** Whether the MP4 on disk is the final video: the approved version, with the real voice. */

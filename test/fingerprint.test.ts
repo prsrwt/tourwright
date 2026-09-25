@@ -4,6 +4,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -109,4 +110,33 @@ test('Muse records what the preview loaded with a review, and refuses one of sta
     studio.close();
     await new Promise((done) => server.close(done));
   }
+});
+
+test('line endings are not an edit: a Windows checkout keeps the approval, old approvals included', () => {
+  const { config, data, script } = app();
+  const inputs = fingerprint(config, 'intro', [data]);
+  writeReview(config, 'intro', { status: 'approved', scriptHash: hashScript(readFileSync(script, 'utf8')), at: '2026-09-25T10:00:00Z', inputs });
+  assert.equal(reviewState(config, 'intro').approved, true);
+
+  // git with core.autocrlf rewrites every file it checks out with "\r\n": nothing was edited.
+  const crlf = (file: string) => writeFileSync(file, readFileSync(file, 'utf8').replace(/\r?\n/g, '\r\n'));
+  crlf(data);
+  crlf(script);
+  assert.deepEqual(changedInputs(config, inputs), []);
+  assert.equal(reviewState(config, 'intro').approved, true, 'the approval still counts');
+  assert.deepEqual(fingerprint(config, 'intro', [data]), inputs, 'and hashes the same');
+
+  // An approval written on that checkout by an earlier Tourwright hashed the "\r\n" bytes; it counts
+  // there, and on a checkout with "\n" endings too.
+  const raw = (file: string) => createHash('sha256').update(readFileSync(file)).digest('hex').slice(0, 16);
+  const old = Object.fromEntries(Object.entries(inputs).map(([key]) => [key, raw(join(config.root, key))]));
+  writeReview(config, 'intro', { status: 'approved', scriptHash: raw(script), at: '2026-09-25T10:00:00Z', inputs: old });
+  assert.equal(reviewState(config, 'intro').approved, true);
+  writeFileSync(data, readFileSync(data, 'utf8').replace(/\r\n/g, '\n'));
+  writeFileSync(script, readFileSync(script, 'utf8').replace(/\r\n/g, '\n'));
+  assert.equal(reviewState(config, 'intro').approved, true);
+
+  // A real edit still counts, whatever the line endings.
+  writeFileSync(data, 'export const total = 121;\r\n');
+  assert.deepEqual(reviewState(config, 'intro').changed, ['lib/data.ts']);
 });

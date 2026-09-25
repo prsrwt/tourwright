@@ -11,7 +11,7 @@ import { scriptPath } from '../config/walkthroughs.ts';
 import { prepare, PrepareError } from '../pipeline/prepare.ts';
 import { buildSoundtrack } from '../timing/audio.ts';
 import { API, NOTE_SCOPES, NOTE_STATUSES, type NewNoteRequest, type Note, type NotesFile, type ReplyRequest, type Review, type ReviewRequest, type SaveScriptRequest, type StudioState } from './protocol.ts';
-import { changedInputs, fingerprint, inputKey, listFiles, writtenSince } from './fingerprint.ts';
+import { fingerprint, listFiles, writtenSince } from './fingerprint.ts';
 import { finalState, revealFile, startFinalRender, type FinalRender } from './final.ts';
 import { hashScript as hash, readReview, reviewPath, reviewState, writeReview } from './review.ts';
 import { videoPath } from '../render/record.ts';
@@ -240,9 +240,8 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
       };
 
       if (route === 'GET /state') {
-        // script.json is compared by its hash on the page; the rest of what the review covered, here.
-        const script = inputKey(config, file);
-        state.reviewChanged = state.review?.inputs ? changedInputs(config, state.review.inputs).filter((f) => f !== script) : [];
+        // Everything the review covered, script.json included, compared here as wait and make compare it.
+        state.reviewChanged = state.review ? reviewState(config, name).changed : [];
         state.final = finalState(config, name);
         if (render) state.render = render.job;
         return send(200, state);
@@ -359,8 +358,8 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
         if (route === 'POST /reveal') {
           const video = videoPath(config, name);
           if (!existsSync(video)) return send(404, { error: 'There is no video yet.' });
-          revealFile(video);
-          return send(200, {});
+          const why = await revealFile(video);
+          return why ? send(500, { error: why }) : send(200, {});
         }
         if (route === 'POST /notes') {
           const { scope = 'moment', ...input } = body as NewNoteRequest;
