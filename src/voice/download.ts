@@ -30,6 +30,11 @@ export class DownloadError extends Error {
 
 const MANIFEST = '.tourwright-complete.json';
 
+// fetch asks for gzip by default and unzips as it reads, so the bytes on disk would not match
+// Content-Length, which is the compressed size. huggingface.co compresses its small files, such as
+// tokenizer.json, which made every first download fail. Ask for the file as it is.
+const IDENTITY = { 'Accept-Encoding': 'identity' };
+
 type Manifest = Record<string, number>;
 
 function readManifest(dir: string): Manifest {
@@ -84,7 +89,7 @@ async function downloadFile(file: string, path: string, options: DownloadOptions
   for (let attempt = 1; attempt <= tries; attempt++) {
     const have = existsSync(partial) ? statSync(partial).size : 0;
     try {
-      const response = await fetch(url, { headers: have > 0 ? { Range: `bytes=${have}-` } : {} });
+      const response = await fetch(url, { headers: have > 0 ? { ...IDENTITY, Range: `bytes=${have}-` } : IDENTITY });
       let total: number;
       let append: boolean;
       if (response.status === 416) {
@@ -155,7 +160,7 @@ async function downloadFile(file: string, path: string, options: DownloadOptions
 
 /** The file's full size, from a one-byte range request. */
 async function remoteSize(url: string): Promise<number> {
-  const response = await fetch(url, { headers: { Range: 'bytes=0-0' } });
+  const response = await fetch(url, { headers: { ...IDENTITY, Range: 'bytes=0-0' } });
   await response.body?.cancel();
   const total = Number(/\/(\d+)$/.exec(response.headers.get('content-range') ?? '')?.[1] ?? response.headers.get('content-length'));
   if (!Number.isFinite(total)) throw new DownloadError(`Could not read the size of ${url}.`, 'ESIZE');

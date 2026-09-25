@@ -1,0 +1,89 @@
+# The README's first run, on machines that have never seen Tourwright: a fresh runner, a new Vite
+# React app, empty npm, Playwright and model caches, and the real voice model. It follows the
+# README's commands and nothing else, with one stand-in: Tourwright is not on npm yet, so it is
+# installed from a tarball packed from this commit instead of "npm install -D tourwright".
+#
+# It downloads about 520 MB per job (Chromium, the voice model, ffmpeg), so it runs on demand and
+# when this file or the voice download changes, not on every push.
+
+name: First run
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/first-run.yml
+      - src/voice/**
+
+jobs:
+  first-run:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [22, 24]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: tourwright
+
+      # No npm cache: a first run starts with nothing downloaded.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Pack Tourwright (stands in for the npm registry)
+        working-directory: tourwright
+        run: |
+          npm ci
+          npm pack --pack-destination ..
+
+      - name: A new Vite React app
+        run: |
+          npm create vite@latest app -- --template react-ts --no-interactive
+          cd app && npm install
+
+      # From here on, the README's commands in order.
+      - name: npm install -D tourwright
+        working-directory: app
+        run: npm install -D ../tourwright-*.tgz
+
+      - name: npx tourwright init
+        working-directory: app
+        run: npx tourwright init | tee ../init.txt
+
+      - name: npx playwright install --only-shell chromium
+        working-directory: app
+        run: npx playwright install --only-shell chromium
+
+      # init lists this step only on a machine without ffmpeg; follow it when it does.
+      - name: npm install -D ffmpeg-static (if init asked for it)
+        working-directory: app
+        run: |
+          if grep -q ffmpeg-static ../init.txt; then
+            npm install -D ffmpeg-static
+          else
+            echo "init found ffmpeg, so it did not ask for ffmpeg-static"
+          fi
+
+      - name: npx tourwright doctor
+        working-directory: app
+        run: npx tourwright doctor
+
+      - name: npx tourwright make intro (downloads the voice model)
+        working-directory: app
+        run: npx tourwright make intro
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: first-run-${{ matrix.os }}-node${{ matrix.node }}
+          path: |
+            app/tourwright/out/intro.mp4
+            app/tourwright/out/intro/contact-sheet.png
+            app/tourwright/out/intro/timing.md
+          if-no-files-found: ignore

@@ -1,0 +1,3 @@
+Make a narrated walkthrough video of the Team screen of this app (app/team/page.tsx), for someone joining the team. Use the walkthrough skill.
+
+Work unattended: nobody is watching, so don't ask me anything or wait for my approval of a plan; where you would ask, pick a sensible default and say which you picked at the end. This machine cannot download the voice model, so use --fake-voice for every command, including the final make. You are done when verify passes and make has written the MP4.

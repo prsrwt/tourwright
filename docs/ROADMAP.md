@@ -40,8 +40,10 @@ reuses the last screenshot when it has not changed. The intro renders in 16.7 s 
 
 1. A clean first run works on Windows and Ubuntu: `npx tourwright init`, then
    `npx tourwright make intro`, with no undocumented step. The README lists every first-run
-   download, its size and where it is cached. *CI makes the example on Ubuntu, Windows and macOS,
-   and tests cover `init`; a first run on a clean machine outside CI is still to record.*
+   download, its size and where it is cached. *Done on 2026-09-25: the first-run workflow follows
+   the README on fresh Ubuntu and Windows runners with the real voice, and all four jobs made the
+   intro ([docs/first-run.md](first-run.md)). One stand-in until Tourwright is on npm: it installs
+   a tarball of the same commit. Its first attempt found a model download bug, now fixed.*
 2. Lengthening a sentence and rendering again moves every later beat, with no time edited
    by hand. *Done: covered by the timeline tests.*
 3. Rendering the same script twice on the same machine produces identical frame hashes. *Done:
@@ -49,7 +51,10 @@ reuses the last screenshot when it has not changed. The intro renders in 16.7 s 
 4. Fault injection is caught with a message that names the fix: a misspelt target, a target off
    screen, a blank page, a thrown error. *Done: the e2e tests inject each.*
 5. Claude Code, given only the skill, produces a tour of a second example screen that passes
-   `verify`, unattended. Keep the transcript. *Open: no transcript is kept yet.*
+   `verify`, unattended. Keep the transcript. *Done on 2026-09-25: the Team screen, in 33 turns
+   with no human input; verify passed with 0 errors and 0 warnings. Prompt, transcript and result
+   are in [docs/agent-runs/team](agent-runs/team/README.md). The voice was the fake one, because
+   that machine could not reach the model.*
 6. The SwiftCause GASDS tour is re-made with Tourwright at parity with the Remotion version. Only
    then does `tools/walkthrough` get deleted there. *In progress: a trial run fed fixes back into
    Tourwright; parity is not yet recorded.*

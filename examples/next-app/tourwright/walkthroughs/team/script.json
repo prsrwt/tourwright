@@ -1,0 +1,38 @@
+{
+  "$schema": "../../../node_modules/tourwright/schema/script.schema.json",
+  "title": "The Team screen",
+  "subtitle": "Who is doing what this week",
+  "scenes": [
+    {
+      "id": "overview",
+      "stage": "team",
+      "say": "[open]This is the Team screen, under Team in the left nav. It shows everyone on Riverside Design, and how many tasks they have taken on this week.",
+      "beats": [{ "at": "open", "camera": { "to": "all" } }]
+    },
+    {
+      "id": "roster",
+      "stage": "team",
+      "say": "[list]This is the \"Who is doing what\" list. Each row is one person, with their initials, name and role, so you know who does what at a glance.",
+      "beats": [{ "at": "list", "camera": { "to": "list", "zoom": "fit" }, "highlight": "list" }]
+    },
+    {
+      "id": "capacity",
+      "stage": "team",
+      "say": "[row]Next to each person is a bar showing how many tasks they have taken on this week, against how many they said they can take. [amara]Watch Amara's row fill in. She has taken on five tasks but only said she can manage four, so her bar turns red and flags her as over capacity.",
+      "beats": [
+        { "at": "row", "highlight": "list" },
+        { "at": "amara", "camera": { "to": "member-amara", "zoom": "fit" }, "highlight": "member-amara", "animate": "load" }
+      ]
+    },
+    {
+      "id": "away",
+      "stage": "team",
+      "say": "[jonas]Jonas Berg has no tasks assigned right now, because he is away. [away]His row shows exactly when he is due back, so you know not to add work until then.",
+      "beats": [
+        { "at": "jonas", "camera": { "to": "member-jonas", "zoom": "fit" }, "highlight": "member-jonas" },
+        { "at": "away", "highlight": "away-jonas" },
+        { "at": "end", "highlight": false }
+      ]
+    }
+  ]
+}

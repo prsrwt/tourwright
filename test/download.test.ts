@@ -7,6 +7,7 @@ import { createServer, type Server } from 'node:http';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { gzipSync } from 'node:zlib';
 import { downloadFiles, isComplete } from '../src/voice/download.ts';
 
 interface Flaky {
@@ -16,7 +17,7 @@ interface Flaky {
 }
 
 /** Serves `files`. The first `cuts` responses for each file stop after `cutAt` bytes. */
-async function flakyServer(files: Record<string, Buffer>, options: { cuts?: number; cutAt?: number; ignoreRange?: boolean } = {}): Promise<Flaky> {
+async function flakyServer(files: Record<string, Buffer>, options: { cuts?: number; cutAt?: number; ignoreRange?: boolean; gzip?: boolean } = {}): Promise<Flaky> {
   const requests: Flaky['requests'] = [];
   const served = new Map<string, number>();
   const server: Server = createServer((req, res) => {
@@ -25,6 +26,13 @@ async function flakyServer(files: Record<string, Buffer>, options: { cuts?: numb
     requests.push({ file, ...(req.headers.range && { range: req.headers.range }) });
     if (!body) {
       res.writeHead(404).end();
+      return;
+    }
+    if (options.gzip && !req.headers.range && /gzip/.test(String(req.headers['accept-encoding'] ?? ''))) {
+      // What huggingface.co does for small files such as tokenizer.json when the client accepts
+      // gzip: Content-Length is the compressed size, not the file's.
+      const zipped = gzipSync(body);
+      res.writeHead(200, { 'Content-Encoding': 'gzip', 'Content-Length': zipped.length }).end(zipped);
       return;
     }
     const range = /bytes=(\d+)-/.exec(req.headers.range ?? '');
@@ -117,6 +125,18 @@ test('a server that ignores the range restarts the file instead of corrupting it
   try {
     await downloadFiles({ baseUrl: server.url, dir, files: ['model.onnx'], backoff: 1 });
     assert.deepEqual(readFileSync(join(dir, 'model.onnx')), model);
+  } finally {
+    await server.close();
+  }
+});
+
+test('a server that would compress the file sends it as is, so its size can be checked', async () => {
+  const tokenizer = Buffer.from(JSON.stringify({ vocab: Array.from({ length: 2_000 }, (_, i) => `token${i}`) }));
+  const server = await flakyServer({ 'tokenizer.json': tokenizer }, { gzip: true });
+  const dir = mkdtempSync(join(tmpdir(), 'tourwright-dl-'));
+  try {
+    await downloadFiles({ baseUrl: server.url, dir, files: ['tokenizer.json'], tries: 2, backoff: 1 });
+    assert.deepEqual(readFileSync(join(dir, 'tokenizer.json')), tokenizer);
   } finally {
     await server.close();
   }
