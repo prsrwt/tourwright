@@ -47,6 +47,18 @@ export const Scene = z.strictObject({
   beats: z.array(Beat).optional(),
 });
 
+export const Area = z
+  .strictObject({
+    stage: z.string().min(1).describe('The stage the area is on.'),
+    x: z.number(),
+    y: z.number(),
+    w: z.number().positive(),
+    h: z.number().positive(),
+  })
+  .describe('A box drawn on a stage in Muse, in stage pixels from its top left: a target without an element, such as one button inside a banner.');
+
+export type Area = z.infer<typeof Area>;
+
 export const Script = z.strictObject({
   $schema: z.string().optional(),
   title: z.string().min(1),
@@ -56,6 +68,10 @@ export const Script = z.strictObject({
     .record(z.string().min(1), z.string())
     .optional()
     .describe('Written word to how the voice should say it. Whole words, case-sensitive.'),
+  areas: z
+    .record(kebabName, Area)
+    .optional()
+    .describe('Areas drawn in Muse, by name. A beat uses one like a target: the camera or the narration box goes to its box.'),
   scenes: z.array(Scene).min(1, { error: 'A walkthrough needs at least one scene.' }),
 });
 

@@ -6,7 +6,7 @@
 // Every sentence starts on a frame boundary. Because each allowed frame rate divides the sample
 // rate, a frame is a whole number of samples and audio placed by frame never drifts.
 
-import { sceneId, type Script } from '../schema/script.ts';
+import { sceneId, type Area, type Script } from '../schema/script.ts';
 import { DEFAULT_SETTINGS, type EaseName, type Settings } from '../schema/settings.ts';
 import { SAMPLE_RATE } from '../voice/backend.ts';
 
@@ -101,6 +101,8 @@ export interface Timeline {
   scenes: TimedScene[];
   /** One per sentence, whatever the captions setting; the setting decides how they are shown. */
   captions: Caption[];
+  /** Areas drawn in Muse, by name: targets given as a box on their stage rather than an element. */
+  areas: Record<string, Area>;
 }
 
 export interface SentenceAudio {
@@ -184,6 +186,7 @@ export function buildTimeline(script: Script, settings: Settings, audio: readonl
     highlightFrames: { slide: Math.max(1, toFrames(settings.highlight.slide)), fade: Math.max(1, toFrames(settings.highlight.fade)) },
     scenes,
     captions: scenes.flatMap((scene) => captionsFor(scene, gap)),
+    areas: script.areas ?? {},
   };
 }
 
