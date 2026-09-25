@@ -36,6 +36,7 @@ Commands:
                   Answer a note: say what you changed, or ask what you need to know
 
 Options:
+  --fix           Apply the fixes that have exactly one right answer to script.json (check, verify)
   --json          Machine-readable output (check, verify, describe, inspect, notes)
   --at <seconds>  The moment to describe, in seconds from the start (describe)
   --fake-voice    Silent narration with realistic timing: no voice model (verify, describe, render, make)
@@ -53,6 +54,7 @@ async function main(argv: string[]): Promise<number> {
     options: {
       json: { type: 'boolean', default: false },
       voice: { type: 'boolean', default: false },
+      fix: { type: 'boolean', default: false },
       'fake-voice': { type: 'boolean', default: false },
       stage: { type: 'string' },
       'from-stage': { type: 'string' },
@@ -84,7 +86,7 @@ async function main(argv: string[]): Promise<number> {
   switch (command) {
     case 'check': {
       const n = needName();
-      return n ? runCheck(await config(), n, { json: values.json }) : 1;
+      return n ? runCheck(await config(), n, { json: values.json, fix: values.fix }) : 1;
     }
     case 'render': {
       const n = needName();
@@ -96,7 +98,7 @@ async function main(argv: string[]): Promise<number> {
       const n = needName();
       if (!n) return 1;
       const { runVerify } = await import('./verify.ts');
-      return runVerify(await config(), n, { json: values.json });
+      return runVerify(await config(), n, { json: values.json, fix: values.fix });
     }
     case 'describe': {
       const n = needName();

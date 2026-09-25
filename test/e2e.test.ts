@@ -85,6 +85,24 @@ test('new --from-stage drafts scenes and beats from what the stage renders, and 
   assert.equal(existsSync(join(config.walkthroughs, 'nope', 'script.json')), false, 'a failed draft leaves no file behind');
 });
 
+test('verify --fix corrects a misspelt target against the real components, and verifies again', async () => {
+  const intro = JSON.parse(readFileSync(join(app, 'tourwright', 'walkthroughs', 'intro', 'script.json'), 'utf8'));
+  intro.scenes[1].beats[1].highlight = 'stat-overdew';
+  const config = setup({ typo: intro });
+  const { runVerify } = await import('../src/cli/verify.ts');
+  const out: string[] = [];
+  const { log } = console;
+  console.log = (line: string) => out.push(line);
+  try {
+    assert.equal(await runVerify(config, 'typo', { json: false, fix: true }), 0);
+  } finally {
+    console.log = log;
+  }
+  assert.equal(JSON.parse(readFileSync(join(config.walkthroughs, 'typo', 'script.json'), 'utf8')).scenes[1].beats[1].highlight, 'stat-overdue');
+  assert.match(out.join('\n'), /Fixed 1 problem in script\.json:\n {2}scenes\[1\]\.beats\[1\]\.highlight: change it to "stat-overdue"/);
+  assert.match(out.join('\n'), /typo: [\d.]+ s, 7 stills, 0 errors, 0 warnings\./);
+});
+
 test('describe reads what is on screen at a beat from the page', async () => {
   const base = setup({});
   const config = { ...base, walkthroughs: join(app, 'tourwright', 'walkthroughs') };

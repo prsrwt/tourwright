@@ -189,6 +189,48 @@ test('make --require-approval refuses a version not approved in Muse, before doi
   assert.match(errors[1]!, /Review: changes requested on 2026-01-02 09:30 UTC: "Slower\."/);
 });
 
+test('check --fix applies the fixes with one right answer, and leaves the rest', async () => {
+  const { runCheck } = await import('../src/cli/check.ts');
+  const dir = tempApp({ dependencies: { react: '19.0.0' } });
+  silently(() => runInit(dir));
+  const config = resolveConfig({}, join(dir, 'tourwright.config.mts'), {});
+  const file = join(config.walkthroughs, 'intro', 'script.json');
+  const script = JSON.parse(readFileSync(file, 'utf8'));
+  const dash = (code: number) => String.fromCharCode(code);
+  // A cue typo with one close match, an em dash in the narration and an en dash in a range: all
+  // fixable. A beat with nothing to do needs judgement, so it stays.
+  script.scenes[0].say = script.scenes[0].say.replace('It renders real components', `It renders ${dash(0x2014)} real components from 10${dash(0x2013)}20`);
+  script.scenes[0].beats[1].at = 'crads';
+  script.scenes[0].beats.push({ at: 'start' });
+  writeFileSync(file, JSON.stringify(script));
+
+  const out: string[] = [];
+  const { log } = console;
+  console.log = (line: string) => out.push(line);
+  try {
+    assert.equal(runCheck(config, 'intro', { json: false, fix: true }), 1, 'the beat that does nothing is still an error');
+  } finally {
+    console.log = log;
+  }
+  const after = JSON.parse(readFileSync(file, 'utf8'));
+  assert.equal(after.scenes[0].beats[1].at, 'cards');
+  assert.match(after.scenes[0].say, /It renders, real components from 10-20/);
+  assert.match(out.join('\n'), /^Fixed 2 problems in script\.json:\n {2}scenes\[0\]\.say: /);
+  assert.match(out.join('\n'), /scenes\[0\]\.beats\[3\]/);
+  // Without --fix, it only says that --fix would help.
+  out.length = 0;
+  after.scenes[0].beats[1].at = 'crads';
+  writeFileSync(file, JSON.stringify(after));
+  console.log = (line: string) => out.push(line);
+  try {
+    runCheck(config, 'intro', { json: false });
+  } finally {
+    console.log = log;
+  }
+  assert.match(out.join('\n'), /"--fix" applies them/);
+  assert.equal(JSON.parse(readFileSync(file, 'utf8')).scenes[0].beats[1].at, 'crads', 'nothing is changed without --fix');
+});
+
 test('ffmpeg-static installed without its binary gets the fix that works', async () => {
   const { ffmpegMissing } = await import('../src/render/ffmpeg.ts');
   const dir = tempApp({});
