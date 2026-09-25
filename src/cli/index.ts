@@ -34,6 +34,10 @@ Commands:
   notes <name>    List the notes left in Muse by status, questions first, and the review
   reply <name> <id> --fixed "..." | --question "..."
                   Answer a note: say what you changed, or ask what you need to know
+  wait <name>     Wait until the user approves the video in Muse, asks for changes or answers
+                  your question, then say what to do next. Exits 0 when approved (the video is
+                  done), 2 when there is feedback to handle, 3 after --timeout <seconds> (540 by
+                  default, 0 for no limit) with neither
 
 Options:
   --fix           Apply the fixes that have exactly one right answer to script.json (check, verify)
@@ -67,6 +71,7 @@ async function main(argv: string[]): Promise<number> {
       idle: { type: 'string' },
       fixed: { type: 'string' },
       question: { type: 'string' },
+      timeout: { type: 'string' },
       help: { type: 'boolean', short: 'h', default: false },
     },
   });
@@ -142,6 +147,17 @@ async function main(argv: string[]): Promise<number> {
         ...(values.fixed !== undefined && { fixed: values.fixed }),
         ...(values.question !== undefined && { question: values.question }),
       });
+    }
+    case 'wait': {
+      const n = needName();
+      if (!n) return 1;
+      const timeout = values.timeout === undefined ? undefined : Number(values.timeout);
+      if (timeout !== undefined && !(timeout >= 0)) {
+        console.error(`--timeout needs a number of seconds (0 for no limit), not "${values.timeout}".`);
+        return 1;
+      }
+      const { runWait } = await import('./wait.ts');
+      return runWait(await config(), n, timeout === undefined ? {} : { timeout });
     }
     case 'scaffold': {
       if (!name) {

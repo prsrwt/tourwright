@@ -26,7 +26,7 @@ export function runNotes(config: ResolvedConfig, name: string, options: { json: 
     return 0;
   }
   const file = relative(process.cwd(), notesPath(config, name)) || notesPath(config, name);
-  console.log(`${formatReview(name, review)}\n`);
+  console.log(`${formatReview(name, review)}${review.approved ? ' The video is finished: nothing here needs you.' : ''}\n`);
   if (!notes.length) {
     console.log(`No notes for "${name}" (${file}).`);
     return 0;

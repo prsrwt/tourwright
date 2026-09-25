@@ -54,6 +54,7 @@ export async function runMake(config: ResolvedConfig, name: string, options: Mak
     // Most people who get a video never open a terminal, so bring the review page to them. This
     // starts Muse in the background and returns: make finishes as usual, even under an agent.
     console.log(`\n${(await launchMuse(config, name, { review: options.review ?? true })).message}`);
+    if (!reviewState(config, name).approved) console.log(`To hear when the user approves it or asks for changes: npx tourwright wait ${name}`);
     return 0;
   } finally {
     await session.close();

@@ -56,5 +56,21 @@ a video finished, or hand it over as final, until it says the current script is 
 review asks for changes, its comment is a note about the whole video: handle it like one, then ask
 the user to review again.
 
+## Waiting for the user's decision
+
+After you hand a video over, run `npx tourwright wait <name>`. It returns as soon as the user does
+something that needs you, says what happened and what to do next, and its exit code says which:
+
+| Exit | What happened | What you do |
+| --- | --- | --- |
+| 0 | The user approved the current version | The video is finished. If it says the MP4 is older than the approved script (they edited in Muse), render the final cut with `make <name> --require-approval --no-review`. Tell the user it is done, then carry on with the rest of your task. Don't ask them to review it again |
+| 2 | They asked for changes, or answered one of your questions | Run `notes <name>`, handle the open notes as above, `make` it again, then `wait` again |
+| 3 | Nothing yet, after `--timeout` (540 s by default, just under the longest command Claude Code runs) | Run `wait` again. Run it in the background if your tools can, so you can keep talking to the user |
+
+If the video is already approved, `wait` returns 0 at once, so it is always safe to run. A request
+for changes the user made before you started waiting does not end the wait: that one you have
+already seen. Notes on their own don't end it either, because the user may still be adding them;
+it ends when they press "Request changes" or approve.
+
 Edits made in Muse are written to `script.json` too. If the user has Muse open, it
 reloads when you change the file, so you both always see the same script.

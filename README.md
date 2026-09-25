@@ -85,6 +85,7 @@ npm install --no-save tourwright ffmpeg-static
 | `muse <name>` | Open Muse, the review page, in a browser tab (`studio` works too): play it with narration and captions (at any speed, a scene on loop, or scene by scene), click a target to move the camera or highlight to it, edit beats and narration, leave notes for the agent pinned to the millisecond (or on a clicked target), talk each one through with the agent (filter them by whose turn it is, reword, reopen or delete them), and approve the video |
 | `notes <name>` | List the notes left in Muse by status, questions first, with their threads, and whether the current version is approved |
 | `reply <name> <id>` | Answer a note left in Muse: `--fixed "what changed"` or `--question "what you need to know"`. Only the user closes a note |
+| `wait <name>` | Wait until the user approves the video in Muse, asks for changes or answers the agent's question, then say what to do next. Exits 0 when approved, 2 with feedback to handle, 3 after `--timeout <seconds>` (540 by default, 0 for no limit). This is how an agent learns the video is finished and moves on |
 | `inspect <stage>` | List a stage's targets, its components' props with their real types, and which could move in a video |
 | `scaffold <page-file>` | Draft a stage from a page component's own sections, with typed placeholder fixtures |
 
