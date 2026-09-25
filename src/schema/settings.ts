@@ -40,7 +40,7 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   video: { width: 1920, height: 1080, fps: 30, crf: 23 },
-  voice: { voice: 'bm_fable', speed: 1, dtype: 'fp32', sentenceGap: 0.3, tail: 0.7 },
+  voice: { voice: 'af_bella', speed: 1, dtype: 'fp32', sentenceGap: 0.3, tail: 0.7 },
   camera: { ease: 'inOutCubic', duration: 0.9, lead: 0.4, padding: 48, maxZoom: 2.5 },
   highlight: { color: '#2563eb', stroke: 3, radius: 12, padding: 10, dim: 0.5, slide: 0.5, fade: 0.3 },
   captions: { mode: 'burned', size: 40, position: 'bottom' },
