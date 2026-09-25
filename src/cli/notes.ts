@@ -49,10 +49,9 @@ export function runNotes(config: ResolvedConfig, name: string, options: { json: 
   }
   console.log(
     [
-      'To answer a note, edit the notes file. Add a reply to its "replies": { "from": "agent", "text": "...", "at": "<ISO time>" }, then set its "status":',
-      '- "fixed" once you have made the change, with a reply saying what you changed;',
-      '- "question" if you are unsure what the user wants, with a reply asking them.',
-      'Never set "closed": only the user approves a fix.',
+      `To answer a note: npx tourwright reply ${name} <id> --fixed "what you changed" once it is done,`,
+      `or npx tourwright reply ${name} <id> --question "what you need to know" if you are unsure what the user wants.`,
+      'Only the user closes a note, by approving it in Muse.',
     ].join('\n'),
   );
   return 0;
@@ -69,6 +68,8 @@ function printNote(note: Note): void {
   console.log(`  ${note.text.replace(/\n/g, '\n  ')}`);
   for (const reply of note.replies) console.log(`  ${reply.from === 'agent' ? 'Agent' : 'User'}: ${reply.text.replace(/\n/g, '\n    ')}`);
   if (note.screen) console.log(`  On screen at ${formatScreen(note.screen, '  ').trimStart()}`);
+  // A scene or whole-video note: the note is about each of these beats, not only its moment.
+  for (const { label, screen } of note.screens ?? []) console.log(`  At beat ${label}: ${formatScreen(screen, '  ').trimStart()}`);
   console.log('');
 }
 

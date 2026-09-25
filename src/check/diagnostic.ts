@@ -6,6 +6,12 @@ export interface Diagnostic {
   path: string;
   message: string;
   fix?: string;
+  /**
+   * The fix as an exact change, when there is exactly one right answer (a typo with one close
+   * match, a dash): set the value at this path in script.json. "check --fix" and "verify --fix"
+   * apply it, so an agent need not spend a turn on it.
+   */
+  edit?: { path: (string | number)[]; value: unknown };
 }
 
 export function formatPath(path: readonly PropertyKey[]): string {

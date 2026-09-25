@@ -52,6 +52,11 @@ export interface Note {
   rect?: Rect;
   /** What was on screen when the note was written, read from the player's page. */
   screen?: ScreenDescription;
+  /**
+   * For a note about a whole scene or the whole video: what is on screen once each beat in it has
+   * settled, labelled like verify's stills (scene-cue), since one moment cannot show all of it.
+   */
+  screens?: { label: string; screen: ScreenDescription }[];
   status: NoteStatus;
   /** The conversation about the note since it was written, oldest first. */
   replies: Reply[];
@@ -66,6 +71,11 @@ export interface StudioState {
   name: string;
   /** Changes whenever the script, timeline or notes change. */
   version: number;
+  /**
+   * Changes only when a new timeline has been prepared. The player and the soundtrack reload on
+   * this, not on `version`, so a note or a review arriving mid-playback does not interrupt it.
+   */
+  timelineVersion: number;
   /** A hash of script.json as last read, so a save can tell whether someone else changed it. */
   scriptHash: string;
   /** script.json as written, for editing. */
@@ -106,6 +116,7 @@ export interface NewNoteRequest {
   target?: string;
   rect?: Rect;
   screen?: ScreenDescription;
+  screens?: { label: string; screen: ScreenDescription }[];
 }
 
 /** A reply from the user, and the status it moves the note to: "open" by default, back to the agent. */

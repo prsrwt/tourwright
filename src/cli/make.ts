@@ -13,8 +13,23 @@ import { verifyWalkthrough } from '../verify/verify.ts';
 import { videoPath } from './render.ts';
 import { printVerifyReport } from './verify.ts';
 
-export async function runMake(config: ResolvedConfig, name: string, options: { review?: boolean } = {}): Promise<number> {
+export interface MakeOptions {
+  /** False with --no-review: leave Muse closed. */
+  review?: boolean;
+  /** With --require-approval: render only a version the user has approved in Muse. */
+  requireApproval?: boolean;
+}
+
+export async function runMake(config: ResolvedConfig, name: string, options: MakeOptions = {}): Promise<number> {
   const log = (line: string) => console.log(line);
+  // Checked first, so a final render of an unapproved version fails in a moment, not after verify.
+  if (options.requireApproval) {
+    const review = reviewState(config, name);
+    if (!review.approved) {
+      console.error(`Not rendered: --require-approval renders only a version approved in Muse. ${formatReview(name, review)}\nFix: ask the user to review it in Muse ("npx tourwright muse ${name}") and approve it, then run make again.`);
+      return 1;
+    }
+  }
   const ffmpeg = findFfmpeg(config.root);
   if (!ffmpeg) {
     console.error(ffmpegMissing(config.root));

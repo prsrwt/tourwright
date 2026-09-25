@@ -53,9 +53,16 @@ audio length is known before rendering, and the camera maths is our code.
 once: render each stage, wait for its fonts and images, measure every target
 for each frame f:
   page.evaluate(() => window.__tour.setFrame(f))   // React re-renders synchronously
-  screenshot
+  screenshot, unless nothing on screen changed since f - 1
   pipe to ffmpeg
 ```
+
+Most frames of a narration video are the frame before: the camera and highlight hold still while a
+sentence is spoken. So `setFrame` returns a signature of everything that decides the pixels (the
+stage and its values, the camera, the highlight, the caption, the title card), or none while a CSS
+animation is still moving, and a frame whose signature matches the last reuses its screenshot. The
+render tests require exactly the same frame hashes with and without it. Splitting the capture
+between parallel pages was measured and did not pay (see the roadmap).
 
 Measuring up front is the equivalent of Remotion's `delayRender`: the camera needs a target's box
 before it can frame it. A stage is measured once per layout it takes: numbers counting up barely

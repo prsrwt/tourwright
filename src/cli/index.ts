@@ -10,6 +10,7 @@ import { AnalyzeError } from '../analyze/program.ts';
 import { NotesError } from '../studio/server.ts';
 import { ReviewError } from '../studio/review.ts';
 import { DescribeError } from './describe.ts';
+import { DraftError } from './draft.ts';
 import { runCheck } from './check.ts';
 
 const USAGE = `Usage: tourwright <command> [options]
@@ -17,20 +18,25 @@ const USAGE = `Usage: tourwright <command> [options]
 Commands:
   check <name>    Validate a walkthrough's script.json
   init            Set up Tourwright in this app
-  new <name>      Create a walkthrough from a template
+  new <name>      Create a walkthrough from a template (--from-stage <stage> drafts its scenes and
+                  beats from what the stage renders, leaving only the narration to write)
   verify <name>   Render a still per beat and check them against the page
   describe <name> Say what is on screen at every beat, or at one moment (--at <seconds>)
   render <name>   Render the MP4
   make <name>     Check and verify, then render if every still passes, and open Muse to review it
-                  (--no-review, or "review": false in the config, to leave Muse closed)
+                  (--no-review, or "review": false in the config, to leave Muse closed;
+                  --require-approval to render only a version approved in Muse)
   doctor          Check ffmpeg, the browser and the voice
   inspect <stage> List a stage's targets, its components' props, and what could move
   scaffold <page> Draft a stage from a page component's sections (--stage <name>)
   muse <name>     Open Muse: watch, edit, leave notes on and approve a walkthrough in the browser
                   (--no-open; "studio" still works)
   notes <name>    List the notes left in Muse by status, questions first, and the review
+  reply <name> <id> --fixed "..." | --question "..."
+                  Answer a note: say what you changed, or ask what you need to know
 
 Options:
+  --fix           Apply the fixes that have exactly one right answer to script.json (check, verify)
   --json          Machine-readable output (check, verify, describe, inspect, notes)
   --at <seconds>  The moment to describe, in seconds from the start (describe)
   --fake-voice    Silent narration with realistic timing: no voice model (verify, describe, render, make)
@@ -48,14 +54,19 @@ async function main(argv: string[]): Promise<number> {
     options: {
       json: { type: 'boolean', default: false },
       voice: { type: 'boolean', default: false },
+      fix: { type: 'boolean', default: false },
       'fake-voice': { type: 'boolean', default: false },
       stage: { type: 'string' },
+      'from-stage': { type: 'string' },
       at: { type: 'string' },
       open: { type: 'boolean', default: true },
       review: { type: 'boolean', default: true },
+      'require-approval': { type: 'boolean', default: false },
       // Set by make when it starts Muse in the background; not for typing.
       background: { type: 'boolean', default: false },
       idle: { type: 'string' },
+      fixed: { type: 'string' },
+      question: { type: 'string' },
       help: { type: 'boolean', short: 'h', default: false },
     },
   });
@@ -75,7 +86,7 @@ async function main(argv: string[]): Promise<number> {
   switch (command) {
     case 'check': {
       const n = needName();
-      return n ? runCheck(await config(), n, { json: values.json }) : 1;
+      return n ? runCheck(await config(), n, { json: values.json, fix: values.fix }) : 1;
     }
     case 'render': {
       const n = needName();
@@ -87,7 +98,7 @@ async function main(argv: string[]): Promise<number> {
       const n = needName();
       if (!n) return 1;
       const { runVerify } = await import('./verify.ts');
-      return runVerify(await config(), n, { json: values.json });
+      return runVerify(await config(), n, { json: values.json, fix: values.fix });
     }
     case 'describe': {
       const n = needName();
@@ -123,6 +134,15 @@ async function main(argv: string[]): Promise<number> {
       const { runNotes } = await import('./notes.ts');
       return runNotes(await config(), n, { json: values.json });
     }
+    case 'reply': {
+      const n = needName();
+      if (!n) return 1;
+      const { runReply } = await import('./reply.ts');
+      return runReply(await config(), n, positionals[2], {
+        ...(values.fixed !== undefined && { fixed: values.fixed }),
+        ...(values.question !== undefined && { question: values.question }),
+      });
+    }
     case 'scaffold': {
       if (!name) {
         console.error('Usage: tourwright scaffold <page-file> [--stage <name>]');
@@ -139,13 +159,13 @@ async function main(argv: string[]): Promise<number> {
       const n = needName();
       if (!n) return 1;
       const { runNew } = await import('./new.ts');
-      return runNew(await config(), n);
+      return runNew(await config(), n, values['from-stage'] === undefined ? {} : { fromStage: values['from-stage'] });
     }
     case 'make': {
       const n = needName();
       if (!n) return 1;
       const { runMake } = await import('./make.ts');
-      return runMake(await config(), n, { review: values.review });
+      return runMake(await config(), n, { review: values.review, requireApproval: values['require-approval'] });
     }
     default:
       console.error(`Unknown command "${command}".\n\n${USAGE}`);
@@ -154,7 +174,7 @@ async function main(argv: string[]): Promise<number> {
 }
 
 /** Errors whose message already says what is wrong and how to fix it, so no stack trace. */
-const EXPECTED = [ConfigError, PrepareError, StagesMissingError, BrowserMissingError, RenderError, AnalyzeError, NotesError, ReviewError, DescribeError];
+const EXPECTED = [ConfigError, PrepareError, StagesMissingError, BrowserMissingError, RenderError, AnalyzeError, NotesError, ReviewError, DescribeError, DraftError];
 
 main(process.argv.slice(2)).then(
   (code) => {

@@ -31,18 +31,20 @@ export function targetDiagnostics(timeline: Timeline, ready: ReadyReport): Diagn
         path: `${at}.stage`,
         message: `"${scene.stage}" is not a stage. Registered: ${ready.registered.map((s) => `"${s}"`).join(', ') || 'none'}.`,
         fix: guess ? `change it to "${guess}".` : 'register it in the stages file, or use one of the registered stages.',
+        ...(guess && { edit: { path: ['scenes', scene.index, 'stage'], value: guess } }),
       });
       continue;
     }
     for (const beat of scene.beats) {
       // Each target is looked up in the layout the stage has when the move arrives, the same one
       // the player frames it in.
-      const refs: [string, string, number][] = [];
-      if (beat.camera && beat.camera.to !== 'all') refs.push([`${at}.beats[${beat.index}].camera.to`, beat.camera.to, beat.camera.from + beat.camera.frames]);
+      const refs: [string, string, number, (string | number)[]][] = [];
+      const beatPath = ['scenes', scene.index, 'beats', beat.index];
+      if (beat.camera && beat.camera.to !== 'all') refs.push([`${at}.beats[${beat.index}].camera.to`, beat.camera.to, beat.camera.from + beat.camera.frames, [...beatPath, 'camera', 'to']]);
       if (beat.highlight && beat.highlight.to !== false && beat.highlight.to !== 'all') {
-        refs.push([`${at}.beats[${beat.index}].highlight`, beat.highlight.to, beat.highlight.from + timeline.highlightFrames.slide]);
+        refs.push([`${at}.beats[${beat.index}].highlight`, beat.highlight.to, beat.highlight.from + timeline.highlightFrames.slide, [...beatPath, 'highlight']]);
       }
-      for (const [path, target, frame] of refs) {
+      for (const [path, target, frame, editPath] of refs) {
         const layout = stage.states[values.state(scene.stage, frame)];
         if (layout?.targets[target]) continue;
         const elsewhere = Object.values(stage.states).some((s) => s.targets[target]);
@@ -72,6 +74,7 @@ export function targetDiagnostics(timeline: Timeline, ready: ReadyReport): Diagn
           fix: guess
             ? `change it to "${guess}".`
             : `wrap the element in <div data-focus="${target}"> in the stage, or add "${target}": "<css selector>" to the stage's "targets".`,
+          ...(guess && { edit: { path: editPath, value: guess } }),
         });
       }
     }

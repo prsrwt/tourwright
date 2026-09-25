@@ -155,6 +155,7 @@ function checkScene(scene: Scene, index: number): Diagnostic[] {
         path: `${path}.at`,
         message: `"${beat.at}" is not a cue in this scene. Valid: ${valid.map((c) => `"${c}"`).join(', ')}.`,
         fix: guess ? `change it to "${guess}".` : `add "[${beat.at}]" at the start of a sentence in "say", or use one of the valid cues.`,
+        ...(guess && { edit: { path: ['scenes', index, 'beats', b, 'at'], value: guess } }),
       });
     }
     const earlier = used.get(beat.at);
@@ -195,10 +196,19 @@ function checkScene(scene: Scene, index: number): Diagnostic[] {
 // U+2013 (en dash) and U+2014 (em dash), built from code points so this file contains neither.
 const DASHES = new RegExp(`[${String.fromCharCode(0x2013, 0x2014)}]`);
 
+/** A dash between numbers becomes a hyphen ("10-20"); any other becomes a comma. */
+function withoutDashes(text: string): string {
+  const dash = `[${String.fromCharCode(0x2013, 0x2014)}]`;
+  return text
+    .replace(new RegExp(`(\\d)\\s*${dash}\\s*(\\d)`, 'g'), '$1-$2')
+    .replace(new RegExp(`\\s*${dash}\\s*`, 'g'), ', ')
+    .replace(/^, /, '');
+}
+
 /** Em and en dashes are not allowed anywhere: the voice reads them badly and the house style bans them. */
-function findDashes(value: unknown, path: PropertyKey[] = []): Diagnostic[] {
+function findDashes(value: unknown, path: (string | number)[] = []): Diagnostic[] {
   const out: Diagnostic[] = [];
-  const report = (text: string, where: PropertyKey[]) => {
+  const report = (text: string, where: (string | number)[], fixable: boolean) => {
     const index = text.search(DASHES);
     const snippet = text.slice(Math.max(0, index - 30), index + 30);
     out.push({
@@ -206,15 +216,16 @@ function findDashes(value: unknown, path: PropertyKey[] = []): Diagnostic[] {
       path: formatPath(where),
       message: `Contains an em or en dash: "...${snippet}...".`,
       fix: 'use a full stop or a comma instead, or a plain hyphen in a range such as "10-20".',
+      ...(fixable && { edit: { path: where, value: withoutDashes(text) } }),
     });
   };
   if (typeof value === 'string') {
-    if (DASHES.test(value)) report(value, path);
+    if (DASHES.test(value)) report(value, path, true);
   } else if (Array.isArray(value)) {
     value.forEach((item, i) => out.push(...findDashes(item, [...path, i])));
   } else if (value !== null && typeof value === 'object') {
     for (const [key, item] of Object.entries(value)) {
-      if (DASHES.test(key)) report(key, [...path, key]);
+      if (DASHES.test(key)) report(key, [...path, key], false);
       out.push(...findDashes(item, [...path, key]));
     }
   }

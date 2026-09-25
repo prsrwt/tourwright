@@ -28,6 +28,11 @@ export interface RenderOptions {
   /** Folder for the soundtrack and frame hashes. */
   workDir: string;
   log?: (line: string) => void;
+  /**
+   * Reuse the last screenshot when a frame's signature matches the one before (default true).
+   * Narration videos mostly hold still, so most frames repeat the last one exactly.
+   */
+  skipIdentical?: boolean;
 }
 
 export class RenderError extends Error {}
@@ -73,14 +78,27 @@ export async function renderVideo(timeline: Timeline, player: PlayerPage, option
   const hashes: string[] = [];
   const started = Date.now();
   let reported = 0;
+  const skip = options.skipIdentical ?? true;
+  let last: { signature: string; png: Buffer; hash: string } | undefined;
+  let reused = 0;
   try {
     for (let frame = 0; frame < timeline.frames; frame++) {
       const report = await player.page.evaluate((f) => window.__tour.setFrame(f, 'play'), frame);
       const errors = [...player.errors, ...report.errors];
       if (errors.length) throw new RenderError(`The stage reported an error at frame ${frame}:\n${errors.join('\n')}`);
-      // The player has set every CSS animation to this frame's time, so capture them as they are.
-      const png = await player.page.screenshot({ type: 'png', caret: 'hide' });
-      hashes.push(createHash('sha256').update(png).digest('hex'));
+      // The player has set every CSS animation to this frame's time, so capture them as they are,
+      // unless nothing that decides the pixels has changed since the last frame.
+      let png: Buffer;
+      let hash: string;
+      if (skip && last && report.signature !== null && report.signature === last.signature) {
+        ({ png, hash } = last);
+        reused++;
+      } else {
+        png = await player.page.screenshot({ type: 'png', caret: 'hide' });
+        hash = createHash('sha256').update(png).digest('hex');
+        last = report.signature === null ? undefined : { signature: report.signature, png, hash };
+      }
+      hashes.push(hash);
       if (!ffmpeg.stdin.write(png)) {
         await Promise.race([new Promise((done) => ffmpeg.stdin.once('drain', done)), exited]);
       }
@@ -107,6 +125,6 @@ export async function renderVideo(timeline: Timeline, player: PlayerPage, option
 
   const hashFile = join(options.workDir, 'frames.sha256');
   writeFileSync(hashFile, hashes.map((h, i) => `${h}  ${i}`).join('\n') + '\n');
-  log(`Rendered ${timeline.frames} frames in ${((Date.now() - started) / 1000).toFixed(1)} s.`);
+  log(`Rendered ${timeline.frames} frames in ${((Date.now() - started) / 1000).toFixed(1)} s${reused ? ` (${reused} repeated the frame before, so were not captured again)` : ''}.`);
   return { file: options.file, frames: timeline.frames, seconds: timeline.frames / timeline.fps, hashFile, ...(captionsFile && { captionsFile }) };
 }

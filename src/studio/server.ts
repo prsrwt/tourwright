@@ -55,6 +55,11 @@ function upgradeNote(raw: unknown, where: string): Note {
   return { ...note, scope, status: status as Note['status'], replies } as Note;
 }
 
+/** Writes the notes back, in the shape readNotes returns. Muse, if open, shows the change at once. */
+export function writeNotes(config: ResolvedConfig, name: string, notes: Note[]): void {
+  writeFileSync(notesPath(config, name), JSON.stringify({ notes } satisfies NotesFile, null, 2) + '\n');
+}
+
 export interface Studio {
   handle(req: IncomingMessage, res: ServerResponse, next: () => void): void;
   close(): void;
@@ -66,7 +71,7 @@ export interface Studio {
 
 export function createStudio(config: ResolvedConfig, name: string, log: (line: string) => void): Studio {
   const file = scriptPath(config, name);
-  const state: StudioState = { name, version: 0, scriptHash: '', script: undefined, diagnostics: [], preparing: false, notes: [] };
+  const state: StudioState = { name, version: 0, timelineVersion: 0, scriptHash: '', script: undefined, diagnostics: [], preparing: false, notes: [] };
   // A notes file that cannot be read keeps the last good notes on screen, and says why.
   const loadNotes = () => {
     try {
@@ -119,6 +124,7 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
         try {
           const prepared = await prepare(config, name, { log });
           state.timeline = prepared.timeline;
+          state.timelineVersion += 1;
           state.diagnostics = prepared.warnings;
           delete state.error;
           soundtrack = buildSoundtrack(prepared.timeline);

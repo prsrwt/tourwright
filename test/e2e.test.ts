@@ -8,6 +8,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { checkScript } from '../src/check/check.ts';
 import { resolveConfig, type ResolvedConfig } from '../src/config/config.ts';
 import { prepare } from '../src/pipeline/prepare.ts';
 import { openSession } from '../src/pipeline/session.ts';
@@ -58,6 +59,66 @@ test('the example walkthrough verifies clean against the real components', async
   assert.equal(screen.match(/^## /gm)?.length, report.stills.length);
   assert.match(screen, /## stats-overdue\n\n```text\n[\d.]+ s · frame \d+ · scene "stats" \(scenes\[1\]\)\n[^`]*Highlight: {2}stat-overdue\n {2}In view: {4}"Overdue 2 needs attention"/);
   assert.match(screen, /## stats-cards-before\n[^#]*Values: {5}counts = 0\.000 \(counting\)\n/);
+});
+
+test('new --from-stage drafts scenes and beats from what the stage renders, and the draft passes check', async () => {
+  const config = setup({});
+  const { runNew } = await import('../src/cli/new.ts');
+  const { DraftError } = await import('../src/cli/draft.ts');
+  const { log } = console;
+  console.log = () => undefined;
+  try {
+    assert.equal(await runNew(config, 'dash', { fromStage: 'dashboard' }), 0);
+    await assert.rejects(runNew(config, 'nope', { fromStage: 'dashbord' }), (e: Error) => e instanceof DraftError && /There is no stage "dashbord"\. Stages: [^]*"dashboard"[^]*Fix:/.test(e.message));
+  } finally {
+    console.log = log;
+  }
+  const script = JSON.parse(readFileSync(join(config.walkthroughs, 'dash', 'script.json'), 'utf8'));
+  // An overview, then each top-level target in page order, with a beat for each target inside it.
+  assert.deepEqual(script.scenes.map((s: { id: string }) => s.id), ['overview', 'stats', 'tasks']);
+  assert.deepEqual(script.scenes[1].beats, [
+    { at: 'stats', camera: { to: 'stats', zoom: 'fit' }, highlight: 'stats' },
+    { at: 'stat-overdue', highlight: 'stat-overdue' },
+    { at: 'end', highlight: false },
+  ]);
+  assert.deepEqual(checkScript(script).diagnostics, []);
+  assert.equal(existsSync(join(config.walkthroughs, 'nope', 'script.json')), false, 'a failed draft leaves no file behind');
+});
+
+test('verify --fix corrects a misspelt target against the real components, and verifies again', async () => {
+  const intro = JSON.parse(readFileSync(join(app, 'tourwright', 'walkthroughs', 'intro', 'script.json'), 'utf8'));
+  intro.scenes[1].beats[1].highlight = 'stat-overdew';
+  const config = setup({ typo: intro });
+  const { runVerify } = await import('../src/cli/verify.ts');
+  const out: string[] = [];
+  const { log } = console;
+  console.log = (line: string) => out.push(line);
+  try {
+    assert.equal(await runVerify(config, 'typo', { json: false, fix: true }), 0);
+  } finally {
+    console.log = log;
+  }
+  assert.equal(JSON.parse(readFileSync(join(config.walkthroughs, 'typo', 'script.json'), 'utf8')).scenes[1].beats[1].highlight, 'stat-overdue');
+  assert.match(out.join('\n'), /Fixed 1 problem in script\.json:\n {2}scenes\[1\]\.beats\[1\]\.highlight: change it to "stat-overdue"/);
+  assert.match(out.join('\n'), /typo: [\d.]+ s, 7 stills, 0 errors, 0 warnings\./);
+});
+
+test('verify says which stills changed since the last run, so only those need looking at', async () => {
+  const intro = JSON.parse(readFileSync(join(app, 'tourwright', 'walkthroughs', 'intro', 'script.json'), 'utf8'));
+  const config = setup({ again: intro });
+  const run = async () => verifyPrepared(config, await prepare(config, 'again'), quiet);
+  const first = await run();
+  assert.ok(first.stills.every((s) => s.change === 'new'));
+  const second = await run();
+  assert.ok(second.stills.every((s) => s.change === 'unchanged'), 'nothing changed, so nothing is reported as changed');
+  assert.match(readFileSync(second.files.screen, 'utf8'), /No still changed since the last verify\.[^]*## overview-open \(unchanged\)/);
+
+  // Point the second highlight somewhere else: only that beat's still changes.
+  intro.scenes[1].beats[1].highlight = 'stats';
+  writeFileSync(join(config.walkthroughs, 'again', 'script.json'), JSON.stringify(intro));
+  const third = await run();
+  assert.deepEqual(third.stills.filter((s) => s.change === 'changed').map((s) => s.label), ['stats-overdue']);
+  assert.match(readFileSync(third.files.screen, 'utf8'), /Changed since the last verify: stats-overdue\. The others are pixel for pixel the same\.[^]*## stats-overdue \(changed\)/);
 });
 
 test('describe reads what is on screen at a beat from the page', async () => {
@@ -188,7 +249,9 @@ test('rendering the same script twice gives identical frames, and an MP4', { ski
     try {
       assert.deepEqual(session.diagnostics, []);
       const file = join(config.out, `short-${run}.mp4`);
-      const result = await renderVideo(prepared.timeline, session.player, { ffmpeg, file, workDir: prepared.outDir });
+      // The first run captures every frame; the second reuses a frame's screenshot when nothing on
+      // screen changed. Equal hashes prove that skipping repeats is exact.
+      const result = await renderVideo(prepared.timeline, session.player, { ffmpeg, file, workDir: prepared.outDir, skipIdentical: run === 2 });
       assert.ok(existsSync(file));
       assert.equal(result.frames, prepared.timeline.frames);
       hashes.push(readFileSync(result.hashFile, 'utf8'));
@@ -279,7 +342,8 @@ export default defineStages({
         assert.deepEqual(unchanged.map((d) => d.path), ['scenes[1].beats[2].animate']);
         assert.ok(report.stills.some((s) => s.label === 'flip-flip-before'), 'the moment before the flip has its own still');
       }
-      const result = await renderVideo(prepared.timeline, session.player, { ffmpeg: findFfmpeg(app)!, file: join(config.out, `toggle-${run}.mp4`), workDir: prepared.outDir });
+      // As above: the second run skips repeated frames, so a transition must still be captured whole.
+      const result = await renderVideo(prepared.timeline, session.player, { ffmpeg: findFfmpeg(app)!, file: join(config.out, `toggle-${run}.mp4`), workDir: prepared.outDir, skipIdentical: run === 2 });
       hashes.push(readFileSync(result.hashFile, 'utf8'));
     } finally {
       await session.close();

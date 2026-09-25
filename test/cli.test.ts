@@ -49,17 +49,17 @@ test('init writes a .ts config for an ES module app, keeps existing files, and n
   assert.equal(silently(() => runInit(tempApp({}))), 1);
 });
 
-test('new creates a script that passes check, using a stage an existing walkthrough uses', () => {
+test('new creates a script that passes check, using a stage an existing walkthrough uses', async () => {
   const dir = tempApp({ dependencies: { react: '19.0.0' } });
   silently(() => runInit(dir));
   const config = resolveConfig({}, join(dir, 'tourwright.config.mts'), {});
-  assert.equal(silently(() => runNew(config, 'billing-overview')), 0);
+  assert.equal(await silently(() => runNew(config, 'billing-overview')), 0);
   const script = JSON.parse(readFileSync(join(config.walkthroughs, 'billing-overview', 'script.json'), 'utf8'));
   assert.equal(script.title, 'Billing Overview');
   assert.equal(script.scenes[0].stage, 'example');
   assert.deepEqual(checkScript(script).diagnostics, []);
-  assert.equal(silently(() => runNew(config, 'billing-overview')), 1, 'refuses to overwrite');
-  assert.equal(silently(() => runNew(config, 'Bad Name')), 1);
+  assert.equal(await silently(() => runNew(config, 'billing-overview')), 1, 'refuses to overwrite');
+  assert.equal(await silently(() => runNew(config, 'Bad Name')), 1);
 });
 
 test('no em or en dashes anywhere in the repo', () => {
@@ -126,7 +126,8 @@ test('notes: old files still read, questions come first, and the review is state
   assert.deepEqual([...order].sort((a, b) => a - b), order, 'questions, then open, fixed and closed');
   assert.match(out, /\[todo\] .*, about the whole scene\n {2}on target "stats", on screen at x 10, y 20, 300 by 90/);
   assert.match(out, /Agent: Which card\?/);
-  assert.match(out, /Never set "closed"/);
+  assert.match(out, /npx tourwright reply intro <id> --fixed "what you changed"/);
+  assert.match(out, /Only the user closes a note/);
 
   // An approval counts only for the script it was given for.
   const script = join(config.walkthroughs, 'intro', 'script.json');
@@ -139,6 +140,95 @@ test('notes: old files still read, questions come first, and the review is state
 
   writeFileSync(notes, JSON.stringify({ notes: [note('bad', 'finished')] }));
   assert.throws(() => readNotes(config, 'intro'), /has the status "finished"\.\nFix: use one of "open", "question", "fixed", "closed"\./);
+});
+
+test('reply answers a note in one command, and never closes one', async () => {
+  const { readNotes } = await import('../src/studio/server.ts');
+  const { runReply } = await import('../src/cli/reply.ts');
+  const dir = tempApp({ dependencies: { react: '19.0.0' } });
+  silently(() => runInit(dir));
+  const config = resolveConfig({}, join(dir, 'tourwright.config.mts'), {});
+  const note = (id: string, status: string) => ({ id, ms: 1000, frame: 30, scene: 'welcome', sceneIndex: 0, text: `note ${id}`, status, scope: 'moment', replies: [], created: '' });
+  writeFileSync(join(config.walkthroughs, 'intro', 'notes.json'), JSON.stringify({ notes: [note('a', 'open'), note('b', 'open'), note('c', 'closed')] }));
+
+  assert.equal(silently(() => runReply(config, 'intro', 'a', { fixed: 'Zoomed to 2x on the stats.' })), 0);
+  assert.equal(silently(() => runReply(config, 'intro', 'b', { question: 'All three cards, or only Overdue?' })), 0);
+  const [a, b, c] = readNotes(config, 'intro');
+  assert.equal(a?.status, 'fixed');
+  assert.deepEqual(a?.replies.map((r) => [r.from, r.text]), [['agent', 'Zoomed to 2x on the stats.']]);
+  assert.equal(b?.status, 'question');
+  assert.equal(c?.status, 'closed');
+
+  // A closed note, an unknown id, and a reply that is neither or both, are refused.
+  assert.throws(() => runReply(config, 'intro', 'c', { fixed: 'Again.' }), /Note "c" is closed[^]*Fix:/);
+  assert.throws(() => runReply(config, 'intro', 'zz', { fixed: 'x' }), /There is no note "zz"[^]*Notes: a, b, c\.[^]*Fix:/);
+  assert.equal(silently(() => runReply(config, 'intro', 'a', {})), 1);
+  assert.equal(silently(() => runReply(config, 'intro', 'a', { fixed: 'x', question: 'y' })), 1);
+  assert.equal(readNotes(config, 'intro')[2]?.replies.length, 0, 'the closed note is untouched');
+});
+
+test('make --require-approval refuses a version not approved in Muse, before doing any work', async () => {
+  const { runMake } = await import('../src/cli/make.ts');
+  const { writeReview, hashScript } = await import('../src/studio/review.ts');
+  const dir = tempApp({ dependencies: { react: '19.0.0' } });
+  silently(() => runInit(dir));
+  const config = resolveConfig({}, join(dir, 'tourwright.config.mts'), {});
+  const errors: string[] = [];
+  const { error } = console;
+  console.error = (line: string) => errors.push(line);
+  try {
+    assert.equal(await runMake(config, 'intro', { requireApproval: true }), 1);
+    // Changes requested is not an approval either.
+    const script = readFileSync(join(config.walkthroughs, 'intro', 'script.json'), 'utf8');
+    writeReview(config, 'intro', { status: 'changes-requested', scriptHash: hashScript(script), at: '2026-01-02T09:30:00Z', comment: 'Slower.' });
+    assert.equal(await runMake(config, 'intro', { requireApproval: true }), 1);
+  } finally {
+    console.error = error;
+  }
+  assert.match(errors[0]!, /^Not rendered: --require-approval renders only a version approved in Muse\. Review: not reviewed yet\.[^]*Fix: ask the user to review it in Muse/);
+  assert.match(errors[1]!, /Review: changes requested on 2026-01-02 09:30 UTC: "Slower\."/);
+});
+
+test('check --fix applies the fixes with one right answer, and leaves the rest', async () => {
+  const { runCheck } = await import('../src/cli/check.ts');
+  const dir = tempApp({ dependencies: { react: '19.0.0' } });
+  silently(() => runInit(dir));
+  const config = resolveConfig({}, join(dir, 'tourwright.config.mts'), {});
+  const file = join(config.walkthroughs, 'intro', 'script.json');
+  const script = JSON.parse(readFileSync(file, 'utf8'));
+  const dash = (code: number) => String.fromCharCode(code);
+  // A cue typo with one close match, an em dash in the narration and an en dash in a range: all
+  // fixable. A beat with nothing to do needs judgement, so it stays.
+  script.scenes[0].say = script.scenes[0].say.replace('It renders real components', `It renders ${dash(0x2014)} real components from 10${dash(0x2013)}20`);
+  script.scenes[0].beats[1].at = 'crads';
+  script.scenes[0].beats.push({ at: 'start' });
+  writeFileSync(file, JSON.stringify(script));
+
+  const out: string[] = [];
+  const { log } = console;
+  console.log = (line: string) => out.push(line);
+  try {
+    assert.equal(runCheck(config, 'intro', { json: false, fix: true }), 1, 'the beat that does nothing is still an error');
+  } finally {
+    console.log = log;
+  }
+  const after = JSON.parse(readFileSync(file, 'utf8'));
+  assert.equal(after.scenes[0].beats[1].at, 'cards');
+  assert.match(after.scenes[0].say, /It renders, real components from 10-20/);
+  assert.match(out.join('\n'), /^Fixed 2 problems in script\.json:\n {2}scenes\[0\]\.say: /);
+  assert.match(out.join('\n'), /scenes\[0\]\.beats\[3\]/);
+  // Without --fix, it only says that --fix would help.
+  out.length = 0;
+  after.scenes[0].beats[1].at = 'crads';
+  writeFileSync(file, JSON.stringify(after));
+  console.log = (line: string) => out.push(line);
+  try {
+    runCheck(config, 'intro', { json: false });
+  } finally {
+    console.log = log;
+  }
+  assert.match(out.join('\n'), /"--fix" applies them/);
+  assert.equal(JSON.parse(readFileSync(file, 'utf8')).scenes[0].beats[1].at, 'crads', 'nothing is changed without --fix');
 });
 
 test('ffmpeg-static installed without its binary gets the fix that works', async () => {

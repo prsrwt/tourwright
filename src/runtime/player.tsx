@@ -41,6 +41,13 @@ export interface FrameReport {
   view: View;
   /** Screen rect of the current highlight, when visible. */
   highlight: Rect | null;
+  /**
+   * Everything that decides this frame's pixels: the stage and its values, the camera, the
+   * highlight, the caption and the title card. Two frames with the same signature render
+   * identically, so a render can reuse the last screenshot. Null while a CSS animation is still
+   * moving: such a frame is always captured.
+   */
+  signature: string | null;
   errors: string[];
 }
 
@@ -89,7 +96,9 @@ export type AnimationMode = 'play' | 'settle';
  * on. A toggle then slides, and a spinner spins, identically on every render. Reading the
  * animations also flushes styles, so a transition triggered by this frame's props exists here.
  */
-function syncAnimations(frame: number, mode: AnimationMode, fps: number, starts: WeakMap<Animation, number>): void {
+function syncAnimations(frame: number, mode: AnimationMode, fps: number, starts: WeakMap<Animation, number>): boolean {
+  // Whether any animation is part way through at this frame, so the frame shows it moving.
+  let moving = false;
   for (const animation of document.getAnimations()) {
     if (mode === 'settle') {
       try {
@@ -107,8 +116,12 @@ function syncAnimations(frame: number, mode: AnimationMode, fps: number, starts:
       starts.set(animation, start);
     }
     animation.pause();
-    animation.currentTime = ((frame - start) * 1000) / fps;
+    const time = ((frame - start) * 1000) / fps;
+    animation.currentTime = time;
+    const end = animation.effect?.getComputedTiming().endTime;
+    if (end === undefined || typeof end !== 'number' || !Number.isFinite(end) || time < end) moving = true;
   }
+  return moving;
 }
 
 class Boundary extends Component<{ children: ReactNode; stage: string; onError: (message: string) => void }, { failed: boolean }> {
@@ -186,8 +199,8 @@ export function mountPlayer(stages: Stages): void {
         </Frame>,
       ),
     );
-    syncAnimations(frame, mode, t.fps, animationStarts);
-    return { frame, scene: sceneIndex, view, highlight: onScreen, errors: [...errors] };
+    const moving = syncAnimations(frame, mode, t.fps, animationStarts);
+    return { frame, scene: sceneIndex, view, highlight: onScreen, signature: moving ? null : signatureOf(t, frame, scene?.stage, view, light, values!), errors: [...errors] };
   };
 
   const targetsOnScreen = (): { name: string; rect: Rect }[] => {
@@ -480,6 +493,17 @@ function TitleCard({ title, subtitle, background, color, scale }: { title: strin
       {subtitle && <div style={{ fontSize: 36 * scale, opacity: 0.75 }}>{subtitle}</div>}
     </div>
   );
+}
+
+/**
+ * See FrameReport.signature. Stage values count by what identifies them exactly: a steps value by
+ * its step's index (a step can be anything, even a function, which JSON would silently drop) and
+ * a number by the number.
+ */
+function signatureOf(t: Timeline, frame: number, stage: string | undefined, view: View, light: { rect: Rect; opacity: number }, values: StageValues): string {
+  const caption = t.settings.captions.mode === 'burned' ? (t.captions.find((c) => frame >= c.from && frame < c.to)?.text ?? null) : null;
+  const numbers = stage ? Object.entries(values.at(stage, frame)).filter(([, v]) => typeof v === 'number') : [];
+  return JSON.stringify([stage ?? null, stage ? values.state(stage, frame) : '', numbers, view, light.opacity > 0 ? light : 0, caption, frame < t.titleFrames]);
 }
 
 function findScene(t: Timeline, frame: number): number {

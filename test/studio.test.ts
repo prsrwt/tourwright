@@ -48,6 +48,21 @@ test('the studio plays back, edits script.json, and pins notes to the millisecon
     await guide.waitFor({ state: 'detached' });
     assert.equal(await page.evaluate(() => localStorage.getItem('tourwright.muse.guide-dismissed')), '1');
 
+    // Playback follows the soundtrack: it is as long as the timeline, and pressing Play runs the
+    // audio clock and moves the picture with it. (Headless Chromium plays to no speaker, but the
+    // clock and the media element behave as in a browser.)
+    const state = (await (await fetch(`${new URL(server.url).origin}${API}/state`)).json()) as { timeline: { frames: number; fps: number } };
+    const audio = page.locator('audio');
+    await page.waitForFunction((el) => (el as HTMLAudioElement).readyState >= 1, await audio.elementHandle());
+    const duration = await audio.evaluate((el) => (el as HTMLAudioElement).duration);
+    assert.ok(Math.abs(duration - state.timeline.frames / state.timeline.fps) < 0.1, `the soundtrack lasts ${duration} s`);
+    await page.getByRole('button', { name: 'Play' }).click();
+    await page.waitForFunction((el) => (el as HTMLAudioElement).currentTime > 0.5, await audio.elementHandle());
+    await page.getByRole('button', { name: 'Pause' }).click();
+    const heard = await audio.evaluate((el) => (el as HTMLAudioElement).currentTime);
+    const showing = Number((await page.locator('span', { hasText: /^frame / }).first().textContent())!.replace('frame ', ''));
+    assert.ok(Math.abs(showing - Math.floor(heard * state.timeline.fps)) <= 2, `the picture (frame ${showing}) follows the audio (${heard.toFixed(3)} s)`);
+
     // Seek halfway along the scrubber.
     const bar = page.locator('[data-scrubber]');
     const box = (await bar.boundingBox())!;
@@ -89,6 +104,19 @@ test('the studio plays back, edits script.json, and pins notes to the millisecon
     assert.equal(note?.screen?.scene, 'stats');
     assert.equal(note?.screen?.highlight?.target, 'stats');
     assert.ok(note?.screen?.targets.some((t) => t.name === 'stats' && t.cut.length === 0));
+
+    // From here on, count how often the player restarts. Notes and replies arriving must not
+    // restart it or reload the soundtrack, which would stop playback; only a new timeline does.
+    const preview = page.frames().find((f) => f.url().includes('/__tourwright/') && f !== page.mainFrame())!;
+    await preview.evaluate(() => {
+      const tour = window.__tour;
+      const start = tour.start.bind(tour);
+      const w = window as unknown as { starts: number };
+      w.starts = 0;
+      tour.start = (t) => ((w.starts += 1), start(t));
+    });
+    const starts = () => preview.evaluate(() => (window as unknown as { starts: number }).starts);
+    const soundtrack = await page.locator('audio').getAttribute('src');
 
     // The agent resolves it in the file, the old way ("done" and a resolution): the studio reads
     // that as fixed, shows what it did, and the user approves it.
@@ -152,7 +180,11 @@ test('the studio plays back, edits script.json, and pins notes to the millisecon
     const onTarget = readNotesFile().find((n) => n.text === 'This card needs its label')!;
     assert.equal(onTarget.target, 'stat-overdue');
     assert.equal(onTarget.scope, 'scene');
-    const player = page.frames().find((f) => f.url().includes('/__tourwright/') && f !== page.mainFrame())!;
+    // About the whole scene, so it also records each of the scene's beats as they settle.
+    assert.deepEqual(onTarget.screens?.map((s) => [s.label, s.screen.highlight?.target]), [['stats-cards', 'stats'], ['stats-overdue', 'stat-overdue']]);
+    assert.equal(await starts(), 0, 'notes and replies restarted the player');
+    assert.equal(await page.locator('audio').getAttribute('src'), soundtrack, 'notes and replies reloaded the soundtrack');
+    const player = preview;
     const onScreen = (await player.evaluate(() => window.__tour.targetsOnScreen())).find((t) => t.name === 'stat-overdue')!;
     assert.deepEqual(onTarget.rect, { x: Math.round(onScreen.rect.x), y: Math.round(onScreen.rect.y), w: Math.round(onScreen.rect.w), h: Math.round(onScreen.rect.h) });
     await card(onTarget.id).getByText(/the whole scene · on stat-overdue/).waitFor();
@@ -182,6 +214,13 @@ test('the studio plays back, edits script.json, and pins notes to the millisecon
     // Editing script.json afterwards (here, as an agent would) means the approval no longer counts.
     writeFileSync(scriptFile, readFileSync(scriptFile, 'utf8').replace('Your team at a glance', 'Your team this week'));
     await reviewBar.getByText('Edited since approval').waitFor();
+    // A changed script is a new timeline: that does restart the player, and reload the soundtrack.
+    await (async () => {
+      const deadline = Date.now() + 120_000;
+      while ((await starts()) < 1 && Date.now() < deadline) await new Promise((done) => setTimeout(done, 200));
+    })();
+    assert.ok((await starts()) >= 1, 'a new timeline did not restart the player');
+    assert.notEqual(await page.locator('audio').getAttribute('src'), soundtrack);
     assert.equal(reviewState(config, 'intro').approved, false);
     assert.match(formatReview('intro', reviewState(config, 'intro')), /^Review: edited since approval\./);
 

@@ -151,3 +151,12 @@ test('no Muse starts with --no-review, "review": false or in CI; a screenless ma
   assert.deepEqual(opened, []);
   process.kill(record(screenless).pid);
 });
+
+test('the browser is opened with each platform\'s own command', async () => {
+  const { browserCommand } = await import('../src/cli/studio.ts');
+  const url = 'http://127.0.0.1:24817/__tourwright/studio';
+  // cmd's start needs an empty title first, passed without Node's escaping of the quotes.
+  assert.deepEqual(browserCommand(url, 'win32'), { command: 'cmd', args: ['/c', 'start', '""', url], verbatim: true });
+  assert.deepEqual(browserCommand(url, 'darwin'), { command: 'open', args: [url], verbatim: false });
+  assert.deepEqual(browserCommand(url, 'linux'), { command: 'xdg-open', args: [url], verbatim: false });
+});

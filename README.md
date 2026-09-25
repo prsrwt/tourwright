@@ -75,15 +75,16 @@ npm install --no-save tourwright ffmpeg-static
 | Command | What it does |
 | --- | --- |
 | `init` | Set up Tourwright in this app. Never overwrites a file. |
-| `new <name>` | Create a walkthrough from a template |
-| `check <name>` | Validate a script: schema, cues, beats, writing rules. No browser. |
-| `verify <name>` | Render a still at every beat and check each against the live page. Writes a report, a timing table, a description of each still and a contact sheet. |
+| `new <name>` | Create a walkthrough from a template. `--from-stage <stage>` drafts its scenes, cues and beats from what the stage renders, leaving only the narration to write |
+| `check <name>` | Validate a script: schema, cues, beats, writing rules. No browser. `--fix` applies the fixes that have exactly one right answer |
+| `verify <name>` | Render a still at every beat and check each against the live page. Writes a report, a timing table, a description of each still and a contact sheet, and says which stills changed since the last run. `--fix` also corrects misspelt stage and target names |
 | `describe <name>` | Say in words what is on screen at every beat, or at one moment with `--at <seconds>`: what the camera shows, the highlight and its text, the caption and the stage's values |
 | `render <name>` | Render the MP4 |
-| `make <name>` | Check and verify, then render only if every still passes, then open Muse in the browser to review it. `--no-review`, or `"review": false` in the config, leaves it closed; in CI, or with no screen, it prints the link or command instead |
+| `make <name>` | Check and verify, then render only if every still passes, then open Muse in the browser to review it. `--no-review`, or `"review": false` in the config, leaves it closed; in CI, or with no screen, it prints the link or command instead. `--require-approval` renders only a version the user has approved in Muse |
 | `doctor` | Report ffmpeg, the browser and the voice. `--voice` downloads the model and speaks a test sentence. |
 | `muse <name>` | Open Muse, the review page, in a browser tab (`studio` works too): play it with narration and captions, click a target to move the camera or highlight to it, edit beats and narration, leave notes for the agent pinned to the millisecond (or on a clicked target), talk each one through with the agent, and approve the video |
 | `notes <name>` | List the notes left in Muse by status, questions first, with their threads, and whether the current version is approved |
+| `reply <name> <id>` | Answer a note left in Muse: `--fixed "what changed"` or `--question "what you need to know"`. Only the user closes a note |
 | `inspect <stage>` | List a stage's targets, its components' props with their real types, and which could move in a video |
 | `scaffold <page-file>` | Draft a stage from a page component's own sections, with typed placeholder fixtures |
 

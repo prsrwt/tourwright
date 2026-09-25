@@ -63,8 +63,18 @@ export async function runStudio(config: ResolvedConfig, name: string, options: S
 
 /** Opens a URL in the default browser, if there is one. */
 export function openBrowser(url: string): void {
-  const [command, args] =
-    process.platform === 'win32' ? ['cmd', ['/c', 'start', '""', url]] : process.platform === 'darwin' ? ['open', [url]] : ['xdg-open', [url]];
+  const { command, args, verbatim } = browserCommand(url, process.platform);
   // If there is no browser to open, the URL printed above is enough.
-  spawn(command, args as string[], { stdio: 'ignore', detached: true, windowsHide: true }).on('error', () => undefined).unref();
+  spawn(command, args, { stdio: 'ignore', detached: true, windowsHide: true, windowsVerbatimArguments: verbatim }).on('error', () => undefined).unref();
+}
+
+/**
+ * The command that opens a URL in the default browser on each platform. On Windows it is
+ * `cmd /c start "" <url>`: start takes its first quoted argument as a window title, hence the
+ * empty one, and the arguments go to cmd verbatim, since Node would otherwise escape those quotes.
+ */
+export function browserCommand(url: string, platform: NodeJS.Platform): { command: string; args: string[]; verbatim: boolean } {
+  if (platform === 'win32') return { command: 'cmd', args: ['/c', 'start', '""', url], verbatim: true };
+  if (platform === 'darwin') return { command: 'open', args: [url], verbatim: false };
+  return { command: 'xdg-open', args: [url], verbatim: false };
 }

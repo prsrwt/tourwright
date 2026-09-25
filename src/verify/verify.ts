@@ -2,7 +2,8 @@
 // verify renders the settle frame of every beat, asserts against the live DOM, and writes a
 // report, a timing table and one contact sheet of every still.
 
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { closest, type Diagnostic } from '../check/diagnostic.ts';
 import type { PlayerPage } from '../render/page.ts';
@@ -35,6 +36,10 @@ export interface Still {
   frame: number;
   /** Seconds from the start of the scene. */
   time: number;
+  /** SHA-256 of the still, to tell next time whether it changed. */
+  hash: string;
+  /** Compared with the same still in the last verify: "new" when there was none to compare. */
+  change: 'changed' | 'unchanged' | 'new';
   diagnostics: Diagnostic[];
 }
 
@@ -62,6 +67,9 @@ interface Shot {
 
 export async function verifyWalkthrough(name: string, timeline: Timeline, player: PlayerPage, outDir: string, preflight: Diagnostic[]): Promise<VerifyReport> {
   const stillsDir = join(outDir, 'stills');
+  // The last verify's stills, by label, so this one can say what changed: an agent then looks
+  // only at those rather than at every still again.
+  const previous = previousStills(join(outDir, 'report.json'));
   rmSync(stillsDir, { recursive: true, force: true });
   mkdirSync(stillsDir, { recursive: true });
 
@@ -93,6 +101,8 @@ export async function verifyWalkthrough(name: string, timeline: Timeline, player
     screens.push({ label, screen: await player.page.evaluate(() => window.__tour.describe()) });
     const file = join(stillsDir, `${label}.png`);
     writeFileSync(file, png);
+    const hash = createHash('sha256').update(png).digest('hex');
+    const change = !previous ? 'new' : previous.get(label) === hash ? 'unchanged' : 'changed';
     images.push(png);
     masks.push(await player.page.evaluate(() => window.__tour.captionRect()));
     const k = timeline.layout.scale;
@@ -114,7 +124,7 @@ export async function verifyWalkthrough(name: string, timeline: Timeline, player
       }
     }
     if (shot.before) {
-      stills.push({ file, label, scene: shot.scene.id, cue: shot.cue, frame: shot.frame, time: sceneSeconds(timeline, shot.scene, shot.frame), diagnostics });
+      stills.push({ file, label, scene: shot.scene.id, cue: shot.cue, frame: shot.frame, time: sceneSeconds(timeline, shot.scene, shot.frame), hash, change, diagnostics });
       continue;
     }
 
@@ -173,7 +183,7 @@ export async function verifyWalkthrough(name: string, timeline: Timeline, player
       }
     }
 
-    stills.push({ file, label, scene: shot.scene.id, cue: shot.cue, frame: shot.frame, time: sceneSeconds(timeline, shot.scene, shot.frame), diagnostics });
+    stills.push({ file, label, scene: shot.scene.id, cue: shot.cue, frame: shot.frame, time: sceneSeconds(timeline, shot.scene, shot.frame), hash, change, diagnostics });
   }
 
   // Labels the narration names must be on screen, spelt the same, while the sentence is spoken.
@@ -237,7 +247,7 @@ export async function verifyWalkthrough(name: string, timeline: Timeline, player
   };
   writeFileSync(files.contactSheet, await contactSheet(browser, images, stills.map((s) => `${s.label}  ${s.time.toFixed(1)} s`)));
   writeFileSync(files.timing, timingMarkdown(name, timeline));
-  writeFileSync(files.screen, screenMarkdown(name, screens));
+  writeFileSync(files.screen, screenMarkdown(name, screens.map((s, i) => ({ ...s, change: stills[i]!.change }))));
   const report: VerifyReport = {
     name,
     ok: errors === 0,
@@ -272,6 +282,19 @@ function captionFixes(target: Rect, caption: Rect, frame: { w: number; h: number
 /** How much of a rect, from 0 to 1, is inside the frame. */
 function visibleShare(rect: Rect, frame: { w: number; h: number }): number {
   return overlap(rect, { x: 0, y: 0, w: frame.w, h: frame.h });
+}
+
+/** Each still's hash from the last verify's report, by label; undefined when there is none. */
+function previousStills(file: string): Map<string, string> | undefined {
+  if (!existsSync(file)) return undefined;
+  try {
+    const report = JSON.parse(readFileSync(file, 'utf8')) as { stills?: { label?: string; hash?: string }[] };
+    // A report from before stills had hashes has nothing to compare with.
+    if (!report.stills?.every((s) => s.label && s.hash)) return undefined;
+    return new Map(report.stills.map((s) => [s.label!, s.hash!]));
+  } catch {
+    return undefined;
+  }
 }
 
 /** The share of `target`'s area, from 0 to 1, that `cover` hides. */
