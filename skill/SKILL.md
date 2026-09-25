@@ -38,6 +38,7 @@ Reference files, read when you reach the step that needs them:
 | `npx tourwright doctor` | Report ffmpeg, the browser and the voice, with the fix for anything missing |
 | `npx tourwright inspect <stage>` | List a stage's targets, every component it renders with each prop's type and what the stage passes, and the props that could move |
 | `npx tourwright muse <name>` | Open Muse, the review page, in the browser: play the walkthrough with narration, edit beats and narration, leave notes pinned to moments, and approve it. `studio` is the old name and still works |
+| `npx tourwright reply <name> <id> --fixed "..."` | Answer a note: `--fixed` says what you changed, `--question` asks what you need to know |
 | `npx tourwright notes <name>` | List the notes left in Muse by status, questions first, each with its time, scene, scope, target, the sentence being spoken, its replies and what was on screen; and whether the user has approved the current version |
 | `npx tourwright scaffold <page-file>` | Draft a stage from a page component: its sections in order, each a target, with typed placeholder fixtures, in `tourwright/scaffold/` |
 
@@ -94,22 +95,18 @@ When the user asks you to handle notes ("check my notes in Muse", "fix my notes"
    `npx tourwright describe <name> --at <seconds>` with the note's time.
 3. **Handle each `open` note.** Read the whole thread: the latest reply from the user may change
    what the note asks for. A `scene` or `all` note may need the same change in several places.
-4. **If you are unsure what the user wants, ask rather than guess.** Add a reply asking one clear
-   question and set the status to `"question"`. Do not change the script for that note yet.
+4. **If you are unsure what the user wants, ask rather than guess:**
+   `npx tourwright reply <name> <id> --question "one clear question"`. Do not change the script for
+   that note yet.
 5. Otherwise make the change in `script.json` (or the stage, if the note is about what is on
    screen), then verify, and check in `screen.md` that the still nearest the note now shows what the
    note asked for.
-6. **Record what you did.** Add a reply saying in one line what you changed, and set the status to
-   `"fixed"`:
-
-   ```json
-   { "status": "fixed", "replies": [ { "from": "agent", "text": "Zoomed to 2x on the stat cards at the cards cue.", "at": "2026-01-15T10:00:00Z" } ] }
-   ```
-
-   Append to `"replies"`; never edit or remove earlier ones. Muse shows your reply at once.
-7. **Never set `"closed"`.** Only the user approves a fix. Leave `fixed`, `question` and `closed`
-   notes alone unless the user replies again, which moves the note back to `open`. If you disagree
-   with a note, say why in a reply and set it to `"question"`.
+6. **Record what you did:** `npx tourwright reply <name> <id> --fixed "Zoomed to 2x on the stat
+   cards at the cards cue."` It adds your reply and marks the note fixed; Muse shows it at once.
+   Use it rather than editing `notes.json` by hand.
+7. **Only the user closes a note**, by approving it in Muse; `reply` refuses a closed one. Leave
+   `fixed` and `question` notes alone unless the user replies again, which moves the note back to
+   `open`. If you disagree with a note, say why with `--question`.
 
 **The video is finished only when the user has approved it.** `review.json` records the user's
 verdict with a `scriptHash` of the `script.json` it was given for, and it counts only while that

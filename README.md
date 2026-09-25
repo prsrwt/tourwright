@@ -84,6 +84,7 @@ npm install --no-save tourwright ffmpeg-static
 | `doctor` | Report ffmpeg, the browser and the voice. `--voice` downloads the model and speaks a test sentence. |
 | `muse <name>` | Open Muse, the review page, in a browser tab (`studio` works too): play it with narration and captions, click a target to move the camera or highlight to it, edit beats and narration, leave notes for the agent pinned to the millisecond (or on a clicked target), talk each one through with the agent, and approve the video |
 | `notes <name>` | List the notes left in Muse by status, questions first, with their threads, and whether the current version is approved |
+| `reply <name> <id>` | Answer a note left in Muse: `--fixed "what changed"` or `--question "what you need to know"`. Only the user closes a note |
 | `inspect <stage>` | List a stage's targets, its components' props with their real types, and which could move in a video |
 | `scaffold <page-file>` | Draft a stage from a page component's own sections, with typed placeholder fixtures |
 

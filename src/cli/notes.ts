@@ -49,10 +49,9 @@ export function runNotes(config: ResolvedConfig, name: string, options: { json: 
   }
   console.log(
     [
-      'To answer a note, edit the notes file. Add a reply to its "replies": { "from": "agent", "text": "...", "at": "<ISO time>" }, then set its "status":',
-      '- "fixed" once you have made the change, with a reply saying what you changed;',
-      '- "question" if you are unsure what the user wants, with a reply asking them.',
-      'Never set "closed": only the user approves a fix.',
+      `To answer a note: npx tourwright reply ${name} <id> --fixed "what you changed" once it is done,`,
+      `or npx tourwright reply ${name} <id> --question "what you need to know" if you are unsure what the user wants.`,
+      'Only the user closes a note, by approving it in Muse.',
     ].join('\n'),
   );
   return 0;

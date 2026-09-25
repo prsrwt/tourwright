@@ -126,7 +126,8 @@ test('notes: old files still read, questions come first, and the review is state
   assert.deepEqual([...order].sort((a, b) => a - b), order, 'questions, then open, fixed and closed');
   assert.match(out, /\[todo\] .*, about the whole scene\n {2}on target "stats", on screen at x 10, y 20, 300 by 90/);
   assert.match(out, /Agent: Which card\?/);
-  assert.match(out, /Never set "closed"/);
+  assert.match(out, /npx tourwright reply intro <id> --fixed "what you changed"/);
+  assert.match(out, /Only the user closes a note/);
 
   // An approval counts only for the script it was given for.
   const script = join(config.walkthroughs, 'intro', 'script.json');
@@ -139,6 +140,31 @@ test('notes: old files still read, questions come first, and the review is state
 
   writeFileSync(notes, JSON.stringify({ notes: [note('bad', 'finished')] }));
   assert.throws(() => readNotes(config, 'intro'), /has the status "finished"\.\nFix: use one of "open", "question", "fixed", "closed"\./);
+});
+
+test('reply answers a note in one command, and never closes one', async () => {
+  const { readNotes } = await import('../src/studio/server.ts');
+  const { runReply } = await import('../src/cli/reply.ts');
+  const dir = tempApp({ dependencies: { react: '19.0.0' } });
+  silently(() => runInit(dir));
+  const config = resolveConfig({}, join(dir, 'tourwright.config.mts'), {});
+  const note = (id: string, status: string) => ({ id, ms: 1000, frame: 30, scene: 'welcome', sceneIndex: 0, text: `note ${id}`, status, scope: 'moment', replies: [], created: '' });
+  writeFileSync(join(config.walkthroughs, 'intro', 'notes.json'), JSON.stringify({ notes: [note('a', 'open'), note('b', 'open'), note('c', 'closed')] }));
+
+  assert.equal(silently(() => runReply(config, 'intro', 'a', { fixed: 'Zoomed to 2x on the stats.' })), 0);
+  assert.equal(silently(() => runReply(config, 'intro', 'b', { question: 'All three cards, or only Overdue?' })), 0);
+  const [a, b, c] = readNotes(config, 'intro');
+  assert.equal(a?.status, 'fixed');
+  assert.deepEqual(a?.replies.map((r) => [r.from, r.text]), [['agent', 'Zoomed to 2x on the stats.']]);
+  assert.equal(b?.status, 'question');
+  assert.equal(c?.status, 'closed');
+
+  // A closed note, an unknown id, and a reply that is neither or both, are refused.
+  assert.throws(() => runReply(config, 'intro', 'c', { fixed: 'Again.' }), /Note "c" is closed[^]*Fix:/);
+  assert.throws(() => runReply(config, 'intro', 'zz', { fixed: 'x' }), /There is no note "zz"[^]*Notes: a, b, c\.[^]*Fix:/);
+  assert.equal(silently(() => runReply(config, 'intro', 'a', {})), 1);
+  assert.equal(silently(() => runReply(config, 'intro', 'a', { fixed: 'x', question: 'y' })), 1);
+  assert.equal(readNotes(config, 'intro')[2]?.replies.length, 0, 'the closed note is untouched');
 });
 
 test('ffmpeg-static installed without its binary gets the fix that works', async () => {

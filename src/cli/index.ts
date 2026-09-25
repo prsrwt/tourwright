@@ -29,6 +29,8 @@ Commands:
   muse <name>     Open Muse: watch, edit, leave notes on and approve a walkthrough in the browser
                   (--no-open; "studio" still works)
   notes <name>    List the notes left in Muse by status, questions first, and the review
+  reply <name> <id> --fixed "..." | --question "..."
+                  Answer a note: say what you changed, or ask what you need to know
 
 Options:
   --json          Machine-readable output (check, verify, describe, inspect, notes)
@@ -56,6 +58,8 @@ async function main(argv: string[]): Promise<number> {
       // Set by make when it starts Muse in the background; not for typing.
       background: { type: 'boolean', default: false },
       idle: { type: 'string' },
+      fixed: { type: 'string' },
+      question: { type: 'string' },
       help: { type: 'boolean', short: 'h', default: false },
     },
   });
@@ -122,6 +126,15 @@ async function main(argv: string[]): Promise<number> {
       if (!n) return 1;
       const { runNotes } = await import('./notes.ts');
       return runNotes(await config(), n, { json: values.json });
+    }
+    case 'reply': {
+      const n = needName();
+      if (!n) return 1;
+      const { runReply } = await import('./reply.ts');
+      return runReply(await config(), n, positionals[2], {
+        ...(values.fixed !== undefined && { fixed: values.fixed }),
+        ...(values.question !== undefined && { question: values.question }),
+      });
     }
     case 'scaffold': {
       if (!name) {

@@ -55,6 +55,11 @@ function upgradeNote(raw: unknown, where: string): Note {
   return { ...note, scope, status: status as Note['status'], replies } as Note;
 }
 
+/** Writes the notes back, in the shape readNotes returns. Muse, if open, shows the change at once. */
+export function writeNotes(config: ResolvedConfig, name: string, notes: Note[]): void {
+  writeFileSync(notesPath(config, name), JSON.stringify({ notes } satisfies NotesFile, null, 2) + '\n');
+}
+
 export interface Studio {
   handle(req: IncomingMessage, res: ServerResponse, next: () => void): void;
   close(): void;
