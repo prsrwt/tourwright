@@ -53,9 +53,10 @@ reuses the last screenshot when it has not changed. The intro renders in 16.7 s 
 6. The SwiftCause GASDS tour is re-made with Tourwright at parity with the Remotion version. Only
    then does `tools/walkthrough` get deleted there. *In progress: a trial run fed fixes back into
    Tourwright; parity is not yet recorded.*
-7. A 60-second tour renders within an agreed budget on a laptop. *Measured with `npm run bench`:
-   0.67 s of rendering per second of 1080p video on a 4-core Linux machine (the 25 s intro in
-   16.7 s). Proposed budget, still to agree: at most 1 s of rendering per second of video.*
+7. A 60-second tour renders within an agreed budget on a laptop. The budget, agreed on 2026-09-25:
+   at most 1 s of rendering per second of video, so a 60-second tour renders in a minute or less.
+   *Measured with `npm run bench`: 0.67 s of rendering per second of 1080p video on a 4-core Linux
+   machine (the 25 s intro in 16.7 s), within budget. A run on a laptop is still to record.*
 8. No em dashes or en dashes anywhere in the repo. *Done: a test enforces it.*
 
 ## v0.2
