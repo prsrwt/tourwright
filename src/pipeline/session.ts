@@ -3,7 +3,7 @@
 
 import type { Diagnostic } from '../check/diagnostic.ts';
 import type { ResolvedConfig } from '../config/config.ts';
-import { startStageServer, type StageServer } from '../bundle/server.ts';
+import { loadedFiles, startStageServer, type StageServer } from '../bundle/server.ts';
 import { openPlayer, type PlayerPage } from '../render/page.ts';
 import { targetDiagnostics } from '../verify/targets.ts';
 import type { Prepared } from './prepare.ts';
@@ -12,6 +12,8 @@ export interface Session {
   player: PlayerPage;
   /** Stage and target problems. Errors mean nothing should be rendered. */
   diagnostics: Diagnostic[];
+  /** The app's files the stage server has loaded so far: what a render made now is made from. */
+  sources(): string[];
   close(): Promise<void>;
 }
 
@@ -29,6 +31,7 @@ export async function openSession(config: ResolvedConfig, prepared: Prepared, lo
   return {
     player,
     diagnostics,
+    sources: () => loadedFiles(server.vite, config),
     async close() {
       await player.close();
       await server.close();

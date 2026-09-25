@@ -182,11 +182,15 @@ test('make --require-approval refuses a version not approved in Muse, before doi
     const script = readFileSync(join(config.walkthroughs, 'intro', 'script.json'), 'utf8');
     writeReview(config, 'intro', { status: 'changes-requested', scriptHash: hashScript(script), at: '2026-01-02T09:30:00Z', comment: 'Slower.' });
     assert.equal(await runMake(config, 'intro', { requireApproval: true }), 1);
+    // Approved, but the final video with the silent stand-in voice would be no use.
+    writeReview(config, 'intro', { status: 'approved', scriptHash: hashScript(script), at: '2026-01-02T09:30:00Z' });
+    assert.equal(await runMake({ ...config, voice: { backend: 'fake' } }, 'intro', { requireApproval: true }), 1);
   } finally {
     console.error = error;
   }
   assert.match(errors[0]!, /^Not rendered: --require-approval renders only a version approved in Muse\. Review: not reviewed yet\.[^]*Fix: ask the user to review it in Muse/);
   assert.match(errors[1]!, /Review: changes requested on 2026-01-02 09:30 UTC: "Slower\."/);
+  assert.match(errors[2]!, /^Not rendered: --require-approval makes the final video, which needs the real voice[^]*Fix: run it again without --fake-voice\.$/);
 });
 
 test('check --fix applies the fixes with one right answer, and leaves the rest', async () => {

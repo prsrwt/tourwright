@@ -144,6 +144,10 @@ agent can read and write:
   files that changed. Muse does not watch the app's files, so a review is refused (and the stage
   reloaded) when one was written after the tab loaded the stage: nobody approves code they have
   not seen.
+- `out/<name>/render.json`: what the MP4 beside it was made from (the same file hashes, taken from
+  the render's own stage server) and which voice narrated it. `wait` calls the MP4 the approved
+  version only when the approval and this record both match the files as they are now and the
+  voice was the real one; `make --require-approval` refuses the silent stand-in.
 
 ### Cue timing
 

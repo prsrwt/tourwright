@@ -69,7 +69,7 @@ something that needs you, says what happened and what to do next, and its exit c
 
 | Exit | What happened | What you do |
 | --- | --- | --- |
-| 0 | The user approved the current version | The video is finished. If it says the MP4 is older than the approved script (they edited in Muse), render the final cut with `make <name> --require-approval --no-review`. Tell the user it is done, then carry on with the rest of your task. Don't ask them to review it again |
+| 0 | The user approved the current version | The video is finished. If it says the MP4 is not the approved version (it was rendered before an edit, or with `--fake-voice`), render the final cut with `make <name> --require-approval --no-review`, with the real voice. Tell the user it is done, then carry on with the rest of your task. Don't ask them to review it again |
 | 2 | They sent you their notes (the "Send notes to the agent" button), answered your question, said a fix is "Not fixed yet", or reopened a note | It prints those notes in full, as `notes` would: handle each as above from step 2, `make` it again, then `wait` again |
 | 3 | Nothing yet, after `--timeout` (540 s by default, just under the longest command Claude Code runs) | Run `wait` again. Run it in the background if your tools can, so you can keep talking to the user |
 

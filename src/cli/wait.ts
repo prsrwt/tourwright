@@ -3,7 +3,7 @@
 // and what to do next, with an exit code a script or agent can branch on. Without it an agent
 // hands the video over and never hears that it was approved, or keeps asking.
 
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { dirname, relative } from 'node:path';
 import type { ResolvedConfig } from '../config/config.ts';
 import { scriptPath } from '../config/walkthroughs.ts';
@@ -12,7 +12,7 @@ import type { Note, Review } from '../studio/protocol.ts';
 import { formatReview, reviewState, type ReviewState } from '../studio/review.ts';
 import { readNotes } from '../studio/server.ts';
 import { printNote } from './notes.ts';
-import { videoPath } from './render.ts';
+import { finalVideo } from '../render/record.ts';
 
 /** Exit codes, so a caller can branch without reading the text. */
 export const WAIT = { approved: 0, feedback: 2, timeout: 3 } as const;
@@ -99,14 +99,14 @@ export async function runWait(config: ResolvedConfig, name: string, options: Wai
 
 function approved(config: ResolvedConfig, name: string, state: ReviewState): number {
   console.log(`${formatReview(name, state)}\n`);
-  const video = videoPath(config, name);
-  const shown = relative(process.cwd(), video) || video;
-  // Edits made in Muse change script.json after the last render, so the MP4 may be an earlier cut.
-  const fresh = existsSync(video) && statSync(video).mtimeMs >= statSync(scriptPath(config, name)).mtimeMs;
+  // Edits made in Muse change script.json after the last render, and a draft has the silent voice,
+  // so the MP4 on disk is the final video only when its render record says so.
+  const video = finalVideo(config, name, state);
+  const shown = relative(process.cwd(), video.file) || video.file;
   console.log(
-    fresh
+    video.ready
       ? `Done: "${name}" is finished, and ${shown} is the approved version. Tell the user it is finished and carry on with what comes next. There is nothing more to ask about this video.`
-      : `Done: the user approved "${name}". ${existsSync(video) ? `${shown} is older than the approved script.json, so` : 'There is no video yet, so'} render the final cut with "npx tourwright make ${name} --require-approval --no-review", then tell the user it is finished and carry on with what comes next.`,
+      : `Done: the user approved "${name}". ${video.why}, so render the final cut with "npx tourwright make ${name} --require-approval --no-review" (with the real voice, so without --fake-voice), then tell the user it is finished and carry on with what comes next.`,
   );
   return WAIT.approved;
 }

@@ -2,11 +2,12 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runInit } from '../src/cli/init.ts';
 import { videoPath } from '../src/cli/render.ts';
+import { readRenderRecord, renderRecordPath, writeRenderRecord } from '../src/render/record.ts';
 import { runWait, WAIT } from '../src/cli/wait.ts';
 import { resolveConfig, type ResolvedConfig } from '../src/config/config.ts';
 import { hashScript, writeReview } from '../src/studio/review.ts';
@@ -50,17 +51,24 @@ test('wait ends when the user approves, and says the video is finished', async (
   assert.match(approved.out, /Review: approved on 2026-09-25 09:00 UTC/);
   assert.match(approved.out, /Done: the user approved "intro"\. There is no video yet, so render the final cut with "npx tourwright make intro --require-approval --no-review"/);
 
-  // Already approved: it returns at once. With a video rendered from this script, nothing is left.
+  // A video with nothing recording what it was made from may be an earlier cut.
   mkdirSync(config.out, { recursive: true });
   writeFileSync(videoPath(config, 'intro'), '');
+  assert.match((await wait(config)).out, /Nothing records what .*intro\.mp4 was made from \(an older Tourwright rendered it\), so render the final cut/);
+
+  // Already approved: it returns at once. With a video rendered from this version, nothing is left.
+  writeRenderRecord(config, 'intro', []);
   const again = await wait(config);
   assert.equal(again.code, WAIT.approved);
   assert.doesNotMatch(again.out, /Waiting/);
   assert.match(again.out, /Done: "intro" is finished, and .*intro\.mp4 is the approved version\. .*carry on with what comes next/);
 
-  // A video older than the script it was approved for is an earlier cut.
-  utimesSync(videoPath(config, 'intro'), new Date(0), new Date(0));
-  assert.match((await wait(config)).out, /intro\.mp4 is older than the approved script\.json, so render the final cut/);
+  // A draft with the silent voice is not the final video, nor is one rendered before a file changed.
+  writeRenderRecord({ ...config, voice: { backend: 'fake' } }, 'intro', []);
+  assert.match((await wait(config)).out, /intro\.mp4 has the silent stand-in voice \(--fake-voice\), so render the final cut .*without --fake-voice/);
+  const record = readRenderRecord(config, 'intro')!;
+  writeFileSync(renderRecordPath(config, 'intro'), JSON.stringify({ ...record, voice: 'kokoro', inputs: { ...record.inputs, 'tourwright/walkthroughs/intro/script.json': 'an earlier one' } }));
+  assert.match((await wait(config)).out, /intro\.mp4 was rendered before tourwright\/walkthroughs\/intro\/script\.json changed, so render the final cut/);
 });
 
 test('wait ends on a new request for changes, not on one made before it started', async () => {
