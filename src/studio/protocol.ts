@@ -115,6 +115,37 @@ export interface StudioState {
    * fixture the agent edited: the review then no longer counts, as with an edit to the script.
    */
   reviewChanged: string[];
+  /** Whether the MP4 on disk is the final video: the approved version, with the real voice. */
+  final: FinalState;
+  /** The final render Muse started, while it runs and once it has finished. */
+  render?: RenderJob;
+  /**
+   * After an approval, when the MP4 is not the final video yet: "pending" while Muse asks whether
+   * to render it now, "declined" once the reviewer said not now. An agent waiting on the review
+   * leaves the render to Muse meanwhile.
+   */
+  renderOffer?: 'pending' | 'declined';
+}
+
+export interface FinalState {
+  ready: boolean;
+  /** Why it is not the final video, when it is not. */
+  why?: string;
+  /** Where the MP4 goes, relative to the app's root. */
+  file: string;
+}
+
+/** A final render that Muse runs: make, with the real voice, for the approved version. */
+export interface RenderJob {
+  status: 'running' | 'done' | 'failed';
+  /** What it is doing now, in a few words. */
+  step: string;
+  /** How far through the frames, 0 to 100. */
+  percent: number;
+  started: string;
+  finished?: string;
+  /** With "failed": what make said, its last lines. */
+  error?: string;
 }
 
 /** walkthroughs/<name>/review.json: the user's verdict on one exact version of script.json. */

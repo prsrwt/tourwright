@@ -69,9 +69,15 @@ something that needs you, says what happened and what to do next, and its exit c
 
 | Exit | What happened | What you do |
 | --- | --- | --- |
-| 0 | The user approved the current version | The video is finished. If it says the MP4 is not the approved version (it was rendered before an edit, or with `--fake-voice`), render the final cut with `make <name> --require-approval --no-review`, with the real voice. Tell the user it is done, then carry on with the rest of your task. Don't ask them to review it again |
-| 2 | They sent you their notes (the "Send notes to the agent" button), answered your question, said a fix is "Not fixed yet", or reopened a note | It prints those notes in full, as `notes` would: handle each as above from step 2, `make` it again, then `wait` again |
+| 0 | The user approved the current version | The video is finished. Do what the last line says: if Muse rendered the final video, or the user chose not to render it yet, there is nothing to render. Only if it says to, render the final cut with `make <name> --require-approval --no-review`, with the real voice. Tell the user it is done, then carry on with the rest of your task. Don't ask them to review it again |
+| 2 | They sent you their notes (the "Send notes to the agent" button), answered your question, said a fix is "Not fixed yet", or reopened a note. Or the final render they started in Muse failed | It prints those notes in full, as `notes` would: handle each as above from step 2, `make` it again, then `wait` again. For a failed render it prints the error: fix it, then render the final cut as it says |
 | 3 | Nothing yet, after `--timeout` (540 s by default, just under the longest command Claude Code runs) | Run `wait` again. Run it in the background if your tools can, so you can keep talking to the user |
+
+When the user approves a version and the MP4 is not that version yet, Muse asks them whether to
+render the final video now, lists anything still in progress (open notes, questions waiting on
+them, fixes they have not checked), and renders it itself with the real voice if they say so.
+Meanwhile `wait` keeps waiting rather than tell you to render it too: never render the final cut
+while `wait` says Muse is asking or rendering.
 
 If the video is already approved, `wait` returns 0 at once, so it is always safe to run. A request
 for changes the user made before you started waiting does not end the wait: that one you have

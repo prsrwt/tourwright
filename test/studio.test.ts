@@ -260,6 +260,13 @@ test('the studio plays back, edits script.json, and pins notes to the millisecon
     await reviewBar.getByText(/notes are not closed yet/).waitFor();
     await reviewBar.getByRole('button', { name: 'Approve anyway' }).click();
     await reviewBar.getByText('Approved: finished', { exact: true }).waitFor();
+    // Approved, with no final video yet: Muse asks whether to render it, saying what is still open.
+    const offer = page.locator('[data-render-dialog]');
+    await offer.getByText('Render the final video?').waitFor();
+    assert.match((await offer.locator('[data-in-progress]').textContent())!, /notes? still open, not fixed yet/);
+    await offer.getByRole('button', { name: 'Not now' }).click();
+    await offer.waitFor({ state: 'detached' });
+    await reviewBar.getByRole('button', { name: 'Render the final video' }).waitFor();
     const approved = JSON.parse(readFileSync(reviewFile, 'utf8')) as Review;
     const { scriptHash } = (await (await fetch(`${origin}${API}/state`)).json()) as { scriptHash: string };
     assert.equal(approved.status, 'approved');

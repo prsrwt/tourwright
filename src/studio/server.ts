@@ -3,7 +3,7 @@
 // up at once. script.json stays the single source of truth.
 
 import { randomUUID } from 'node:crypto';
-import { existsSync, readFileSync, watch, writeFileSync, type FSWatcher } from 'node:fs';
+import { createReadStream, existsSync, readFileSync, statSync, watch, writeFileSync, type FSWatcher } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { dirname, join } from 'node:path';
 import type { ResolvedConfig } from '../config/config.ts';
@@ -12,7 +12,9 @@ import { prepare, PrepareError } from '../pipeline/prepare.ts';
 import { buildSoundtrack } from '../timing/audio.ts';
 import { API, NOTE_SCOPES, NOTE_STATUSES, type NewNoteRequest, type Note, type NotesFile, type ReplyRequest, type Review, type ReviewRequest, type SaveScriptRequest, type StudioState } from './protocol.ts';
 import { changedInputs, fingerprint, inputKey, listFiles, writtenSince } from './fingerprint.ts';
-import { hashScript as hash, readReview, reviewPath, writeReview } from './review.ts';
+import { finalState, revealFile, startFinalRender, type FinalRender } from './final.ts';
+import { hashScript as hash, readReview, reviewPath, reviewState, writeReview } from './review.ts';
+import { videoPath } from '../render/record.ts';
 import { removeSnippet, snippetFile, snippets } from './snippet.ts';
 import { PLAYER_PATH } from '../bundle/server.ts';
 
@@ -70,6 +72,8 @@ export interface Studio {
   ready: Promise<void>;
   /** How many Muse tabs are connected now, by their live event streams. */
   connections(): number;
+  /** True while Muse is making the final video: it should not close itself meanwhile. */
+  busy(): boolean;
 }
 
 export interface StudioOptions {
@@ -77,13 +81,16 @@ export interface StudioOptions {
   reloadStage?: () => void;
   /** The app's files the preview has loaded (the stage, its fixtures, their imports), for a review to cover. */
   sources?: () => string[];
+  /** For tests: the process a final render runs, in place of make. */
+  renderCommand?: { file: string; args: string[] };
 }
 
 export function createStudio(config: ResolvedConfig, name: string, log: (line: string) => void, options: StudioOptions = {}): Studio {
   const file = scriptPath(config, name);
   const folder = dirname(file);
   const shots = snippets();
-  const state: StudioState = { name, version: 0, timelineVersion: 0, stageVersion: 0, scriptHash: '', script: undefined, diagnostics: [], preparing: false, notes: [], reviewChanged: [] };
+  const state: StudioState = { name, version: 0, timelineVersion: 0, stageVersion: 0, scriptHash: '', script: undefined, diagnostics: [], preparing: false, notes: [], reviewChanged: [], final: finalState(config, name) };
+  let render: FinalRender | undefined;
   // When the preview last loaded the stage code afresh. Muse does not watch the app's files, so
   // one written after this is not what the reviewer is looking at until the stage reloads.
   let stageLoadedAt: number | undefined;
@@ -211,7 +218,9 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
   return {
     ready,
     connections: () => listeners.size,
+    busy: () => render?.job.status === 'running',
     close() {
+      render?.cancel();
       void shots.close();
       for (const w of watchers) w.close();
       for (const res of listeners) res.end();
@@ -234,7 +243,17 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
         // script.json is compared by its hash on the page; the rest of what the review covered, here.
         const script = inputKey(config, file);
         state.reviewChanged = state.review?.inputs ? changedInputs(config, state.review.inputs).filter((f) => f !== script) : [];
+        state.final = finalState(config, name);
+        if (render) state.render = render.job;
         return send(200, state);
+      }
+      if (route === 'GET /video.mp4') {
+        const video = videoPath(config, name);
+        if (!existsSync(video)) return send(404, { error: 'There is no video yet.' });
+        res.setHeader('Content-Type', 'video/mp4');
+        res.setHeader('Content-Length', statSync(video).size);
+        res.setHeader('Cache-Control', 'no-store');
+        return void createReadStream(video).pipe(res);
       }
       const snippetRoute = /^GET \/notes\/([\w-]+)\/snippet$/.exec(route);
       if (snippetRoute) {
@@ -314,8 +333,34 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
           watchReview();
           state.review = review;
           delete state.reviewError;
+          // Approved, and the MP4 is not this version: ask whether to render it now. Set before
+          // anything else runs, so an agent that sees the approval also sees Muse is asking.
+          if (status === 'approved' && !finalState(config, name).ready && render?.job.status !== 'running') state.renderOffer = 'pending';
+          else delete state.renderOffer;
           changed();
           return send(200, review);
+        }
+        if (route === 'POST /render') {
+          if (render?.job.status === 'running') return send(409, { error: 'The final video is already being rendered.' });
+          if (!reviewState(config, name).approved) {
+            return send(409, { error: 'Only an approved version is rendered as the final video.\nFix: approve it at the top first.' });
+          }
+          render = startFinalRender(config, name, changed, options.renderCommand);
+          state.render = render.job;
+          delete state.renderOffer;
+          changed();
+          return send(200, render.job);
+        }
+        if (route === 'POST /render/decline') {
+          if (state.renderOffer) state.renderOffer = 'declined';
+          changed();
+          return send(200, {});
+        }
+        if (route === 'POST /reveal') {
+          const video = videoPath(config, name);
+          if (!existsSync(video)) return send(404, { error: 'There is no video yet.' });
+          revealFile(video);
+          return send(200, {});
         }
         if (route === 'POST /notes') {
           const { scope = 'moment', ...input } = body as NewNoteRequest;

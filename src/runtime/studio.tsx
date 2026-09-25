@@ -353,7 +353,9 @@ function Studio() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const typing = e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement;
-      if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
+      // A dialog open over the page has the keyboard to itself.
+      const inDialog = e.target instanceof Element && !!e.target.closest('[role="dialog"]');
+      if (typing || inDialog || e.ctrlKey || e.metaKey || e.altKey) return;
       const keys: Record<string, () => void> = {
         ' ': toggle,
         ArrowRight: () => (pause(), seek(frame + (e.shiftKey ? fps : 1))),
@@ -644,7 +646,150 @@ function ReviewBar({ state }: { state: StudioState }) {
           )}
         </>
       )}
+      {mode === 'idle' && <FinalVideo state={state} />}
       {error && <div style={{ width: '100%', textAlign: 'right', color: C.errText, whiteSpace: 'pre-wrap' }}>{error}</div>}
+    </div>
+  );
+}
+
+async function post(path: string): Promise<string | undefined> {
+  const res = await fetch(`${API}${path}`, { method: 'POST' });
+  return res.ok ? undefined : ((await res.json()) as { error: string }).error;
+}
+
+/**
+ * The final video, once this version is approved. Muse asks whether to render it now (saying what
+ * is still in progress, so nothing unfinished goes out by accident), renders it with the real
+ * voice, and then offers it to play or find on disk. No terminal needed.
+ */
+function FinalVideo({ state }: { state: StudioState }) {
+  const [asking, setAsking] = useState(false);
+  const [error, setError] = useState<string>();
+  const job = state.render;
+  const running = job?.status === 'running';
+  const approved = isCurrent(state) && state.review?.status === 'approved';
+  const dialog = approved && !running && !state.final.ready && (state.renderOffer === 'pending' || asking);
+  const render = async () => {
+    setAsking(false);
+    setError(await post('/render'));
+  };
+  const later = async () => {
+    setAsking(false);
+    setError(await post('/render/decline'));
+  };
+  let status: ReactNode = null;
+  if (running) {
+    status = (
+      <span data-render-status="" role="status" style={pill(C.peach, C.ink)}>
+        Rendering the final video: {job.step === 'Rendering' ? `${job.percent}%` : `${job.step.toLowerCase()}...`}
+      </span>
+    );
+  } else if (approved && state.final.ready) {
+    status = (
+      <>
+        <span data-render-status="" style={pill(C.okBg, C.okText)} title={state.final.file}>
+          Final video ready
+        </span>
+        <a href={`${API}/video.mp4`} target="_blank" rel="noreferrer" style={{ ...quiet, textDecoration: 'none', display: 'inline-block' }}>
+          Play it
+        </a>
+        <button style={quiet} title={state.final.file} onClick={() => void post('/reveal').then(setError)}>
+          Show in folder
+        </button>
+      </>
+    );
+  } else if (approved) {
+    status = (
+      <>
+        {job?.status === 'failed' && (
+          <span data-render-status="" style={pill(C.errBg, C.errText)} title={job.error}>
+            The render failed
+          </span>
+        )}
+        <button data-action="render" style={primary} onClick={() => setAsking(true)}>
+          {job?.status === 'failed' ? 'Try the render again' : 'Render the final video'}
+        </button>
+      </>
+    );
+  }
+  return (
+    <>
+      {status}
+      {error && <span style={{ color: C.errText, whiteSpace: 'pre-wrap' }}>{error}</span>}
+      {dialog && <RenderDialog state={state} onRender={() => void render()} onLater={() => void later()} />}
+    </>
+  );
+}
+
+/** What is still being worked on, in a line each: what a final video made now would leave out. */
+function inProgress(state: StudioState): string[] {
+  const count = (status: NoteStatus) => state.notes.filter((n) => n.status === status).length;
+  const notes = (n: number) => `${n} note${n === 1 ? '' : 's'}`;
+  const problems = state.diagnostics.filter((d) => d.level === 'error').length;
+  return [
+    ...(count('open') ? [`${notes(count('open'))} still open, not fixed yet`] : []),
+    ...(count('question') ? [`The agent is waiting for your answer on ${notes(count('question'))}`] : []),
+    ...(count('fixed') ? [`${count('fixed') === 1 ? '1 fix' : `${count('fixed')} fixes`} from the agent you have not checked yet`] : []),
+    ...(state.preparing ? ['The narration for the latest edit is still being voiced'] : []),
+    ...(state.error ? ['The latest edit could not be prepared (see Scenes)'] : []),
+    ...(problems ? [`${problems === 1 ? '1 problem' : `${problems} problems`} to fix first (see Scenes)`] : []),
+  ];
+}
+
+/** A rough time for the render: voicing, checking every scene, and about a second per second of video. */
+function roughTime(timeline: Timeline | undefined): string {
+  if (!timeline) return 'a few minutes';
+  const minutes = Math.ceil(((timeline.frames / timeline.fps) * 1.2 + 20) / 60);
+  return minutes <= 1 ? 'about a minute' : `about ${minutes} minutes`;
+}
+
+function RenderDialog({ state, onRender, onLater }: { state: StudioState; onRender: () => void; onLater: () => void }) {
+  const pending = inProgress(state);
+  const failed = state.render?.status === 'failed' ? state.render.error : undefined;
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: C.shade, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: S.gap * 2, zIndex: 50 }}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="render-title"
+        data-render-dialog=""
+        onKeyDown={(e) => e.key === 'Escape' && onLater()}
+        style={{ ...card, width: 460, maxWidth: '100%', padding: S.gap * 3, boxShadow: `0 12px 32px ${C.shadow}`, textAlign: 'left', whiteSpace: 'normal', color: C.ink }}
+      >
+        <h2 id="render-title" style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
+          Render the final video?
+        </h2>
+        <p style={{ margin: `${S.gap}px 0 ${S.gap * 2}px`, color: C.muted, lineHeight: 1.5 }}>
+          Muse makes <span style={{ color: C.ink, fontWeight: 600 }}>{state.final.file}</span> with the real voice. It takes {roughTime(state.timeline)}, and you can keep using Muse meanwhile.
+        </p>
+        {pending.length ? (
+          <div data-in-progress="" style={{ background: C.warnBg, color: C.warnText, borderRadius: S.radius, padding: S.gap * 1.5, marginBottom: S.gap * 2 }}>
+            <div style={{ fontWeight: 700 }}>Still in progress</div>
+            <ul style={{ margin: `${S.gap / 2}px 0`, paddingLeft: 20, lineHeight: 1.5 }}>
+              {pending.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+            <div>A video rendered now would not include any of that.</div>
+          </div>
+        ) : (
+          <p style={{ margin: `0 0 ${S.gap * 2}px` }}>Nothing is left in progress: every note is closed.</p>
+        )}
+        {failed && (
+          <details style={{ marginBottom: S.gap * 2 }}>
+            <summary style={{ cursor: 'pointer', color: C.errText }}>Why the last try failed</summary>
+            <pre style={{ whiteSpace: 'pre-wrap', fontSize: S.small, background: C.track, padding: S.gap, borderRadius: S.radius, maxHeight: 200, overflow: 'auto' }}>{failed}</pre>
+          </details>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: S.gap }}>
+          <button style={quiet} onClick={onLater}>
+            Not now
+          </button>
+          <button data-action="render-now" style={primary} autoFocus onClick={onRender}>
+            {pending.length ? 'Render anyway' : 'Render now'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

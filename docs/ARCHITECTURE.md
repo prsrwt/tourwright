@@ -148,6 +148,13 @@ agent can read and write:
   the render's own stage server) and which voice narrated it. `wait` calls the MP4 the approved
   version only when the approval and this record both match the files as they are now and the
   voice was the real one; `make --require-approval` refuses the silent stand-in.
+- The final render from Muse. Once the reviewer approves a version whose MP4 is not the final video,
+  Muse asks whether to render it now, listing what is still in progress, and on a yes runs
+  `make <name> --require-approval --no-review` as its own process with the real voice (Muse may be
+  running with the stand-in), reporting each step and the percentage on the page. The question is
+  held in Muse's state (`renderOffer`), so `wait` can see it: while Muse is asking or rendering,
+  the agent waits instead of rendering a second copy. A background Muse does not close itself
+  while it renders.
 
 ### Cue timing
 

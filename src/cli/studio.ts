@@ -46,10 +46,11 @@ export async function runStudio(config: ResolvedConfig, name: string, options: S
     process.once('SIGTERM', stop);
     if (options.background) {
       // A tab keeps an event stream open, so no streams for the whole wait means nobody is looking.
+      // A final render still running keeps it open too: closing would stop it halfway.
       const idle = (options.idleSeconds ?? MUSE_IDLE_SECONDS) * 1000;
       let lastSeen = Date.now();
       const timer = setInterval(() => {
-        if (studio.connections() > 0) lastSeen = Date.now();
+        if (studio.connections() > 0 || studio.busy()) lastSeen = Date.now();
         else if (Date.now() - lastSeen >= idle) {
           clearInterval(timer);
           stop();
