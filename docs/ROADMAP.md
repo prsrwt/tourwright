@@ -40,8 +40,10 @@ reuses the last screenshot when it has not changed. The intro renders in 16.7 s 
 
 1. A clean first run works on Windows and Ubuntu: `npx tourwright init`, then
    `npx tourwright make intro`, with no undocumented step. The README lists every first-run
-   download, its size and where it is cached. *CI makes the example on Ubuntu, Windows and macOS,
-   and tests cover `init`; a first run on a clean machine outside CI is still to record.*
+   download, its size and where it is cached. *Done on 2026-09-25: the first-run workflow follows
+   the README on fresh Ubuntu and Windows runners with the real voice, and all four jobs made the
+   intro ([docs/first-run.md](first-run.md)). One stand-in until Tourwright is on npm: it installs
+   a tarball of the same commit. Its first attempt found a model download bug, now fixed.*
 2. Lengthening a sentence and rendering again moves every later beat, with no time edited
    by hand. *Done: covered by the timeline tests.*
 3. Rendering the same script twice on the same machine produces identical frame hashes. *Done:
