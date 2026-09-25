@@ -1,0 +1,294 @@
+{
+  "title": "Your team dashboard",
+  "subtitle": "What Larkspur shows you each week",
+  "fps": 30,
+  "width": 1920,
+  "height": 1080,
+  "layout": {
+    "width": 1920,
+    "height": 1080,
+    "scale": 1
+  },
+  "titleFrames": 75,
+  "frames": 749,
+  "settings": {
+    "video": {
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "crf": 23
+    },
+    "voice": {
+      "voice": "af_bella",
+      "speed": 1,
+      "dtype": "fp32",
+      "sentenceGap": 0.3,
+      "tail": 0.7
+    },
+    "camera": {
+      "ease": "inOutCubic",
+      "duration": 0.9,
+      "lead": 0.4,
+      "padding": 48,
+      "maxZoom": 2.5
+    },
+    "highlight": {
+      "color": "#2563eb",
+      "stroke": 3,
+      "radius": 12,
+      "padding": 10,
+      "dim": 0.5,
+      "slide": 0.5,
+      "fade": 0.3
+    },
+    "captions": {
+      "mode": "burned",
+      "size": 40,
+      "position": "bottom"
+    },
+    "animate": {
+      "duration": 1.2,
+      "ease": "outCubic"
+    },
+    "title": {
+      "background": "#0f172a",
+      "color": "#ffffff",
+      "seconds": 2.5
+    }
+  },
+  "highlightFrames": {
+    "slide": 15,
+    "fade": 9
+  },
+  "scenes": [
+    {
+      "index": 0,
+      "id": "overview",
+      "stage": "dashboard",
+      "from": 75,
+      "frames": 203,
+      "sentences": [
+        {
+          "text": "This is the Larkspur dashboard.",
+          "spoken": "This is the Larkspur dashboard.",
+          "cues": [
+            "open"
+          ],
+          "file": "C:\\dev\\tourwright\\examples\\next-app\\tourwright\\out\\.cache\\voice\\95820df020e950ee52b3d284aa00e1c8.wav",
+          "samples": 53160,
+          "from": 75,
+          "frames": 67
+        },
+        {
+          "text": "It shows how your team's week is going at a glance.",
+          "spoken": "It shows how your team's week is going at a glance.",
+          "cues": [],
+          "file": "C:\\dev\\tourwright\\examples\\next-app\\tourwright\\out\\.cache\\voice\\d68b23986826caa1957154d995d160de.wav",
+          "samples": 84360,
+          "from": 151,
+          "frames": 106
+        }
+      ],
+      "cues": {
+        "start": 75,
+        "open": 75,
+        "end": 257
+      },
+      "beats": [
+        {
+          "index": 0,
+          "at": "open",
+          "cue": 75,
+          "camera": {
+            "to": "all",
+            "zoom": "fit",
+            "align": "center",
+            "ease": "inOutCubic",
+            "from": 75,
+            "frames": 27
+          }
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "id": "stats",
+      "stage": "dashboard",
+      "from": 278,
+      "frames": 240,
+      "sentences": [
+        {
+          "text": "These cards count your open, completed and overdue tasks.",
+          "spoken": "These cards count your open, completed and overdue tasks.",
+          "cues": [
+            "cards"
+          ],
+          "file": "C:\\dev\\tourwright\\examples\\next-app\\tourwright\\out\\.cache\\voice\\8544bc02430c31d2e46103fc866b28d8.wav",
+          "samples": 93720,
+          "from": 278,
+          "frames": 118
+        },
+        {
+          "text": "Overdue tasks are the ones to look at first.",
+          "spoken": "Overdue tasks are the ones to look at first.",
+          "cues": [
+            "overdue"
+          ],
+          "file": "C:\\dev\\tourwright\\examples\\next-app\\tourwright\\out\\.cache\\voice\\eecb060c31ff07e3889ea340d2580ac6.wav",
+          "samples": 73440,
+          "from": 405,
+          "frames": 92
+        }
+      ],
+      "cues": {
+        "start": 278,
+        "cards": 278,
+        "overdue": 405,
+        "end": 497
+      },
+      "beats": [
+        {
+          "index": 0,
+          "at": "cards",
+          "cue": 278,
+          "camera": {
+            "to": "stats",
+            "zoom": "fit",
+            "align": "center",
+            "ease": "inOutCubic",
+            "from": 278,
+            "frames": 27
+          },
+          "highlight": {
+            "to": "stats",
+            "from": 278
+          },
+          "animate": {
+            "values": [
+              "counts"
+            ],
+            "from": 305,
+            "frames": 36,
+            "ease": "outCubic"
+          }
+        },
+        {
+          "index": 1,
+          "at": "overdue",
+          "cue": 405,
+          "highlight": {
+            "to": "stat-overdue",
+            "from": 393
+          }
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "id": "tasks",
+      "stage": "dashboard",
+      "from": 518,
+      "frames": 231,
+      "sentences": [
+        {
+          "text": "Below them is every task due this week, with who owns it.",
+          "spoken": "Below them is every task due this week, with who owns it.",
+          "cues": [
+            "table"
+          ],
+          "file": "C:\\dev\\tourwright\\examples\\next-app\\tourwright\\out\\.cache\\voice\\bdc70149b018e6d28bae5d3681a94593.wav",
+          "samples": 93720,
+          "from": 518,
+          "frames": 118
+        },
+        {
+          "text": "The status shows where each one stands.",
+          "spoken": "The status shows where each one stands.",
+          "cues": [
+            "status"
+          ],
+          "file": "C:\\dev\\tourwright\\examples\\next-app\\tourwright\\out\\.cache\\voice\\ceaec6db313128db4f99c8bee6df755b.wav",
+          "samples": 65640,
+          "from": 645,
+          "frames": 83
+        }
+      ],
+      "cues": {
+        "start": 518,
+        "table": 518,
+        "status": 645,
+        "end": 728
+      },
+      "beats": [
+        {
+          "index": 0,
+          "at": "table",
+          "cue": 518,
+          "camera": {
+            "to": "tasks",
+            "zoom": "width",
+            "align": "top",
+            "ease": "inOutCubic",
+            "from": 518,
+            "frames": 27
+          },
+          "highlight": {
+            "to": "tasks",
+            "from": 518
+          }
+        },
+        {
+          "index": 1,
+          "at": "status",
+          "cue": 645,
+          "highlight": {
+            "to": "status-column",
+            "from": 633
+          }
+        },
+        {
+          "index": 2,
+          "at": "end",
+          "cue": 728,
+          "highlight": {
+            "to": false,
+            "from": 716
+          }
+        }
+      ]
+    }
+  ],
+  "captions": [
+    {
+      "text": "This is the Larkspur dashboard.",
+      "from": 75,
+      "to": 151
+    },
+    {
+      "text": "It shows how your team's week is going at a glance.",
+      "from": 151,
+      "to": 266
+    },
+    {
+      "text": "These cards count your open, completed and overdue tasks.",
+      "from": 278,
+      "to": 405
+    },
+    {
+      "text": "Overdue tasks are the ones to look at first.",
+      "from": 405,
+      "to": 506
+    },
+    {
+      "text": "Below them is every task due this week, with who owns it.",
+      "from": 518,
+      "to": 645
+    },
+    {
+      "text": "The status shows where each one stands.",
+      "from": 645,
+      "to": 737
+    }
+  ],
+  "areas": {}
+}

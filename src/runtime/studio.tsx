@@ -514,7 +514,7 @@ function TabButton({ id, current, onSelect, children }: { id: Tab; current: Tab;
 // ---------------------------------------------------------------------------------------------
 // Header: the wordmark, the walkthrough, and the whole video's review.
 
-function Header({ state, message }: { state: StudioState; message: string | undefined }) {
+export function Header({ state, message }: { state: StudioState; message: string | undefined }) {
   return (
     <header style={{ display: 'flex', alignItems: 'center', gap: S.gap * 1.5, padding: `${S.gap}px ${S.gap * 2}px`, minHeight: 56, background: C.surface, borderBottom: `1px solid ${C.line}`, flexWrap: 'wrap' }}>
       <span aria-hidden="true" style={{ width: 22, height: 22, borderRadius: '50%', background: C.peach, boxShadow: `inset 0 0 0 1px ${C.peachDeep}`, flex: 'none' }} />
@@ -743,7 +743,7 @@ function roughTime(timeline: Timeline | undefined): string {
   return minutes <= 1 ? 'about a minute' : `about ${minutes} minutes`;
 }
 
-function RenderDialog({ state, onRender, onLater }: { state: StudioState; onRender: () => void; onLater: () => void }) {
+export function RenderDialog({ state, onRender, onLater }: { state: StudioState; onRender: () => void; onLater: () => void }) {
   const pending = inProgress(state);
   const failed = state.render?.status === 'failed' ? state.render.error : undefined;
   return (
@@ -935,7 +935,7 @@ function Preview(props: {
 // Transport: play, the scrubber marked with scenes and beats, the time to the millisecond, and
 // what the reviewer controls about playback: speed, looping a scene, jumping between scenes.
 
-function Transport(props: {
+export function Transport(props: {
   timeline: Timeline;
   frame: number;
   playing: boolean;
@@ -1208,7 +1208,7 @@ const FILTERS: { id: Filter; label: string; statuses: NoteStatus[] }[] = [
 
 const SCOPE: Record<NoteScope, string> = { moment: 'this moment', scene: 'the whole scene', all: 'the whole video' };
 
-function Notes({
+export function Notes({
   state,
   timeline,
   api,
@@ -1220,6 +1220,7 @@ function Notes({
   onSeek,
   onPick,
   onWrite,
+  draft,
 }: {
   state: StudioState;
   timeline: Timeline | undefined;
@@ -1233,11 +1234,13 @@ function Notes({
   onPick: (done: (target: string) => void, area?: (rect: Rect) => void) => void;
   /** Called when the note box gets the cursor: playback pauses, so the note's moment holds still. */
   onWrite: () => void;
+  /** A note already being written, for showing Muse mid-note (the explainer video does). */
+  draft?: { text: string; attached?: { target?: string; rect: Rect; text: string[] } };
 }) {
-  const [text, setText] = useState('');
+  const [text, setText] = useState(draft?.text ?? '');
   const [scope, setScope] = useState<NoteScope>('moment');
   // Where the note points: a target, or a box drawn around anything, with the text inside it.
-  const [attached, setAttached] = useState<{ target?: string; rect: Rect; text: string[] }>();
+  const [attached, setAttached] = useState<{ target?: string; rect: Rect; text: string[] } | undefined>(draft?.attached);
   const [focused, setFocused] = useState(false);
   // The playhead to the millisecond: the audio clock while it has one, else the frame.
   const ms = () => Math.round(audio.current && !audio.current.paused ? audio.current.currentTime * 1000 : (frame / (timeline?.fps ?? 30)) * 1000);
@@ -1493,7 +1496,7 @@ function NoteCard({ note, sent, onSeek }: { note: Note; sent: boolean; onSeek: (
       {/* The part of the frame the note points at, as the agent sees it. */}
       {note.snippet && (
         <button onClick={() => onSeek(note.frame)} title="Jump to this moment" style={{ display: 'block', marginTop: S.gap, padding: 0, border: `1px solid ${C.line}`, borderRadius: S.radius, background: C.surface, cursor: 'pointer', maxWidth: '100%' }}>
-          <img data-snippet="" src={`${API}/notes/${note.id}/snippet?${note.snippet}`} alt={note.areaText?.join(' ') || 'The part of the screen this note points at'} style={{ display: 'block', maxWidth: '100%', maxHeight: 120, borderRadius: S.radius }} />
+          <img data-snippet="" src={/^(data|https?):/.test(note.snippet) ? note.snippet : `${API}/notes/${note.id}/snippet?${note.snippet}`} alt={note.areaText?.join(' ') || 'The part of the screen this note points at'} style={{ display: 'block', maxWidth: '100%', maxHeight: 120, borderRadius: S.radius }} />
         </button>
       )}
       {note.replies.map((r, i) => (

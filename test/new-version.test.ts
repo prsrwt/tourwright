@@ -36,7 +36,10 @@ test('a new version shows in the open tab, on the same sentence, with the stage 
     const counter = page.locator('span', { hasText: /^frame / }).first();
 
     // What a review covers: the app's files the preview loaded, and none of Tourwright's or node_modules'.
-    const loaded = loadedFiles(server.vite, config).map((f) => relative(app, f).split(sep).join('/'));
+    // The player in Muse's iframe may still be loading its modules when Muse's own page is ready.
+    const loadedNow = () => loadedFiles(server!.vite, config).map((f) => relative(app, f).split(sep).join('/'));
+    for (const deadline = Date.now() + 60_000; !loadedNow().includes('tourwright/fixtures.ts') && Date.now() < deadline; ) await new Promise((done) => setTimeout(done, 200));
+    const loaded = loadedNow();
     for (const file of ['tourwright/stages.tsx', 'tourwright/fixtures.ts', 'components/StatCards.tsx', 'app/globals.css']) assert.ok(loaded.includes(file), `${file} is not in ${loaded.join(', ')}`);
     assert.ok(loaded.every((f) => !f.includes('node_modules') && !f.startsWith('../')), loaded.join(', '));
     const shownFrame = async () => Number((await counter.textContent())!.replace('frame ', ''));

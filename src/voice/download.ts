@@ -119,7 +119,8 @@ async function downloadFile(file: string, path: string, options: DownloadOptions
         // pipeline discards what is still queued for it when the source fails, losing progress.
         const fd = openSync(partial, append ? 'a' : 'w');
         try {
-          for await (const chunk of response.body as AsyncIterable<Uint8Array>) {
+          // Node's web streams are async iterable; the DOM library's types (which the example app checks with) do not say so.
+          for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
             writeSync(fd, chunk);
             received += chunk.length;
             const percent = Math.floor((received / total) * 100);
