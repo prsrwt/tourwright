@@ -188,7 +188,9 @@ test('rendering the same script twice gives identical frames, and an MP4', { ski
     try {
       assert.deepEqual(session.diagnostics, []);
       const file = join(config.out, `short-${run}.mp4`);
-      const result = await renderVideo(prepared.timeline, session.player, { ffmpeg, file, workDir: prepared.outDir });
+      // The first run captures every frame; the second reuses a frame's screenshot when nothing on
+      // screen changed. Equal hashes prove that skipping repeats is exact.
+      const result = await renderVideo(prepared.timeline, session.player, { ffmpeg, file, workDir: prepared.outDir, skipIdentical: run === 2 });
       assert.ok(existsSync(file));
       assert.equal(result.frames, prepared.timeline.frames);
       hashes.push(readFileSync(result.hashFile, 'utf8'));
@@ -279,7 +281,8 @@ export default defineStages({
         assert.deepEqual(unchanged.map((d) => d.path), ['scenes[1].beats[2].animate']);
         assert.ok(report.stills.some((s) => s.label === 'flip-flip-before'), 'the moment before the flip has its own still');
       }
-      const result = await renderVideo(prepared.timeline, session.player, { ffmpeg: findFfmpeg(app)!, file: join(config.out, `toggle-${run}.mp4`), workDir: prepared.outDir });
+      // As above: the second run skips repeated frames, so a transition must still be captured whole.
+      const result = await renderVideo(prepared.timeline, session.player, { ffmpeg: findFfmpeg(app)!, file: join(config.out, `toggle-${run}.mp4`), workDir: prepared.outDir, skipIdentical: run === 2 });
       hashes.push(readFileSync(result.hashFile, 'utf8'));
     } finally {
       await session.close();
