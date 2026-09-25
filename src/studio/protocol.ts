@@ -52,6 +52,11 @@ export interface Note {
   rect?: Rect;
   /** What was on screen when the note was written, read from the player's page. */
   screen?: ScreenDescription;
+  /**
+   * For a note about a whole scene or the whole video: what is on screen once each beat in it has
+   * settled, labelled like verify's stills (scene-cue), since one moment cannot show all of it.
+   */
+  screens?: { label: string; screen: ScreenDescription }[];
   status: NoteStatus;
   /** The conversation about the note since it was written, oldest first. */
   replies: Reply[];
@@ -111,6 +116,7 @@ export interface NewNoteRequest {
   target?: string;
   rect?: Rect;
   screen?: ScreenDescription;
+  screens?: { label: string; screen: ScreenDescription }[];
 }
 
 /** A reply from the user, and the status it moves the note to: "open" by default, back to the agent. */

@@ -165,6 +165,8 @@ test('the studio plays back, edits script.json, and pins notes to the millisecon
     const onTarget = readNotesFile().find((n) => n.text === 'This card needs its label')!;
     assert.equal(onTarget.target, 'stat-overdue');
     assert.equal(onTarget.scope, 'scene');
+    // About the whole scene, so it also records each of the scene's beats as they settle.
+    assert.deepEqual(onTarget.screens?.map((s) => [s.label, s.screen.highlight?.target]), [['stats-cards', 'stats'], ['stats-overdue', 'stat-overdue']]);
     assert.equal(await starts(), 0, 'notes and replies restarted the player');
     assert.equal(await page.locator('audio').getAttribute('src'), soundtrack, 'notes and replies reloaded the soundtrack');
     const player = preview;

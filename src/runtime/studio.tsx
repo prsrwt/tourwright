@@ -707,7 +707,18 @@ function Notes({
     const sentence = scene ? sentenceAt(scene, f) : undefined;
     // What is on screen at the note's frame, so the agent can read it rather than guess.
     let screen: ScreenDescription | undefined;
+    let screens: { label: string; screen: ScreenDescription }[] | undefined;
     if (api) {
+      // A note about a whole scene, or the whole video, also gets each beat in it as it settles.
+      if (scope !== 'moment') {
+        const covered = scope === 'all' ? timeline.scenes : scene ? [scene] : [];
+        screens = covered.flatMap((s) =>
+          s.beats.map((beat) => {
+            api.setFrame(settle(timeline, s, beat), 'settle');
+            return { label: `${s.id}-${beat.at}`, screen: api.describe() };
+          }),
+        );
+      }
       api.setFrame(f, 'settle');
       screen = api.describe();
     }
@@ -721,6 +732,7 @@ function Notes({
       scope,
       ...(attached && { target: attached.target, rect: attached.rect }),
       ...(screen && { screen }),
+      ...(screens?.length && { screens }),
     };
     await fetch(`${API}/notes`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(note) });
     setText('');

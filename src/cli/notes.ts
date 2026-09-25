@@ -68,6 +68,8 @@ function printNote(note: Note): void {
   console.log(`  ${note.text.replace(/\n/g, '\n  ')}`);
   for (const reply of note.replies) console.log(`  ${reply.from === 'agent' ? 'Agent' : 'User'}: ${reply.text.replace(/\n/g, '\n    ')}`);
   if (note.screen) console.log(`  On screen at ${formatScreen(note.screen, '  ').trimStart()}`);
+  // A scene or whole-video note: the note is about each of these beats, not only its moment.
+  for (const { label, screen } of note.screens ?? []) console.log(`  At beat ${label}: ${formatScreen(screen, '  ').trimStart()}`);
   console.log('');
 }
 
