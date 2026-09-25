@@ -103,6 +103,24 @@ test('verify --fix corrects a misspelt target against the real components, and v
   assert.match(out.join('\n'), /typo: [\d.]+ s, 7 stills, 0 errors, 0 warnings\./);
 });
 
+test('verify says which stills changed since the last run, so only those need looking at', async () => {
+  const intro = JSON.parse(readFileSync(join(app, 'tourwright', 'walkthroughs', 'intro', 'script.json'), 'utf8'));
+  const config = setup({ again: intro });
+  const run = async () => verifyPrepared(config, await prepare(config, 'again'), quiet);
+  const first = await run();
+  assert.ok(first.stills.every((s) => s.change === 'new'));
+  const second = await run();
+  assert.ok(second.stills.every((s) => s.change === 'unchanged'), 'nothing changed, so nothing is reported as changed');
+  assert.match(readFileSync(second.files.screen, 'utf8'), /No still changed since the last verify\.[^]*## overview-open \(unchanged\)/);
+
+  // Point the second highlight somewhere else: only that beat's still changes.
+  intro.scenes[1].beats[1].highlight = 'stats';
+  writeFileSync(join(config.walkthroughs, 'again', 'script.json'), JSON.stringify(intro));
+  const third = await run();
+  assert.deepEqual(third.stills.filter((s) => s.change === 'changed').map((s) => s.label), ['stats-overdue']);
+  assert.match(readFileSync(third.files.screen, 'utf8'), /Changed since the last verify: stats-overdue\. The others are pixel for pixel the same\.[^]*## stats-overdue \(changed\)/);
+});
+
 test('describe reads what is on screen at a beat from the page', async () => {
   const base = setup({});
   const config = { ...base, walkthroughs: join(app, 'tourwright', 'walkthroughs') };

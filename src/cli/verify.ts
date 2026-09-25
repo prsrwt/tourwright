@@ -22,6 +22,10 @@ export function printVerifyReport(report: VerifyReport): void {
   const shown = (path: string) => relative(process.cwd(), path) || path;
   if (report.diagnostics.length) console.log(`${formatDiagnostics(report.diagnostics)}\n`);
   console.log(`${report.name}: ${report.seconds.toFixed(1)} s, ${report.stills.length} stills, ${report.errors} ${report.errors === 1 ? 'error' : 'errors'}, ${report.warnings} ${report.warnings === 1 ? 'warning' : 'warnings'}.`);
+  const changed = report.stills.filter((s) => s.change !== 'unchanged');
+  if (report.stills.some((s) => s.change !== 'new')) {
+    console.log(changed.length ? `Changed since the last verify: ${changed.map((s) => s.label).join(', ')}.` : 'No still changed since the last verify.');
+  }
   console.log(`  Contact sheet  ${shown(report.files.contactSheet)}  (look at this: every still, labelled)`);
   console.log(`  Timing         ${shown(report.files.timing)}  (each cue and the words heard around it)`);
   console.log(`  Screen         ${shown(report.files.screen)}  (what is on screen at each still, as text)`);
