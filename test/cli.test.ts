@@ -167,6 +167,28 @@ test('reply answers a note in one command, and never closes one', async () => {
   assert.equal(readNotes(config, 'intro')[2]?.replies.length, 0, 'the closed note is untouched');
 });
 
+test('make --require-approval refuses a version not approved in Muse, before doing any work', async () => {
+  const { runMake } = await import('../src/cli/make.ts');
+  const { writeReview, hashScript } = await import('../src/studio/review.ts');
+  const dir = tempApp({ dependencies: { react: '19.0.0' } });
+  silently(() => runInit(dir));
+  const config = resolveConfig({}, join(dir, 'tourwright.config.mts'), {});
+  const errors: string[] = [];
+  const { error } = console;
+  console.error = (line: string) => errors.push(line);
+  try {
+    assert.equal(await runMake(config, 'intro', { requireApproval: true }), 1);
+    // Changes requested is not an approval either.
+    const script = readFileSync(join(config.walkthroughs, 'intro', 'script.json'), 'utf8');
+    writeReview(config, 'intro', { status: 'changes-requested', scriptHash: hashScript(script), at: '2026-01-02T09:30:00Z', comment: 'Slower.' });
+    assert.equal(await runMake(config, 'intro', { requireApproval: true }), 1);
+  } finally {
+    console.error = error;
+  }
+  assert.match(errors[0]!, /^Not rendered: --require-approval renders only a version approved in Muse\. Review: not reviewed yet\.[^]*Fix: ask the user to review it in Muse/);
+  assert.match(errors[1]!, /Review: changes requested on 2026-01-02 09:30 UTC: "Slower\."/);
+});
+
 test('ffmpeg-static installed without its binary gets the fix that works', async () => {
   const { ffmpegMissing } = await import('../src/render/ffmpeg.ts');
   const dir = tempApp({});

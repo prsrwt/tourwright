@@ -34,7 +34,7 @@ Reference files, read when you reach the step that needs them:
 | `npx tourwright verify <name>` | Voice the narration, render a still at every beat, and check each against the live page |
 | `npx tourwright describe <name>` | Say in words what is on screen once each beat has settled, or at one moment with `--at <seconds>`: how much of the frame each target fills and whether it is cut off, the highlight and the text inside it, the caption and the stage's values |
 | `npx tourwright render <name>` | Render the MP4 |
-| `npx tourwright make <name>` | Check and verify, then render only if every still passes, then open Muse in the user's browser to review it (`--no-review` to skip) |
+| `npx tourwright make <name>` | Check and verify, then render only if every still passes, then open Muse in the user's browser to review it (`--no-review` to skip). For the final video once the user has approved it, add `--require-approval`: it refuses any other version |
 | `npx tourwright doctor` | Report ffmpeg, the browser and the voice, with the fix for anything missing |
 | `npx tourwright inspect <stage>` | List a stage's targets, every component it renders with each prop's type and what the stage passes, and the props that could move |
 | `npx tourwright muse <name>` | Open Muse, the review page, in the browser: play the walkthrough with narration, edit beats and narration, leave notes pinned to moments, and approve it. `studio` is the old name and still works |

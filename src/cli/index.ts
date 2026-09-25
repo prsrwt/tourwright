@@ -22,7 +22,8 @@ Commands:
   describe <name> Say what is on screen at every beat, or at one moment (--at <seconds>)
   render <name>   Render the MP4
   make <name>     Check and verify, then render if every still passes, and open Muse to review it
-                  (--no-review, or "review": false in the config, to leave Muse closed)
+                  (--no-review, or "review": false in the config, to leave Muse closed;
+                  --require-approval to render only a version approved in Muse)
   doctor          Check ffmpeg, the browser and the voice
   inspect <stage> List a stage's targets, its components' props, and what could move
   scaffold <page> Draft a stage from a page component's sections (--stage <name>)
@@ -55,6 +56,7 @@ async function main(argv: string[]): Promise<number> {
       at: { type: 'string' },
       open: { type: 'boolean', default: true },
       review: { type: 'boolean', default: true },
+      'require-approval': { type: 'boolean', default: false },
       // Set by make when it starts Muse in the background; not for typing.
       background: { type: 'boolean', default: false },
       idle: { type: 'string' },
@@ -158,7 +160,7 @@ async function main(argv: string[]): Promise<number> {
       const n = needName();
       if (!n) return 1;
       const { runMake } = await import('./make.ts');
-      return runMake(await config(), n, { review: values.review });
+      return runMake(await config(), n, { review: values.review, requireApproval: values['require-approval'] });
     }
     default:
       console.error(`Unknown command "${command}".\n\n${USAGE}`);
