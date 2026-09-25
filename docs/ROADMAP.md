@@ -49,7 +49,10 @@ reuses the last screenshot when it has not changed. The intro renders in 16.7 s 
 4. Fault injection is caught with a message that names the fix: a misspelt target, a target off
    screen, a blank page, a thrown error. *Done: the e2e tests inject each.*
 5. Claude Code, given only the skill, produces a tour of a second example screen that passes
-   `verify`, unattended. Keep the transcript. *Open: no transcript is kept yet.*
+   `verify`, unattended. Keep the transcript. *Done on 2026-09-25: the Team screen, in 33 turns
+   with no human input; verify passed with 0 errors and 0 warnings. Prompt, transcript and result
+   are in [docs/agent-runs/team](agent-runs/team/README.md). The voice was the fake one, because
+   that machine could not reach the model.*
 6. The SwiftCause GASDS tour is re-made with Tourwright at parity with the Remotion version. Only
    then does `tools/walkthrough` get deleted there. *In progress: a trial run fed fixes back into
    Tourwright; parity is not yet recorded.*

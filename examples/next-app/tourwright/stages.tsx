@@ -6,7 +6,8 @@ import { explainerStages } from './explainer/stages';
 import { AppShell } from '@/components/AppShell';
 import { StatCards } from '@/components/StatCards';
 import { TaskTable } from '@/components/TaskTable';
-import { dashboard } from './fixtures';
+import { TeamList } from '@/components/TeamList';
+import { dashboard, team } from './fixtures';
 
 export default defineStages({
   dashboard: defineStage({
@@ -25,6 +26,23 @@ export default defineStages({
     targets: {
       'stat-overdue': '[data-testid="stat-overdue"]',
       'status-column': '[data-testid^="status-"]',
+    },
+  }),
+  team: defineStage({
+    // "load" runs from 0 to 1, so a beat can fill each member's task count up to their real load.
+    values: { load: { from: 0, to: 1, decimals: 3 } },
+    render: ({ load }) => (
+      <AppShell team={team.team} active="/team">
+        <div data-focus="list">
+          <TeamList members={team.members.map((member) => ({ ...member, assigned: Math.round(member.assigned * load) }))} />
+        </div>
+      </AppShell>
+    ),
+    targets: {
+      'member-amara': '[data-testid="member-amara"]',
+      'load-amara': '[data-testid="load-amara"]',
+      'member-jonas': '[data-testid="member-jonas"]',
+      'away-jonas': '[data-testid="away-jonas"]',
     },
   }),
   // Stages for the "setup" walkthrough, which explains Tourwright itself.

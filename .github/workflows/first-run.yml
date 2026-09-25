@@ -4,7 +4,7 @@
 # installed from a tarball packed from this commit instead of "npm install -D tourwright".
 #
 # It downloads about 520 MB per job (Chromium, the voice model, ffmpeg), so it runs on demand and
-# when this file changes, not on every push.
+# when this file or the voice download changes, not on every push.
 
 name: First run
 
@@ -13,6 +13,7 @@ on:
   pull_request:
     paths:
       - .github/workflows/first-run.yml
+      - src/voice/**
 
 jobs:
   first-run:
