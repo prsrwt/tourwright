@@ -26,8 +26,9 @@ export async function runStudio(config: ResolvedConfig, name: string, options: S
     return 1;
   }
   const log = (line: string) => console.log(line);
-  const studio = createStudio(config, name, log);
-  const server = await startStageServer(config, { middleware: (req, res, next) => studio.handle(req, res, next) });
+  let server: Awaited<ReturnType<typeof startStageServer>> | undefined;
+  const studio = createStudio(config, name, log, { reloadStage: () => server?.vite.moduleGraph.invalidateAll() });
+  server = await startStageServer(config, { middleware: (req, res, next) => studio.handle(req, res, next) });
   const url = new URL(STUDIO_PATH, server.url).href;
   // Recorded so that make opens this Muse rather than starting a second one.
   mkdirSync(join(config.out, name), { recursive: true });

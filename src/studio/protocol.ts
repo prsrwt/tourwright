@@ -83,6 +83,13 @@ export interface StudioState {
    * this, not on `version`, so a note or a review arriving mid-playback does not interrupt it.
    */
   timelineVersion: number;
+  /**
+   * Changes when make hands Muse a new version from the agent: the stage code (components,
+   * fixtures) may have changed too, so the preview loads it afresh rather than only restarting.
+   */
+  stageVersion: number;
+  /** When make last handed Muse a new version, so an open tab can say it is showing it. */
+  newVersionAt?: string;
   /** A hash of script.json as last read, so a save can tell whether someone else changed it. */
   scriptHash: string;
   /** script.json as written, for editing. */

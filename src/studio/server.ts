@@ -71,11 +71,16 @@ export interface Studio {
   connections(): number;
 }
 
-export function createStudio(config: ResolvedConfig, name: string, log: (line: string) => void): Studio {
+export interface StudioOptions {
+  /** Forgets the stage code already compiled, so the next load of the preview reads it afresh. */
+  reloadStage?: () => void;
+}
+
+export function createStudio(config: ResolvedConfig, name: string, log: (line: string) => void, options: StudioOptions = {}): Studio {
   const file = scriptPath(config, name);
   const folder = dirname(file);
   const shots = snippets();
-  const state: StudioState = { name, version: 0, timelineVersion: 0, scriptHash: '', script: undefined, diagnostics: [], preparing: false, notes: [] };
+  const state: StudioState = { name, version: 0, timelineVersion: 0, stageVersion: 0, scriptHash: '', script: undefined, diagnostics: [], preparing: false, notes: [] };
   // A notes file that cannot be read keeps the last good notes on screen, and says why.
   const loadNotes = () => {
     try {
@@ -107,6 +112,8 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
 
   let running: Promise<void> | undefined;
   let again = false;
+  // Set by make's new version: the preview reloads its stage code with the timeline prepared next.
+  let stageChanged = false;
   const reprepare = (): Promise<void> => {
     // One preparation at a time; changes that arrive during one trigger one more afterwards.
     if (running) {
@@ -129,6 +136,8 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
           const prepared = await prepare(config, name, { log });
           state.timeline = prepared.timeline;
           state.timelineVersion += 1;
+          if (stageChanged) state.stageVersion += 1;
+          stageChanged = false;
           state.diagnostics = prepared.warnings;
           delete state.error;
           soundtrack = buildSoundtrack(prepared.timeline);
@@ -224,6 +233,15 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
         res.setHeader('Content-Type', 'audio/wav');
         res.setHeader('Cache-Control', 'no-store');
         return res.end(soundtrack);
+      }
+      if (route === 'POST /new-version') {
+        // make ran again: the agent has a new version. Whatever it changed (the script, the stage
+        // code, the voice), open tabs show it where they are, so make need not open another tab.
+        options.reloadStage?.();
+        stageChanged = true;
+        state.newVersionAt = new Date().toISOString();
+        void reprepare();
+        return send(200, { tabs: listeners.size });
       }
       if (route === 'GET /events') {
         res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' });

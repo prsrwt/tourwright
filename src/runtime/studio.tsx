@@ -143,7 +143,7 @@ async function saveScript(state: StudioState, change: (script: RawScript) => voi
  * timelineVersion: the timeline object itself is new on every state fetch, and restarting on each
  * one (a note arriving, say) would stop playback and measure every stage again.
  */
-function usePlayer(timeline: Timeline | undefined, key: number | undefined) {
+function usePlayer(timeline: Timeline | undefined, key: number | undefined, stageKey: number | undefined) {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const [ready, setReady] = useState<ReadyReport>();
   const [api, setApi] = useState<TourApi>();
@@ -169,7 +169,7 @@ function usePlayer(timeline: Timeline | undefined, key: number | undefined) {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, timeline === undefined]);
+  }, [key, stageKey, timeline === undefined]);
 
   return { frameRef, ready, api };
 }
@@ -199,7 +199,7 @@ function useNarrow(): boolean {
 function Studio() {
   const [state] = useStudioState();
   const timeline = state?.timeline;
-  const { frameRef, ready, api } = usePlayer(timeline, state?.timelineVersion);
+  const { frameRef, ready, api } = usePlayer(timeline, state?.timelineVersion, state?.stageVersion);
   const audio = useRef<HTMLAudioElement>(null);
   const [frame, setFrame] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -242,10 +242,17 @@ function Studio() {
     [timeline],
   );
 
-  // Each (re)start leaves the player on its measuring render, so draw the current frame again.
+  // Each (re)start leaves the player on its measuring render, so draw the current frame again. On a
+  // new version the words may have moved, so stay on the same sentence rather than the same frame.
   // The player object is the same across restarts; the ready report is new each time.
+  const shownTimeline = useRef<Timeline>(undefined);
   useEffect(() => {
-    if (api) show(frame, 'settle');
+    if (!api || !timeline) return;
+    const before = shownTimeline.current;
+    shownTimeline.current = timeline;
+    const f = before && before !== timeline ? samePlace(before, timeline, frame) : frame;
+    const shown = show(f, 'settle');
+    if (audio.current) audio.current.currentTime = shown / fps;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [api, ready]);
 
@@ -385,7 +392,7 @@ function Studio() {
   const video = (
     <main style={{ display: 'flex', flexDirection: 'column', minWidth: 0, padding: S.gap * 2, ...(narrow && { height: '62vh', flex: 'none' }) }}>
       {timeline ? (
-        <Preview timeline={timeline} frameRef={frameRef} api={api} picking={picking} onPick={(t) => (picking?.target(t), setPicking(undefined))} onPickArea={(r) => (picking?.area?.(r), setPicking(undefined))} onCancelPick={() => setPicking(undefined)} frame={frame}>
+        <Preview timeline={timeline} stageVersion={state.stageVersion} frameRef={frameRef} api={api} picking={picking} onPick={(t) => (picking?.target(t), setPicking(undefined))} onPickArea={(r) => (picking?.area?.(r), setPicking(undefined))} onCancelPick={() => setPicking(undefined)} frame={frame}>
           <Transport
             timeline={timeline}
             frame={frame}
@@ -490,6 +497,11 @@ function Header({ state, message }: { state: StudioState; message: string | unde
       <span aria-hidden="true" style={{ color: C.line, fontSize: 20 }}>/</span>
       <span style={{ fontSize: S.text + 1, fontWeight: 600, color: C.ink }}>{state.name}</span>
       {state.preparing && <span style={{ color: C.muted }}>Voicing changes...</span>}
+      {!state.preparing && state.newVersionAt && (
+        <span data-new-version="" style={{ color: C.muted }}>
+          Showing the agent's new version from {new Date(state.newVersionAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </span>
+      )}
       {message && <span style={{ color: message === 'Saving...' ? C.muted : C.errText }}>{message}</span>}
       <ReviewBar state={state} />
     </header>
@@ -619,6 +631,8 @@ interface Picker {
 
 function Preview(props: {
   timeline: Timeline;
+  /** A new one loads the preview afresh, with the stage code as it is now. */
+  stageVersion: number;
   frameRef: React.RefObject<HTMLIFrameElement | null>;
   api: TourApi | undefined;
   picking: Picker | undefined;
@@ -661,6 +675,7 @@ function Preview(props: {
     <div ref={box} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: S.gap * 1.5 }}>
       <div style={{ position: 'relative', flex: 'none', width: timeline.layout.width * scale, height: timeline.layout.height * scale, borderRadius: S.radius, overflow: 'hidden', boxShadow: `0 0 0 1px ${C.line}, 0 8px 24px ${C.shadow}` }}>
         <iframe
+          key={props.stageVersion}
           ref={frameRef}
           src="/__tourwright/"
           title="Preview"
@@ -1528,6 +1543,24 @@ function Key({ children }: { children: ReactNode }) {
 
 // ---------------------------------------------------------------------------------------------
 // Helpers
+
+/**
+ * Where the reviewer was, in a new version of the timeline: the same sentence of the same scene,
+ * as far into it as before. Only where that sentence is gone does it fall back to the same frame.
+ */
+function samePlace(before: Timeline, after: Timeline, frame: number): number {
+  const scene = sceneAt(before, frame);
+  if (!scene) return frame;
+  const next = after.scenes.find((s) => s.id === scene.id) ?? after.scenes[scene.index];
+  if (!next) return frame;
+  const index = scene.sentences.findLastIndex((s) => frame >= s.from);
+  const from = index >= 0 ? scene.sentences[index]!.from : scene.from;
+  const target = index >= 0 ? next.sentences[index] : undefined;
+  if (index >= 0 && !target) return next.from;
+  const start = target ? target.from : next.from;
+  const end = target ? (next.sentences[index + 1]?.from ?? next.from + next.frames) : (next.sentences[0]?.from ?? next.from + next.frames);
+  return Math.min(start + (frame - from), Math.max(start, end - 1));
+}
 
 function sceneAt(timeline: Timeline, frame: number): TimedScene | undefined {
   let found: TimedScene | undefined;

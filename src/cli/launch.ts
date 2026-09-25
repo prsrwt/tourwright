@@ -76,7 +76,9 @@ export async function liveMuse(config: ResolvedConfig, name: string): Promise<Mu
 export type LaunchOutcome =
   /** Started a background Muse and opened the browser to it. */
   | 'opened'
-  /** A Muse was already running for this walkthrough; opened the browser to it again. */
+  /** A Muse was already running for this walkthrough and a tab had it open: that tab now shows this version, and no other opened. */
+  | 'updated'
+  /** A Muse was already running for this walkthrough but no tab had it open; opened the browser to it again. */
   | 'reused'
   /** Started (or found) a Muse, but there is no screen here to open it on, so printed its link. */
   | 'link'
@@ -154,7 +156,19 @@ export async function launchMuse(config: ResolvedConfig, name: string, options: 
   };
 
   const running = await liveMuse(config, name);
-  if (running) return shown(running.url, 'reused');
+  if (running) {
+    // One tab per walkthrough: one already open switches to this version by itself, where the
+    // reviewer is, so opening another would only leave them two to keep apart.
+    const tabs = await newVersion(running.url);
+    if (tabs > 0) {
+      return {
+        outcome: 'updated',
+        url: running.url,
+        message: `Muse is already open for it, and its tab now shows this version: ${running.url}\nNo new tab opened. Watch it, leave notes, and approve it there. ${closes}`,
+      };
+    }
+    return shown(running.url, 'reused');
+  }
 
   // A record left by a Muse that has gone: it would only confuse the wait below.
   rmSync(musePath(config, name), { force: true });
@@ -182,6 +196,16 @@ export async function launchMuse(config: ResolvedConfig, name: string, options: 
     outcome: 'failed',
     message: `Muse did not start${exited === undefined ? ' within a minute' : ''}, so it has not opened.\nFix: run "${command}" to open it and see what went wrong.`,
   };
+}
+
+/** Tells a running Muse there is a new version, and returns how many tabs have it open (0 if it could not say). */
+async function newVersion(url: string): Promise<number> {
+  try {
+    const res = await fetch(new URL(`${API}/new-version`, url), { method: 'POST', signal: AbortSignal.timeout(3000) });
+    return res.ok ? (((await res.json()) as { tabs?: number }).tabs ?? 0) : 0;
+  } catch {
+    return 0;
+  }
 }
 
 function describeSeconds(seconds: number): string {
