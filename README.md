@@ -7,12 +7,12 @@ Everything runs locally: the voice is a model on your machine, and nothing is up
 
 > Status: pre-v0.1, in development. See `docs/ROADMAP.md`.
 
-**[Watch the introduction: Tourwright and Muse, from install to the final video](docs/media/tourwright-intro.mp4)** (3 minutes). Made with Tourwright, and reviewed and approved in Muse.
-
-**[Watch the setup walkthrough](docs/media/setup.mp4)** 
+**[Watch the introduction: Tourwright and Muse, from install to the final video](docs/media/tourwright-intro.mp4)** (
 
 
-https://github.com/user-attachments/assets/d119e1e4-0926-449d-ae5f-e00f2badd022
+
+https://github.com/user-attachments/assets/98b0db40-e527-4804-af36-87efa037e431
+
 
 
 ## First run
