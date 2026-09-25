@@ -265,7 +265,7 @@ test('the studio plays back, edits script.json, and pins notes to the millisecon
     assert.equal(approved.status, 'approved');
     assert.equal(approved.scriptHash, scriptHash);
     assert.equal(reviewState(config, 'intro').approved, true);
-    assert.match(formatReview('intro', reviewState(config, 'intro')), /^Review: approved .*, for script.json as it is now\.$/);
+    assert.match(formatReview('intro', reviewState(config, 'intro')), /^Review: approved .*, for the video as it is now\.$/);
 
     // Editing script.json afterwards (here, as an agent would) means the approval no longer counts.
     writeFileSync(scriptFile, readFileSync(scriptFile, 'utf8').replace('Your team at a glance', 'Your team this week'));

@@ -11,6 +11,7 @@ import { scriptPath } from '../config/walkthroughs.ts';
 import { prepare, PrepareError } from '../pipeline/prepare.ts';
 import { buildSoundtrack } from '../timing/audio.ts';
 import { API, NOTE_SCOPES, NOTE_STATUSES, type NewNoteRequest, type Note, type NotesFile, type ReplyRequest, type Review, type ReviewRequest, type SaveScriptRequest, type StudioState } from './protocol.ts';
+import { changedInputs, fingerprint, inputKey, listFiles, writtenSince } from './fingerprint.ts';
 import { hashScript as hash, readReview, reviewPath, writeReview } from './review.ts';
 import { removeSnippet, snippetFile, snippets } from './snippet.ts';
 import { PLAYER_PATH } from '../bundle/server.ts';
@@ -74,13 +75,19 @@ export interface Studio {
 export interface StudioOptions {
   /** Forgets the stage code already compiled, so the next load of the preview reads it afresh. */
   reloadStage?: () => void;
+  /** The app's files the preview has loaded (the stage, its fixtures, their imports), for a review to cover. */
+  sources?: () => string[];
 }
 
 export function createStudio(config: ResolvedConfig, name: string, log: (line: string) => void, options: StudioOptions = {}): Studio {
   const file = scriptPath(config, name);
   const folder = dirname(file);
   const shots = snippets();
-  const state: StudioState = { name, version: 0, timelineVersion: 0, stageVersion: 0, scriptHash: '', script: undefined, diagnostics: [], preparing: false, notes: [] };
+  const state: StudioState = { name, version: 0, timelineVersion: 0, stageVersion: 0, scriptHash: '', script: undefined, diagnostics: [], preparing: false, notes: [], reviewChanged: [] };
+  // When the preview last loaded the stage code afresh. Muse does not watch the app's files, so
+  // one written after this is not what the reviewer is looking at until the stage reloads.
+  let stageLoadedAt: number | undefined;
+  let stageStale = true;
   // A notes file that cannot be read keeps the last good notes on screen, and says why.
   const loadNotes = () => {
     try {
@@ -211,6 +218,10 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
     },
     handle(req, res, next) {
       const url = req.url?.split('?')[0] ?? '';
+      if (url === PLAYER_PATH && stageStale) {
+        stageLoadedAt = Date.now();
+        stageStale = false;
+      }
       if (!url.startsWith(API)) return next();
       const route = `${req.method} ${url.slice(API.length)}`;
       const send = (status: number, body: unknown) => {
@@ -219,7 +230,12 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
         res.end(JSON.stringify(body));
       };
 
-      if (route === 'GET /state') return send(200, state);
+      if (route === 'GET /state') {
+        // script.json is compared by its hash on the page; the rest of what the review covered, here.
+        const script = inputKey(config, file);
+        state.reviewChanged = state.review?.inputs ? changedInputs(config, state.review.inputs).filter((f) => f !== script) : [];
+        return send(200, state);
+      }
       const snippetRoute = /^GET \/notes\/([\w-]+)\/snippet$/.exec(route);
       if (snippetRoute) {
         const note = state.notes.find((n) => n.id === snippetRoute[1]);
@@ -239,6 +255,7 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
         // code, the voice), open tabs show it where they are, so make need not open another tab.
         options.reloadStage?.();
         stageChanged = true;
+        stageStale = true;
         state.newVersionAt = new Date().toISOString();
         void reprepare();
         return send(200, { tabs: listeners.size });
@@ -269,6 +286,17 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
           if (base !== current) {
             return send(409, { error: 'script.json changed since you started watching this version, so this review would be for a version you have not seen.\nFix: Muse has reloaded it; watch it again, then review.' });
           }
+          // The same for the stage code: a file written since the preview loaded it is not what the
+          // reviewer saw. Load it, and have them look again.
+          const sources = options.sources?.() ?? [];
+          const unseen = stageLoadedAt === undefined ? [] : writtenSince(config, sources, stageLoadedAt);
+          if (unseen.length) {
+            options.reloadStage?.();
+            stageChanged = true;
+            stageStale = true;
+            void reprepare();
+            return send(409, { error: `${listFiles(unseen)} changed since this tab loaded the stage, so this review would be for a version you have not seen.\nFix: Muse is loading the new version; watch it again, then review.` });
+          }
           // Asking for changes sends the open notes with it: the agent gets what to change, not only that something should.
           const open = state.notes.filter((n) => n.status === 'open').map((n) => n.id);
           if (status === 'changes-requested' && !open.length && !comment?.trim()) {
@@ -280,6 +308,7 @@ export function createStudio(config: ResolvedConfig, name: string, log: (line: s
             at: new Date().toISOString(),
             ...(comment?.trim() && { comment: comment.trim() }),
             ...(status === 'changes-requested' && open.length && { notes: open }),
+            inputs: fingerprint(config, name, sources),
           };
           writeReview(config, name, review);
           watchReview();

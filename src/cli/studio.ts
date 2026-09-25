@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { startStageServer, STUDIO_PATH } from '../bundle/server.ts';
+import { loadedFiles, startStageServer, STUDIO_PATH } from '../bundle/server.ts';
 import type { ResolvedConfig } from '../config/config.ts';
 import { listWalkthroughs, scriptPath } from '../config/walkthroughs.ts';
 import { createStudio } from '../studio/server.ts';
@@ -27,7 +27,10 @@ export async function runStudio(config: ResolvedConfig, name: string, options: S
   }
   const log = (line: string) => console.log(line);
   let server: Awaited<ReturnType<typeof startStageServer>> | undefined;
-  const studio = createStudio(config, name, log, { reloadStage: () => server?.vite.moduleGraph.invalidateAll() });
+  const studio = createStudio(config, name, log, {
+    reloadStage: () => server?.vite.moduleGraph.invalidateAll(),
+    sources: () => (server ? loadedFiles(server.vite, config) : []),
+  });
   server = await startStageServer(config, { middleware: (req, res, next) => studio.handle(req, res, next) });
   const url = new URL(STUDIO_PATH, server.url).href;
   // Recorded so that make opens this Muse rather than starting a second one.

@@ -2,6 +2,7 @@
 // sides share them.
 
 import type { Diagnostic } from '../check/diagnostic.ts';
+import type { Inputs } from './fingerprint.ts';
 import type { Rect } from '../runtime/motion.ts';
 import type { ScreenDescription } from '../runtime/screen.ts';
 import type { Timeline } from '../timing/timeline.ts';
@@ -109,6 +110,11 @@ export interface StudioState {
   review?: Review;
   /** Why review.json could not be read, when it could not. */
   reviewError?: string;
+  /**
+   * Files other than script.json that the review covered and that have changed since, such as a
+   * fixture the agent edited: the review then no longer counts, as with an edit to the script.
+   */
+  reviewChanged: string[];
 }
 
 /** walkthroughs/<name>/review.json: the user's verdict on one exact version of script.json. */
@@ -119,6 +125,12 @@ export interface Review {
   comment?: string;
   /** With changes-requested: the ids of the notes that were open when the user sent them, for the agent to handle. */
   notes?: string[];
+  /**
+   * Everything the reviewed version was made from, file by file (script.json, the config, the app
+   * files the preview loaded, the lockfile), so a later change to any of them is noticed. Reviews
+   * written before this existed have none, and cover script.json alone.
+   */
+  inputs?: Inputs;
 }
 
 export interface NewNoteRequest {

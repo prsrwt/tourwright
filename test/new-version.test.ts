@@ -5,10 +5,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { cpSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { startStageServer, STUDIO_PATH } from '../src/bundle/server.ts';
+import { loadedFiles, startStageServer, STUDIO_PATH } from '../src/bundle/server.ts';
 import { resolveConfig } from '../src/config/config.ts';
 import { API, type StudioState } from '../src/studio/protocol.ts';
 import { createStudio } from '../src/studio/server.ts';
@@ -34,6 +34,11 @@ test('a new version shows in the open tab, on the same sentence, with the stage 
     await page.goto(new URL(STUDIO_PATH, origin).href);
     await page.locator('[data-scrubber]').waitFor();
     const counter = page.locator('span', { hasText: /^frame / }).first();
+
+    // What a review covers: the app's files the preview loaded, and none of Tourwright's or node_modules'.
+    const loaded = loadedFiles(server.vite, config).map((f) => relative(app, f).split(sep).join('/'));
+    for (const file of ['tourwright/stages.tsx', 'tourwright/fixtures.ts', 'components/StatCards.tsx', 'app/globals.css']) assert.ok(loaded.includes(file), `${file} is not in ${loaded.join(', ')}`);
+    assert.ok(loaded.every((f) => !f.includes('node_modules') && !f.startsWith('../')), loaded.join(', '));
     const shownFrame = async () => Number((await counter.textContent())!.replace('frame ', ''));
 
     // The reviewer is partway through the second sentence of the second scene.

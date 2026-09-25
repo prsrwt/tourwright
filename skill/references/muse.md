@@ -53,10 +53,12 @@ When the user asks you to handle notes ("check my notes in Muse", "fix my notes"
    `open`. If you disagree with a note, say why with `--question`.
 
 **The video is finished only when the user has approved it.** `review.json` records the user's
-verdict with a `scriptHash` of the `script.json` it was given for, and it counts only while that
-hash matches the current script: any edit afterwards, yours included, means the user must look
-again. `notes` and `make` print where it stands. Never write `review.json` yourself, and never call
-a video finished, or hand it over as final, until it says the current script is approved. If the
+verdict with a hash of every file that version was made from (`script.json`, the stages file,
+fixtures, the components they import, the config), and it counts only while none of them has
+changed: any edit afterwards, yours included, to the script or the stage code, means the user must
+look again. `notes` and `make` print where it stands and name the files that changed. Never write
+`review.json` yourself, and never call a video finished, or hand it over as final, until it says
+the current version is approved. If the
 review asks for changes, its comment is a note about the whole video: handle it like one, then ask
 the user to review again.
 

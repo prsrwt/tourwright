@@ -534,7 +534,12 @@ function Header({ state, message }: { state: StudioState; message: string | unde
 /** The notes sent to the agent with the current request for changes: with the agent now. */
 function sentNoteIds(state: StudioState): string[] {
   const review = state.review;
-  return review?.scriptHash === state.scriptHash && review.status === 'changes-requested' ? (review.notes ?? []) : [];
+  return isCurrent(state) && review?.status === 'changes-requested' ? (review.notes ?? []) : [];
+}
+
+/** Whether the review is for what Muse shows now: the same script.json, and no stage file changed since. */
+function isCurrent(state: StudioState): boolean {
+  return state.review?.scriptHash === state.scriptHash && !state.reviewChanged.length;
 }
 
 /** Records the review: sending the open notes to the agent, or approving the video. Returns the error, if any. */
@@ -554,7 +559,7 @@ function ReviewBar({ state }: { state: StudioState }) {
   const [comment, setComment] = useState('');
   const [error, setError] = useState<string>();
   const review = state.review;
-  const current = review?.scriptHash === state.scriptHash;
+  const current = isCurrent(state);
   const open = state.notes.filter((n) => n.status === 'open');
   // Notes already sent with the current request for changes are with the agent; only new ones are left to send.
   const sent = sentNoteIds(state);
@@ -580,7 +585,8 @@ function ReviewBar({ state }: { state: StudioState }) {
         : ['Changed since you sent it: watch again', pill(C.warnBg, C.warnText)];
   // Reviewing a version that is still being voiced, or failed to prepare, would approve something unseen.
   const busy = state.preparing || !!state.error;
-  const when = review && `${new Date(review.at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}${review.comment ? `: "${review.comment}"` : ''}`;
+  const changed = state.reviewChanged.length ? `. Changed since: ${state.reviewChanged.join(', ')}` : '';
+  const when = review && `${new Date(review.at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}${review.comment ? `: "${review.comment}"` : ''}${changed}`;
   const approvedNow = current && review?.status === 'approved';
   return (
     <div data-review="" data-script-hash={state.scriptHash} style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: S.gap, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
