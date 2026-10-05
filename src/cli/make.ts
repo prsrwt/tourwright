@@ -7,6 +7,7 @@ import { prepare } from '../pipeline/prepare.ts';
 import { openSession } from '../pipeline/session.ts';
 import { findFfmpeg, ffmpegMissing } from '../render/ffmpeg.ts';
 import { writeRenderRecord } from '../render/record.ts';
+import { lockRender, renderLockPath } from '../render/lock.ts';
 import { renderVideo } from '../render/render.ts';
 import { formatReview, reviewState } from '../studio/review.ts';
 import { launchMuse } from './launch.ts';
@@ -41,6 +42,16 @@ export async function runMake(config: ResolvedConfig, name: string, options: Mak
     console.error(ffmpegMissing(config.root));
     return 1;
   }
+  // Before any work, so a second render of the same video is refused in a moment.
+  const unlock = lockRender(renderLockPath(config, name), name);
+  try {
+    return await makeLocked(config, name, options, ffmpeg, log);
+  } finally {
+    unlock();
+  }
+}
+
+async function makeLocked(config: ResolvedConfig, name: string, options: MakeOptions, ffmpeg: NonNullable<ReturnType<typeof findFfmpeg>>, log: (line: string) => void): Promise<number> {
   const prepared = await prepare(config, name, { log });
   const session = await openSession(config, prepared, log);
   try {
