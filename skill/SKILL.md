@@ -9,6 +9,8 @@ Tourwright turns one file, `script.json`, into a narrated MP4 of the app's real 
 
 **The narration box** is the outline Tourwright draws around a target while the narration talks about it, dimming the rest of the screen, so the viewer knows where to look. Call it that when you talk to the user and in notes; users and Muse use the same name. In `script.json` it is a beat's `"highlight"`: a target name moves the box there, and `false` clears it.
 
+**If you are the main session and this project has `.claude/agents/walkthrough.md`**, hand the video work to that agent: it runs on a cheaper model. Relay its report, and the user's decisions from Muse, between it and the user.
+
 You cannot watch the video, so everything worth checking comes back as text: what is on screen at each still (`screen.md`), where each cue lands in the words (`timing.md`), and errors with their fix. The loop is: write, `check`, `verify`, read, fix. Render only when verify is clean.
 
 Read these when you reach the step that needs them, not before:
