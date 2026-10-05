@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { z } from 'zod';
@@ -18,6 +19,7 @@ const ConfigInput = z.strictObject({
   stages: z.string().min(1).optional().describe('The file that registers the stages. Default "tourwright/stages.tsx".'),
   walkthroughs: z.string().min(1).optional().describe('Folder holding one folder per walkthrough. Default "tourwright/walkthroughs".'),
   out: z.string().min(1).optional().describe('Folder for rendered videos and reports. Default "tourwright/out".'),
+  videos: z.string().min(1).optional().describe('Folder the finished MP4 and its captions go to, such as "~/Downloads" so they are easy to find. "~" is your home folder. Default: the "out" folder.'),
   voice: z.strictObject({ backend: z.enum(VOICE_BACKENDS).optional() }).optional(),
   review: z.boolean().optional().describe('Open Muse in the browser to review the video after each successful make. Default true.'),
 });
@@ -37,6 +39,8 @@ export interface ResolvedConfig {
   stages: string;
   walkthroughs: string;
   out: string;
+  /** Where the MP4 and its captions go: `out` unless the config names another folder. */
+  videos: string;
   voice: { backend: VoiceBackend };
   /** Open Muse after each successful make. */
   review: boolean;
@@ -92,6 +96,7 @@ export function resolveConfig(input: UserConfig, configFile: string, env: NodeJS
     stages: resolve(root, input.stages ?? 'tourwright/stages.tsx'),
     walkthroughs: resolve(root, input.walkthroughs ?? 'tourwright/walkthroughs'),
     out: resolve(root, input.out ?? 'tourwright/out'),
+    videos: input.videos ? resolve(root, input.videos.replace(/^~(?=$|[\\/])/, homedir())) : resolve(root, input.out ?? 'tourwright/out'),
     voice: { backend: (envBackend as VoiceBackend | undefined) ?? input.voice?.backend ?? 'kokoro' },
     review: input.review ?? true,
   };

@@ -21,7 +21,7 @@ export function renderRecordPath(config: ResolvedConfig, name: string): string {
 }
 
 export function videoPath(config: ResolvedConfig, name: string): string {
-  return join(config.out, `${name}.mp4`);
+  return join(config.videos, `${name}.mp4`);
 }
 
 /** Records a finished render: the voice, and what the stage server loaded to make it. */

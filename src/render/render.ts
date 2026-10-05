@@ -4,7 +4,7 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { buildSoundtrack } from '../timing/audio.ts';
 import { captionsVtt } from './captions.ts';
 import type { Timeline } from '../timing/timeline.ts';
@@ -40,6 +40,8 @@ export class RenderError extends Error {}
 export async function renderVideo(timeline: Timeline, player: PlayerPage, options: RenderOptions): Promise<RenderResult> {
   const log = options.log ?? (() => undefined);
   mkdirSync(options.workDir, { recursive: true });
+  // The video may go somewhere else, such as Downloads, which a fresh machine may not have yet.
+  mkdirSync(dirname(options.file), { recursive: true });
   const soundtrack = join(options.workDir, 'soundtrack.wav');
   writeFileSync(soundtrack, buildSoundtrack(timeline));
 
