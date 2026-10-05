@@ -419,7 +419,8 @@ export function mountPlayer(stages: Stages): void {
         for (let node = walker.nextNode(); node; node = walker.nextNode()) {
           if (!node.textContent?.trim() || !node.parentElement) continue;
           const style = getComputedStyle(node.parentElement);
-          if (style.visibility === 'hidden' || style.display === 'none') continue;
+          // Hidden by an ancestor too, such as a tab panel that is not showing: not on screen at all.
+          if (style.visibility === 'hidden' || !node.parentElement.checkVisibility()) continue;
           // In video pixels: any scaling in the stage itself (a component shown zoomed in), the
           // camera's scale, then the page's scale up to the video.
           const inStage = drawnScale(node.parentElement) / worldScale || 1;

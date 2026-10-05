@@ -6,6 +6,7 @@ import { prepare, type Prepared } from '../pipeline/prepare.ts';
 import { openSession } from '../pipeline/session.ts';
 import { findFfmpeg, ffmpegMissing } from '../render/ffmpeg.ts';
 import { videoPath, writeRenderRecord } from '../render/record.ts';
+import { lockRender, renderLockPath } from '../render/lock.ts';
 import { renderVideo, type RenderResult } from '../render/render.ts';
 
 export { videoPath };
@@ -36,8 +37,14 @@ export async function renderWalkthrough(config: ResolvedConfig, prepared: Prepar
 
 export async function runRender(config: ResolvedConfig, name: string): Promise<number> {
   const log = (line: string) => console.log(line);
-  const prepared = await prepare(config, name, { log });
-  const result = await renderWalkthrough(config, prepared, log);
+  const unlock = lockRender(renderLockPath(config, name), name);
+  let result: RenderResult | undefined;
+  try {
+    const prepared = await prepare(config, name, { log });
+    result = await renderWalkthrough(config, prepared, log);
+  } finally {
+    unlock();
+  }
   if (!result) return 1;
   console.log(`Wrote ${relative(process.cwd(), result.file) || result.file} (${result.seconds.toFixed(1)} s).`);
   return 0;

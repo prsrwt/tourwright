@@ -1,0 +1,512 @@
+{
+  "$schema": "../../../node_modules/tourwright/schema/script.schema.json",
+  "title": "Muse",
+  "subtitle": "Reviewing a video your agent made",
+  "lexicon": {
+    "MP4": "M P 4"
+  },
+  "scenes": [
+    {
+      "id": "roles",
+      "stage": "roles",
+      "say": "[ask]To get a video of your app, you ask your coding agent for one. [make]The agent writes it, sets up your screens, and checks every moment. [review]Then Muse opens in your browser. This is your part. [loop]You watch the video and leave notes, and the agent makes the changes. [final]When it's right, you approve it, and Muse renders the final video.",
+      "beats": [
+        {
+          "at": "ask",
+          "camera": {
+            "to": "all"
+          },
+          "highlight": "ask"
+        },
+        {
+          "at": "make",
+          "highlight": "make"
+        },
+        {
+          "at": "review",
+          "highlight": "review"
+        },
+        {
+          "at": "loop",
+          "highlight": "loop"
+        },
+        {
+          "at": "final",
+          "highlight": "final"
+        }
+      ]
+    },
+    {
+      "id": "page",
+      "stage": "muse-tour",
+      "say": "[page]This is Muse. [video]On the left is the video, with its captions and the narration box, the blue outline on what the voice is talking about. [side]On the right are your notes, and a list of the scenes. [top]The top bar says where the review stands. Right now it says \"Not reviewed yet\".",
+      "beats": [
+        {
+          "at": "page",
+          "camera": {
+            "to": "muse-room"
+          }
+        },
+        {
+          "at": "video",
+          "highlight": "video"
+        },
+        {
+          "at": "side",
+          "highlight": "side"
+        },
+        {
+          "at": "top",
+          "camera": {
+            "to": "review",
+            "zoom": 2
+          },
+          "highlight": "review-status"
+        }
+      ]
+    },
+    {
+      "id": "watch",
+      "stage": "muse-tour",
+      "say": "[play]Press Play to watch it, with the voice. [scrubber]The bar under the video is the whole video. Each coloured band is a scene, and each small mark is a moment when something moves. [time]Next to the buttons is the time, to the thousandth of a second.",
+      "beats": [
+        {
+          "at": "play",
+          "camera": {
+            "to": "muse-room"
+          },
+          "highlight": "play",
+          "animate": "moment"
+        },
+        {
+          "at": "scrubber",
+          "camera": {
+            "to": "transport",
+            "zoom": "fit"
+          },
+          "highlight": "scrubber"
+        },
+        {
+          "at": "time",
+          "highlight": "clock"
+        }
+      ]
+    },
+    {
+      "id": "controls",
+      "stage": "muse-tour",
+      "say": "[jump]These buttons jump to the scene before or after. [speed]Slow it down or speed it up here. [loop]Or loop one scene, to watch it again and again. [keys]Press the question mark to see every keyboard shortcut.",
+      "beats": [
+        {
+          "at": "jump",
+          "highlight": "jump",
+          "animate": "moment"
+        },
+        {
+          "at": "speed",
+          "highlight": "speed",
+          "animate": "moment"
+        },
+        {
+          "at": "loop",
+          "highlight": "loop",
+          "animate": "moment"
+        },
+        {
+          "at": "keys",
+          "highlight": "shortcuts",
+          "animate": "moment"
+        }
+      ]
+    },
+    {
+      "id": "two-ways",
+      "stage": "muse-tour",
+      "say": "[two]There are two ways to ask for a change. [line]For something about the whole video, use Ask for changes, and type it in a line. [note]For something you can see, write a note.",
+      "beats": [
+        {
+          "at": "two",
+          "camera": {
+            "to": "muse-room"
+          },
+          "highlight": false,
+          "animate": "moment"
+        },
+        {
+          "at": "line",
+          "camera": {
+            "to": "review",
+            "zoom": 2
+          },
+          "highlight": "review"
+        },
+        {
+          "at": "note",
+          "camera": {
+            "to": "muse-room"
+          },
+          "highlight": "composer",
+          "animate": "moment"
+        }
+      ]
+    },
+    {
+      "id": "note",
+      "stage": "muse-tour",
+      "say": "[pause]Pause where something should change, and press Write a note, or the N key. [pinned]The note is pinned to that exact moment. [write]Say what should change, in your own words. [scope]Then choose whether it is about this moment, the whole scene, or the whole video.",
+      "beats": [
+        {
+          "at": "pause",
+          "highlight": "write-note"
+        },
+        {
+          "at": "pinned",
+          "highlight": "composer"
+        },
+        {
+          "at": "write",
+          "highlight": "note-text",
+          "animate": "moment"
+        },
+        {
+          "at": "scope",
+          "highlight": "scope"
+        }
+      ]
+    },
+    {
+      "id": "point",
+      "stage": "muse-tour",
+      "say": "[point]To show what you mean, use Point at part of the screen. [outlines]Everything with a name gets an outline. [click]Click one, and the note says what it's on. [draw]Or drag a box around anything else. [read]Muse reads the words inside, and keeps a picture of it for the agent.",
+      "beats": [
+        {
+          "at": "point",
+          "highlight": "video",
+          "animate": "moment"
+        },
+        {
+          "at": "outlines",
+          "highlight": "pick-overdue"
+        },
+        {
+          "at": "click",
+          "highlight": "composer",
+          "animate": "moment"
+        },
+        {
+          "at": "draw",
+          "highlight": "drawn-box",
+          "animate": "moment"
+        },
+        {
+          "at": "read",
+          "highlight": "note-b2",
+          "animate": "moment"
+        }
+      ]
+    },
+    {
+      "id": "send",
+      "stage": "muse-tour",
+      "say": "[held]Your notes wait here until you send them. [edit]Until then, you can edit or delete them. [send]When you're done, press Send to the agent. [together]The agent gets all your notes at once.",
+      "beats": [
+        {
+          "at": "held",
+          "highlight": "side",
+          "animate": "moment"
+        },
+        {
+          "at": "edit",
+          "highlight": "note-c3",
+          "animate": "moment"
+        },
+        {
+          "at": "send",
+          "highlight": "send-bar",
+          "animate": "moment"
+        },
+        {
+          "at": "together",
+          "camera": {
+            "to": "review",
+            "zoom": 2
+          },
+          "highlight": false,
+          "animate": "moment"
+        }
+      ]
+    },
+    {
+      "id": "agent-turn",
+      "stage": "muse-tour",
+      "say": "[turn]Now it's the agent's turn, and each note says so. [new]When the agent has a new version, Muse shows it by itself, and says so at the top.",
+      "beats": [
+        {
+          "at": "turn",
+          "camera": {
+            "to": "muse-room"
+          },
+          "highlight": "note-a1"
+        },
+        {
+          "at": "new",
+          "camera": {
+            "to": "header",
+            "zoom": "width"
+          },
+          "highlight": "header",
+          "animate": "moment"
+        }
+      ]
+    },
+    {
+      "id": "your-turn",
+      "stage": "muse-tour",
+      "say": "[yours]Notes that need you come first, marked \"Your turn\". [fixed]When the agent says it has fixed something, watch that moment again. [approve-fix]Then press Approve fix, or Not fixed yet to say what is still wrong. [question]If the agent asks you something, answer it in the note. [filter]These filters show only your turn, only the agent's, or the closed notes.",
+      "beats": [
+        {
+          "at": "yours",
+          "camera": {
+            "to": "muse-room"
+          },
+          "highlight": "notes-tab"
+        },
+        {
+          "at": "fixed",
+          "highlight": "note-c3"
+        },
+        {
+          "at": "approve-fix",
+          "highlight": "note-c3"
+        },
+        {
+          "at": "question",
+          "highlight": "note-b2",
+          "animate": "moment"
+        },
+        {
+          "at": "filter",
+          "highlight": "filters",
+          "animate": "moment"
+        }
+      ]
+    },
+    {
+      "id": "closed",
+      "stage": "muse-tour",
+      "say": "[closed]Approving a fix closes the note. [reopen]If the problem comes back, press reopen on it, and say what is wrong.",
+      "beats": [
+        {
+          "at": "closed",
+          "highlight": "note-a1",
+          "animate": "moment"
+        },
+        {
+          "at": "reopen",
+          "highlight": "note-a1"
+        }
+      ]
+    },
+    {
+      "id": "boxes",
+      "stage": "muse-tour",
+      "say": "[track]Under the scrubber is a track of narration boxes, one bar for each. [add]To add one, press Add narration box, and click what it should outline. [bar]It appears on the track, from the sentence playing now.",
+      "beats": [
+        {
+          "at": "track",
+          "camera": {
+            "to": "transport",
+            "zoom": "fit"
+          },
+          "highlight": "box-track",
+          "animate": "moment"
+        },
+        {
+          "at": "add",
+          "camera": {
+            "to": "muse-room"
+          },
+          "highlight": "add-box",
+          "animate": "moment"
+        },
+        {
+          "at": "bar",
+          "camera": {
+            "to": "transport",
+            "zoom": "fit"
+          },
+          "highlight": false,
+          "animate": "moment"
+        }
+      ]
+    },
+    {
+      "id": "box-timing",
+      "stage": "muse-tour",
+      "say": "[drag]Drag the edges of a bar to change when it shows and when it goes. They snap to the start of a sentence. [delete]Click a bar to select it, and you can delete it.",
+      "beats": [
+        {
+          "at": "drag",
+          "highlight": "jonas-box",
+          "animate": "moment"
+        },
+        {
+          "at": "delete",
+          "highlight": "box-selected"
+        }
+      ]
+    },
+    {
+      "id": "scenes",
+      "stage": "muse-tour",
+      "say": "[tab]The Scenes tab lists every scene, with its narration. [jump]Click a time to jump there. [words]Click the narration to change the words. [voice]Only the sentences you change are voiced again.",
+      "beats": [
+        {
+          "at": "tab",
+          "camera": {
+            "to": "muse-room"
+          },
+          "highlight": "scenes-tab",
+          "animate": "moment"
+        },
+        {
+          "at": "jump",
+          "highlight": "scene-home"
+        },
+        {
+          "at": "words",
+          "highlight": "scene-home",
+          "animate": "moment"
+        },
+        {
+          "at": "voice",
+          "highlight": "header",
+          "animate": "moment"
+        }
+      ]
+    },
+    {
+      "id": "beats",
+      "stage": "muse-tour",
+      "say": "[beats]Under the narration are the beats: what happens at each cue. [edit]Edit one to move the camera, zoom in, move the narration box, or start an animation. [pick]Press pick to choose a target on the video instead. [problems]If an edit breaks something, the tab shows an exclamation mark, and the scene says how to fix it.",
+      "beats": [
+        {
+          "at": "beats",
+          "highlight": "scene-overdue"
+        },
+        {
+          "at": "edit",
+          "highlight": "scene-overdue",
+          "animate": "moment"
+        },
+        {
+          "at": "pick",
+          "highlight": "video",
+          "animate": "moment"
+        },
+        {
+          "at": "problems",
+          "highlight": "scene-overdue",
+          "animate": "moment"
+        }
+      ]
+    },
+    {
+      "id": "approve",
+      "stage": "muse-tour",
+      "say": "[ready]When the video is right, press \"Approve: it's finished\". [open]If a note is still open, Muse asks first, so nothing is approved by accident.",
+      "beats": [
+        {
+          "at": "ready",
+          "camera": {
+            "to": "review",
+            "zoom": 2
+          },
+          "highlight": "approve",
+          "animate": "moment"
+        },
+        {
+          "at": "open",
+          "highlight": "review",
+          "animate": "moment"
+        }
+      ]
+    },
+    {
+      "id": "render",
+      "stage": "muse-tour",
+      "say": "[dialog]Muse then offers to render the final video, with the real voice. [list]It lists anything still in progress, so nothing unfinished goes out. [progress]You can keep working while it renders. [done]When it's done, play it, or open its folder. [failed]If a render fails, Muse shows why, and you can try again.",
+      "beats": [
+        {
+          "at": "dialog",
+          "camera": {
+            "to": "muse-room"
+          },
+          "highlight": false,
+          "animate": "moment"
+        },
+        {
+          "at": "list",
+          "highlight": "in-progress"
+        },
+        {
+          "at": "progress",
+          "camera": {
+            "to": "review",
+            "zoom": 2
+          },
+          "highlight": false,
+          "animate": [
+            "moment",
+            "rendered"
+          ]
+        },
+        {
+          "at": "done",
+          "highlight": "review",
+          "animate": "moment"
+        },
+        {
+          "at": "failed",
+          "highlight": "review",
+          "animate": "moment"
+        }
+      ]
+    },
+    {
+      "id": "covers",
+      "stage": "muse-tour",
+      "say": "[covers]Your approval covers everything the video is made from. [changed]If anything changes later, Muse says so, and asks you to watch it again.",
+      "beats": [
+        {
+          "at": "covers",
+          "highlight": "review-status",
+          "animate": "moment"
+        },
+        {
+          "at": "changed",
+          "highlight": "review-status",
+          "animate": "moment"
+        }
+      ]
+    },
+    {
+      "id": "wrap",
+      "stage": "roles",
+      "say": "[recap]So your part is short: watch, leave notes, send them, check the fixes, and approve. [agent]Your agent does everything else.",
+      "beats": [
+        {
+          "at": "recap",
+          "camera": {
+            "to": "all"
+          },
+          "highlight": "review"
+        },
+        {
+          "at": "agent",
+          "highlight": "make"
+        }
+      ]
+    }
+  ]
+}

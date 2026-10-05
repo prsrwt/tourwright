@@ -6,7 +6,7 @@ import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CONFIG_FILES, type Preset } from '../config/config.ts';
 import { findFfmpeg } from '../render/ffmpeg.ts';
-import { configFile, introScript, STAGES } from './templates.ts';
+import { AGENT, configFile, introScript, STAGES } from './templates.ts';
 
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const OUT_IGNORE = 'tourwright/out/';
@@ -65,6 +65,8 @@ export function runInit(root: string): number {
     cpSync(join(packageRoot, 'skill'), skillTarget, { recursive: true });
     written.push('.claude/skills/walkthrough/');
   }
+  // Video work handed to an agent on the cheaper model.
+  write('.claude/agents/walkthrough.md', AGENT);
 
   const gitignore = join(root, '.gitignore');
   const ignored = existsSync(gitignore) ? readFileSync(gitignore, 'utf8') : '';

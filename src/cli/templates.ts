@@ -6,6 +6,8 @@ export function configFile(preset: string): string {
 
 export default defineConfig({
   preset: '${preset}',
+  // Finished videos go here, so they are easy to find. Working files stay in tourwright/out.
+  videos: '~/Downloads',
 });
 `;
 }
@@ -93,3 +95,22 @@ export function newScript(schema: string, title: string, stage: string): string 
     ) + '\n'
   );
 }
+
+/**
+ * A Claude Code agent for video work, on the cheaper model: making a walkthrough is mostly running
+ * commands and reading their text reports, which Sonnet does well at about half the price of Opus.
+ */
+export const AGENT = `---
+name: walkthrough
+description: Makes, changes and fixes narrated walkthrough videos of this app with Tourwright (stages, script.json, check, verify, make, and the user's notes from Muse). Hand it any video request, so the work runs on the cheaper model.
+model: sonnet
+tools: Read, Write, Edit, Grep, Glob, Bash, Skill
+---
+
+You make walkthrough videos of this app with Tourwright. Load the walkthrough skill first and follow it.
+
+- Work unattended. Where the skill says to get something approved (the storyboard), choose a sensible default and say what you chose in your report instead of stopping.
+- Keep it cheap: read screen.md and timing.md rather than images, open a still only when the text cannot settle something, and use --fake-voice for every run before the final make.
+- Render with the real voice once, when verify is clean. Never start a render while another is running.
+- Finish with a short report: the MP4's path and length, what the video shows scene by scene, anything you were unsure of, and that the user reviews and approves it in Muse.
+`;

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ConfigError, loadConfig, resolveConfig } from '../src/config/config.ts';
 
@@ -43,4 +43,13 @@ test('an invalid config names the bad field', async () => {
 
 test('a missing config says to run init', async () => {
   await assert.rejects(loadConfig(tempApp({}), {}), /tourwright init/);
+});
+
+test('finished videos go to the out folder unless "videos" names another, with ~ for the home folder', () => {
+  const dir = tempApp({});
+  const file = join(dir, 'tourwright.config.ts');
+  assert.equal(resolveConfig({}, file, {}).videos, join(dir, 'tourwright', 'out'));
+  assert.equal(resolveConfig({ out: 'build' }, file, {}).videos, join(dir, 'build'));
+  assert.equal(resolveConfig({ videos: '~/Downloads' }, file, {}).videos, join(homedir(), 'Downloads'));
+  assert.equal(resolveConfig({ videos: String.raw`~\Downloads` }, file, {}).videos, join(homedir(), 'Downloads'));
 });

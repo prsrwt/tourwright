@@ -4,7 +4,7 @@
 // controls. Every change is written to script.json, which stays the single source of truth for the
 // agent too.
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Diagnostic } from '../check/diagnostic.ts';
 import { addArea, deleteBox, moveBox, segments, setBox, type BoxScript, type Place, type Segment } from '../studio/boxes.ts';
@@ -175,6 +175,8 @@ function usePlayer(timeline: Timeline | undefined, key: number | undefined, stag
   return { frameRef, ready, api };
 }
 
+type Player = ReturnType<typeof usePlayer>;
+
 // ---------------------------------------------------------------------------------------------
 // Muse
 
@@ -184,6 +186,42 @@ type Tab = 'notes' | 'scenes';
 type Filter = 'all' | 'you' | 'agent' | 'done';
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+
+/**
+ * Muse held still at one moment of a review, for showing Muse in a video (the Muse explainer does):
+ * where the playhead is, what is open, and what the reviewer is part way through. Each part is only
+ * where Muse starts; in a running Muse there is no moment, and everything starts as it always does.
+ */
+export interface MuseMoment {
+  /** The playhead, held here: nothing plays and no soundtrack loads. */
+  frame: number;
+  /** What the preview shows instead of the player's page, such as a frame of the video. */
+  screen: ReactNode;
+  playing?: boolean;
+  speed?: number;
+  loop?: boolean;
+  help?: boolean;
+  tab?: Tab;
+  filter?: Filter;
+  /** Picking a target in the preview: for a narration box or a beat ("target"), or for a note, where a box can be drawn too ("area"). */
+  picking?: 'target' | 'area';
+  /** A box being drawn over the preview while picking, in layout pixels. */
+  drawn?: Rect;
+  /** A note being written. */
+  draft?: { text: string; attached?: { target?: string; rect: Rect; text: string[] } };
+  /** The review bar part way through asking for changes, or confirming an approval. */
+  review?: { mode: 'asking' | 'confirming'; comment?: string };
+  /** Notes being replied to, edited or deleted, by id, with the words typed so far. */
+  notes?: Record<string, { mode: 'replying' | 'editing' | 'deleting'; text?: string }>;
+  /** The narration box selected on the track, as "scene-beat". */
+  box?: string;
+  /** A scene card being edited: its narration (with the words typed so far), or one of its beats. */
+  scene?: { index: number; say?: string; beat?: number | 'new' };
+  /** The line in the header, such as "Saving...". */
+  message?: string;
+}
+
+const Moment = createContext<MuseMoment | undefined>(undefined);
 
 function useNarrow(): boolean {
   const query = `(max-width: ${S.narrow - 1}px)`;
@@ -199,20 +237,28 @@ function useNarrow(): boolean {
 
 function Studio() {
   const [state] = useStudioState();
-  const timeline = state?.timeline;
-  const { frameRef, ready, api } = usePlayer(timeline, state?.timelineVersion, state?.stageVersion);
+  const player = usePlayer(state?.timeline, state?.timelineVersion, state?.stageVersion);
+  if (!state) return <Centered>Loading Muse...</Centered>;
+  return <Muse state={state} player={player} />;
+}
+
+/** The whole Muse page for one state from its server, with the player; `moment` holds it still at one moment instead. */
+export function Muse({ state, player, moment }: { state: StudioState; player: Player; moment?: MuseMoment }) {
+  const timeline = state.timeline;
+  const { frameRef, ready, api } = player;
   const audio = useRef<HTMLAudioElement>(null);
-  const [frame, setFrame] = useState(0);
-  const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState(1);
+  const [playhead, setFrame] = useState(0);
+  const frame = moment?.frame ?? playhead;
+  const [playing, setPlaying] = useState(moment?.playing ?? false);
+  const [speed, setSpeed] = useState(moment?.speed ?? 1);
   // Looping keeps playback inside the scene the playhead was in when it was turned on or last moved.
-  const [loop, setLoop] = useState(false);
+  const [loop, setLoop] = useState(moment?.loop ?? false);
   const loopRange = useRef<{ from: number; to: number }>(undefined);
-  const [message, setMessage] = useState<string>();
-  const [picking, setPicking] = useState<Picker | undefined>();
-  const [tab, setTab] = useState<Tab>('notes');
-  const [filter, setFilter] = useState<Filter>('all');
-  const [help, setHelp] = useState(false);
+  const [message, setMessage] = useState<string | undefined>(moment?.message);
+  const [picking, setPicking] = useState<Picker | undefined>(moment?.picking && { target: () => undefined, ...(moment.picking === 'area' && { area: () => undefined }) });
+  const [tab, setTab] = useState<Tab>(moment?.tab ?? 'notes');
+  const [filter, setFilter] = useState<Filter>(moment?.filter ?? 'all');
+  const [help, setHelp] = useState(moment?.help ?? false);
   const noteInput = useRef<HTMLTextAreaElement>(null);
   const narrow = useNarrow();
 
@@ -220,8 +266,8 @@ function Studio() {
   const frames = timeline?.frames ?? 1;
 
   useEffect(() => {
-    if (state) document.title = `${state.name}: Muse`;
-  }, [state?.name]);
+    if (!moment) document.title = `${state.name}: Muse`;
+  }, [state.name, moment]);
 
   // Show a frame: "play" while playing, so CSS transitions run by the frame as in a render;
   // "settle" when paused or scrubbing, so what you see is where things end up.
@@ -263,7 +309,7 @@ function Studio() {
 
   // Playback follows the audio clock, so picture and narration never drift apart.
   useEffect(() => {
-    if (!playing) return;
+    if (!playing || moment) return;
     let handle = 0;
     let last = -1;
     const tick = () => {
@@ -290,7 +336,7 @@ function Studio() {
     };
     handle = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(handle);
-  }, [playing, fps, frames, show]);
+  }, [playing, fps, frames, show, moment]);
 
   const seek = useCallback(
     (f: number) => {
@@ -386,8 +432,6 @@ function Studio() {
     [state],
   );
 
-  if (!state) return <Centered>Loading Muse...</Centered>;
-
   const waiting = state.notes.filter((n) => n.status === 'question' || n.status === 'fixed').length;
   const pick = (done: (target: string) => void, area?: (rect: Rect) => void) => setPicking({ target: done, ...(area && { area }) });
   const seekPaused = (f: number) => (pause(), seek(f));
@@ -413,7 +457,7 @@ function Studio() {
   const video = (
     <main style={{ display: 'flex', flexDirection: 'column', minWidth: 0, padding: S.gap * 2, ...(narrow && { height: '62vh', flex: 'none' }) }}>
       {timeline ? (
-        <Preview timeline={timeline} stageVersion={state.stageVersion} frameRef={frameRef} api={api} picking={picking} onPick={(t) => (picking?.target(t), setPicking(undefined))} onPickArea={(r) => (picking?.area?.(r), setPicking(undefined))} onCancelPick={() => setPicking(undefined)} frame={frame}>
+        <Preview timeline={timeline} stageVersion={state.stageVersion} screen={moment?.screen} frameRef={frameRef} api={api} picking={picking} onPick={(t) => (picking?.target(t), setPicking(undefined))} onPickArea={(r) => (picking?.area?.(r), setPicking(undefined))} onCancelPick={() => setPicking(undefined)} frame={frame}>
           <Transport
             timeline={timeline}
             frame={frame}
@@ -437,7 +481,7 @@ function Studio() {
       ) : (
         <Centered>{state.preparing ? 'Voicing the narration...' : 'This walkthrough could not be prepared. See the problems under Scenes.'}</Centered>
       )}
-      <audio ref={audio} src={`${API}/soundtrack.wav?v=${state.timelineVersion}`} preload="auto" onEnded={() => !loopRange.current && setPlaying(false)} />
+      <audio ref={audio} src={moment ? undefined : `${API}/soundtrack.wav?v=${state.timelineVersion}`} preload="auto" onEnded={() => !loopRange.current && setPlaying(false)} />
     </main>
   );
 
@@ -459,7 +503,7 @@ function Studio() {
       </div>
       {/* Both panels stay mounted, so a half-written note or beat survives switching tabs. */}
       <div role="tabpanel" hidden={tab !== 'notes'} style={panel}>
-        <Notes state={state} timeline={timeline} api={api} frame={frame} audio={audio} inputRef={noteInput} filter={filter} onFilter={setFilter} onSeek={seekPaused} onPick={pick} onWrite={pause} />
+        <Notes state={state} timeline={timeline} api={api} frame={frame} audio={audio} inputRef={noteInput} filter={filter} onFilter={setFilter} onSeek={seekPaused} onPick={pick} onWrite={pause} draft={moment?.draft} />
       </div>
       <div role="tabpanel" hidden={tab !== 'scenes'} style={panel}>
         <Problems diagnostics={state.diagnostics.filter((d) => !/^scenes\[/.test(d.path))} error={state.error} />
@@ -469,6 +513,7 @@ function Studio() {
   );
 
   return (
+    <Moment.Provider value={moment}>
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <Header state={state} message={message} />
       {narrow ? (
@@ -483,6 +528,7 @@ function Studio() {
         </div>
       )}
     </div>
+    </Moment.Provider>
   );
 }
 
@@ -557,8 +603,9 @@ async function sendReview(state: StudioState, status: Review['status'], comment 
  * video is done. Approving while notes are still open asks first, so nothing is signed off by accident.
  */
 function ReviewBar({ state }: { state: StudioState }) {
-  const [mode, setMode] = useState<'idle' | 'asking' | 'confirming'>('idle');
-  const [comment, setComment] = useState('');
+  const held = useContext(Moment)?.review;
+  const [mode, setMode] = useState<'idle' | 'asking' | 'confirming'>(held?.mode ?? 'idle');
+  const [comment, setComment] = useState(held?.comment ?? '');
   const [error, setError] = useState<string>();
   const review = state.review;
   const current = isCurrent(state);
@@ -653,7 +700,13 @@ function ReviewBar({ state }: { state: StudioState }) {
 }
 
 async function post(path: string): Promise<string | undefined> {
-  const res = await fetch(`${API}${path}`, { method: 'POST' });
+  // A button must never do nothing: when Muse's server has stopped, say so rather than fail silently.
+  let res: Response;
+  try {
+    res = await fetch(`${API}${path}`, { method: 'POST' });
+  } catch {
+    return 'Muse has stopped running, so this could not be done. Open it again with "npx tourwright muse <name>" and reload this page.';
+  }
   return res.ok ? undefined : ((await res.json()) as { error: string }).error;
 }
 
@@ -814,6 +867,8 @@ function Preview(props: {
   onPickArea: (rect: Rect) => void;
   onCancelPick: () => void;
   frame: number;
+  /** What to show instead of the player's page (see MuseMoment). */
+  screen?: ReactNode;
   /** The transport, drawn under the video at its width, so the two read as one player. */
   children?: ReactNode;
 }) {
@@ -821,11 +876,12 @@ function Preview(props: {
   // A box being dragged while picking, in layout pixels.
   const drag = useRef<{ x: number; y: number; moved: boolean } | undefined>(undefined);
   const ignoreClick = useRef(false);
-  const [drawn, setDrawn] = useState<Rect>();
+  const [drawn, setDrawn] = useState<Rect | undefined>(useContext(Moment)?.drawn);
   const box = useRef<HTMLDivElement>(null);
   const below = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.5);
-  useEffect(() => {
+  // Fitted before the page is drawn, so the preview never shows (or is measured) at the wrong size.
+  useLayoutEffect(() => {
     const el = box.current;
     if (!el) return;
     const fit = () => {
@@ -848,6 +904,9 @@ function Preview(props: {
   return (
     <div ref={box} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: S.gap * 1.5 }}>
       <div style={{ position: 'relative', flex: 'none', width: timeline.layout.width * scale, height: timeline.layout.height * scale, borderRadius: S.radius, overflow: 'hidden', boxShadow: `0 0 0 1px ${C.line}, 0 8px 24px ${C.shadow}` }}>
+        {props.screen ? (
+          <div style={{ width: timeline.layout.width, height: timeline.layout.height, transform: `scale(${scale})`, transformOrigin: '0 0' }}>{props.screen}</div>
+        ) : (
         <iframe
           key={props.stageVersion}
           ref={frameRef}
@@ -855,6 +914,7 @@ function Preview(props: {
           title="Preview"
           style={{ border: 0, width: timeline.layout.width, height: timeline.layout.height, transform: `scale(${scale})`, transformOrigin: '0 0', pointerEvents: 'none', background: C.surface }}
         />
+        )}
         {picking && (
           <div
             data-picker=""
@@ -993,7 +1053,7 @@ export function Transport(props: {
         <button onClick={() => props.onJump(1)} aria-label="Next scene" title="Next scene  ]" style={round}>
           <Icon d="M15 4v12M4 4.5v11l8.5-5.5z" />
         </button>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: S.gap, marginLeft: S.gap, fontVariantNumeric: 'tabular-nums' }}>
+        <div data-clock="" style={{ display: 'flex', alignItems: 'baseline', gap: S.gap, marginLeft: S.gap, fontVariantNumeric: 'tabular-nums' }}>
           <span style={{ fontSize: 16, fontWeight: 600, color: C.ink }}>{clock((frame / timeline.fps) * 1000)}</span>
           <span style={{ color: C.muted, fontSize: S.small }}>/ {clock((timeline.frames / timeline.fps) * 1000)}</span>
           <span style={{ color: C.muted, fontSize: S.small }}>frame {frame}</span>
@@ -1034,7 +1094,7 @@ function NarrationTrack(props: { timeline: Timeline; frame: number; boxes: Segme
   const { timeline, boxes } = props;
   const track = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<{ box: Segment; edge: 'start' | 'end'; start: Place; end: Place }>();
-  const [selected, setSelected] = useState<string>();
+  const [selected, setSelected] = useState<string | undefined>(useContext(Moment)?.box);
   const key = (b: Segment) => `${b.scene}-${b.beat}`;
   const percent = (f: number) => `${(f / timeline.frames) * 100}%`;
   const at = (scene: TimedScene, p: Place) => (p >= scene.sentences.length ? scene.cues.end! : scene.sentences[p]!.from);
@@ -1412,9 +1472,10 @@ export function Notes({
 }
 
 function NoteCard({ note, sent, onSeek }: { note: Note; sent: boolean; onSeek: (f: number) => void }) {
-  const [reply, setReply] = useState('');
-  const [mode, setMode] = useState<'idle' | 'replying' | 'editing' | 'deleting'>('idle');
-  const [draft, setDraft] = useState(note.text);
+  const held = useContext(Moment)?.notes?.[note.id];
+  const [reply, setReply] = useState(held?.mode !== 'editing' ? (held?.text ?? '') : '');
+  const [mode, setMode] = useState<'idle' | 'replying' | 'editing' | 'deleting'>(held?.mode ?? 'idle');
+  const [draft, setDraft] = useState(held?.mode === 'editing' ? (held.text ?? note.text) : note.text);
   const patch = (change: Partial<Note>) => fetch(`${API}/notes/${note.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(change) });
   const send = async () => {
     const body: ReplyRequest = { text: reply.trim(), status: 'open' };
@@ -1574,9 +1635,11 @@ function Scenes(props: { state: StudioState; timeline: Timeline; ready: ReadyRep
 
 function SceneCard(props: { state: StudioState; timeline: Timeline; ready: ReadyReport | undefined; scene: TimedScene; raw: RawScene | undefined; active: boolean; onSeek: (f: number) => void; onEdit: (change: (s: RawScript) => void) => Promise<void>; onPick: (done: (target: string) => void) => void }) {
   const { timeline, scene, raw, state } = props;
-  const [editingSay, setEditingSay] = useState(false);
-  const [say, setSay] = useState(raw?.say ?? '');
-  const [editing, setEditing] = useState<number | 'new'>();
+  const held = useContext(Moment)?.scene;
+  const mine = held?.index === scene.index ? held : undefined;
+  const [editingSay, setEditingSay] = useState(mine?.say !== undefined);
+  const [say, setSay] = useState(mine?.say ?? raw?.say ?? '');
+  const [editing, setEditing] = useState<number | 'new' | undefined>(mine?.beat);
   const problems = state.diagnostics.filter((d) => d.path === `scenes[${scene.index}]` || d.path.startsWith(`scenes[${scene.index}].`) && !d.path.startsWith(`scenes[${scene.index}].beats[`));
   const stage = props.ready?.stages[scene.stage];
   const targets = ['all', ...(stage?.available ?? [])];

@@ -1,0 +1,43 @@
+{
+  "$schema": "../../../node_modules/tourwright/schema/script.schema.json",
+  "title": "Welcome to Riverside Design",
+  "subtitle": "Your first look at the team's tasks",
+  "scenes": [
+    {
+      "id": "home",
+      "stage": "dashboard",
+      "say": "[open]This is your team's dashboard. [stats]The cards count every task your team has.",
+      "beats": [
+        { "at": "open", "camera": { "to": "all" } },
+        { "at": "stats", "camera": { "to": "stats", "zoom": "fit" }, "highlight": "stats", "animate": "counts" }
+      ]
+    },
+    {
+      "id": "overdue",
+      "stage": "dashboard",
+      "say": "[late]Overdue tasks are the ones to look at first. [list]Below, every task shows who has it and where it stands.",
+      "beats": [
+        { "at": "late", "highlight": "stat-overdue" },
+        { "at": "list", "camera": { "to": "tasks", "zoom": "fit" }, "highlight": "tasks" }
+      ]
+    },
+    {
+      "id": "people",
+      "stage": "team",
+      "say": "[team]The Team page shows who is doing what. [load]Each bar is a person's tasks against what they can take.",
+      "beats": [
+        { "at": "team", "camera": { "to": "all" } },
+        { "at": "load", "camera": { "to": "list", "zoom": "fit" }, "highlight": "load-amara", "animate": "load" }
+      ]
+    },
+    {
+      "id": "away",
+      "stage": "team",
+      "say": "[away]A badge shows who is away, and until when. [next]Check it before you hand out new work.",
+      "beats": [
+        { "at": "away", "highlight": "away-jonas" },
+        { "at": "next", "camera": { "to": "all" }, "highlight": false }
+      ]
+    }
+  ]
+}
