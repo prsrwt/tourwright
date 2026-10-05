@@ -1,0 +1,55 @@
+// Stages for the "muse" walkthrough: a video about Muse for someone who has never used it.
+import { defineStage, type StageDefinition } from 'tourwright/stage';
+import { MOMENTS, MuseTour } from './MuseTour';
+import { Roles } from './Roles';
+
+export const museTourStages: Record<string, StageDefinition<any>> = {
+  roles: defineStage({ render: () => <Roles /> }),
+  'muse-tour': defineStage({
+    // "moment" moves the review on one step per beat; "rendered" counts the final render up.
+    values: { moment: { steps: MOMENTS }, rendered: { from: 0, to: 100 } },
+    render: ({ moment, rendered }) => <MuseTour moment={moment} rendered={rendered} />,
+    targets: {
+      review: '[data-review]',
+      'review-status': '[data-review-status]',
+      'new-version': '[data-new-version]',
+      approve: '[data-action="approve"]',
+      side: 'aside',
+      tabs: '[role="tablist"]',
+      'notes-tab': '[role="tab"]:first-child',
+      'scenes-tab': '[role="tab"]:last-child',
+      play: 'button[aria-label="Play"], button[aria-label="Pause"]',
+      jump: 'button[aria-label="Previous scene"], button[aria-label="Next scene"]',
+      speed: 'select[aria-label="Playback speed"]',
+      loop: 'button[aria-label="Loop this scene"]',
+      shortcuts: '[role="dialog"][aria-label="Keyboard shortcuts"]',
+      header: 'header',
+      transport: 'div:has(> [data-scrubber])',
+      clock: '[data-clock]',
+      scrubber: '[data-scrubber]',
+      'box-track': '[data-box-track]',
+      'add-box': '[data-action="add-box"]',
+      'amara-box': '[data-segment="member-amara"]',
+      'jonas-box': '[data-segment="away-jonas"]',
+      'box-selected': '[data-box-selected]',
+      'write-note': 'button[title^="Note at this moment"]',
+      composer: 'label[for="new-note"]',
+      'note-text': '#new-note',
+      scope: 'select[aria-label="Note scope"]',
+      picker: '[data-picker]',
+      'pick-overdue': '[data-target="stat-overdue"]',
+      'drawn-box': '[data-picker] [data-box]',
+      'note-a1': '[data-note="a1"]',
+      'note-b2': '[data-note="b2"]',
+      'note-c3': '[data-note="c3"]',
+      filters: '[role="radiogroup"]',
+      'send-bar': '[data-send-bar]',
+      ask: '[data-action="ask"]',
+      'scene-home': '[data-scene="home"]',
+      'scene-overdue': '[data-scene="overdue"]',
+      dialog: '[data-render-dialog]',
+      'in-progress': '[data-in-progress]',
+      'render-status': '[data-render-status]',
+    },
+  }),
+};

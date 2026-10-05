@@ -1,0 +1,392 @@
+{
+  "title": "Welcome to Riverside Design",
+  "subtitle": "Your first look at the team's tasks",
+  "fps": 30,
+  "width": 1920,
+  "height": 1080,
+  "layout": {
+    "width": 1920,
+    "height": 1080,
+    "scale": 1
+  },
+  "titleFrames": 75,
+  "frames": 918,
+  "settings": {
+    "video": {
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "crf": 23
+    },
+    "voice": {
+      "voice": "af_bella",
+      "speed": 1,
+      "dtype": "fp32",
+      "sentenceGap": 0.3,
+      "tail": 0.7
+    },
+    "camera": {
+      "ease": "inOutCubic",
+      "duration": 0.9,
+      "lead": 0.4,
+      "padding": 48,
+      "maxZoom": 2.5
+    },
+    "highlight": {
+      "color": "#2563eb",
+      "stroke": 3,
+      "radius": 12,
+      "padding": 10,
+      "dim": 0.5,
+      "slide": 0.5,
+      "fade": 0.3
+    },
+    "captions": {
+      "mode": "burned",
+      "size": 40,
+      "position": "bottom"
+    },
+    "animate": {
+      "duration": 1.2,
+      "ease": "outCubic"
+    },
+    "title": {
+      "background": "#0f172a",
+      "color": "#ffffff",
+      "seconds": 2.5
+    }
+  },
+  "highlightFrames": {
+    "slide": 15,
+    "fade": 9
+  },
+  "scenes": [
+    {
+      "index": 0,
+      "id": "home",
+      "stage": "dashboard",
+      "from": 75,
+      "frames": 181,
+      "sentences": [
+        {
+          "text": "This is your team's dashboard.",
+          "spoken": "This is your team's dashboard.",
+          "cues": [
+            "open"
+          ],
+          "file": "",
+          "samples": 51600,
+          "from": 75,
+          "frames": 65
+        },
+        {
+          "text": "The cards count every task your team has.",
+          "spoken": "The cards count every task your team has.",
+          "cues": [
+            "stats"
+          ],
+          "file": "",
+          "samples": 68760,
+          "from": 149,
+          "frames": 86
+        }
+      ],
+      "cues": {
+        "start": 75,
+        "open": 75,
+        "stats": 149,
+        "end": 235
+      },
+      "beats": [
+        {
+          "index": 0,
+          "at": "open",
+          "cue": 75,
+          "camera": {
+            "to": "all",
+            "zoom": "fit",
+            "align": "center",
+            "ease": "inOutCubic",
+            "from": 75,
+            "frames": 27
+          }
+        },
+        {
+          "index": 1,
+          "at": "stats",
+          "cue": 149,
+          "camera": {
+            "to": "stats",
+            "zoom": "fit",
+            "align": "center",
+            "ease": "inOutCubic",
+            "from": 137,
+            "frames": 27
+          },
+          "highlight": {
+            "to": "stats",
+            "from": 137
+          },
+          "animate": {
+            "values": [
+              "counts"
+            ],
+            "from": 164,
+            "frames": 36,
+            "ease": "outCubic"
+          }
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "id": "overdue",
+      "stage": "dashboard",
+      "from": 256,
+      "frames": 236,
+      "sentences": [
+        {
+          "text": "Overdue tasks are the ones to look at first.",
+          "spoken": "Overdue tasks are the ones to look at first.",
+          "cues": [
+            "late"
+          ],
+          "file": "",
+          "samples": 73440,
+          "from": 256,
+          "frames": 92
+        },
+        {
+          "text": "Below, every task shows who has it and where it stands.",
+          "spoken": "Below, every task shows who has it and where it stands.",
+          "cues": [
+            "list"
+          ],
+          "file": "",
+          "samples": 90600,
+          "from": 357,
+          "frames": 114
+        }
+      ],
+      "cues": {
+        "start": 256,
+        "late": 256,
+        "list": 357,
+        "end": 471
+      },
+      "beats": [
+        {
+          "index": 0,
+          "at": "late",
+          "cue": 256,
+          "highlight": {
+            "to": "stat-overdue",
+            "from": 256
+          }
+        },
+        {
+          "index": 1,
+          "at": "list",
+          "cue": 357,
+          "camera": {
+            "to": "tasks",
+            "zoom": "fit",
+            "align": "center",
+            "ease": "inOutCubic",
+            "from": 345,
+            "frames": 27
+          },
+          "highlight": {
+            "to": "tasks",
+            "from": 345
+          }
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "id": "people",
+      "stage": "team",
+      "from": 492,
+      "frames": 227,
+      "sentences": [
+        {
+          "text": "The Team page shows who is doing what.",
+          "spoken": "The Team page shows who is doing what.",
+          "cues": [
+            "team"
+          ],
+          "file": "",
+          "samples": 64080,
+          "from": 492,
+          "frames": 81
+        },
+        {
+          "text": "Each bar is a person's tasks against what they can take.",
+          "spoken": "Each bar is a person's tasks against what they can take.",
+          "cues": [
+            "load"
+          ],
+          "file": "",
+          "samples": 92160,
+          "from": 582,
+          "frames": 116
+        }
+      ],
+      "cues": {
+        "start": 492,
+        "team": 492,
+        "load": 582,
+        "end": 698
+      },
+      "beats": [
+        {
+          "index": 0,
+          "at": "team",
+          "cue": 492,
+          "camera": {
+            "to": "all",
+            "zoom": "fit",
+            "align": "center",
+            "ease": "inOutCubic",
+            "from": 492,
+            "frames": 27
+          }
+        },
+        {
+          "index": 1,
+          "at": "load",
+          "cue": 582,
+          "camera": {
+            "to": "list",
+            "zoom": "fit",
+            "align": "center",
+            "ease": "inOutCubic",
+            "from": 570,
+            "frames": 27
+          },
+          "highlight": {
+            "to": "load-amara",
+            "from": 570
+          },
+          "animate": {
+            "values": [
+              "load"
+            ],
+            "from": 597,
+            "frames": 36,
+            "ease": "outCubic"
+          }
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "id": "away",
+      "stage": "team",
+      "from": 719,
+      "frames": 199,
+      "sentences": [
+        {
+          "text": "A badge shows who is away, and until when.",
+          "spoken": "A badge shows who is away, and until when.",
+          "cues": [
+            "away"
+          ],
+          "file": "",
+          "samples": 70320,
+          "from": 719,
+          "frames": 88
+        },
+        {
+          "text": "Check it before you hand out new work.",
+          "spoken": "Check it before you hand out new work.",
+          "cues": [
+            "next"
+          ],
+          "file": "",
+          "samples": 64080,
+          "from": 816,
+          "frames": 81
+        }
+      ],
+      "cues": {
+        "start": 719,
+        "away": 719,
+        "next": 816,
+        "end": 897
+      },
+      "beats": [
+        {
+          "index": 0,
+          "at": "away",
+          "cue": 719,
+          "highlight": {
+            "to": "away-jonas",
+            "from": 719
+          }
+        },
+        {
+          "index": 1,
+          "at": "next",
+          "cue": 816,
+          "camera": {
+            "to": "all",
+            "zoom": "fit",
+            "align": "center",
+            "ease": "inOutCubic",
+            "from": 804,
+            "frames": 27
+          },
+          "highlight": {
+            "to": false,
+            "from": 804
+          }
+        }
+      ]
+    }
+  ],
+  "captions": [
+    {
+      "text": "This is your team's dashboard.",
+      "from": 75,
+      "to": 149
+    },
+    {
+      "text": "The cards count every task your team has.",
+      "from": 149,
+      "to": 244
+    },
+    {
+      "text": "Overdue tasks are the ones to look at first.",
+      "from": 256,
+      "to": 357
+    },
+    {
+      "text": "Below, every task shows who has it and where it stands.",
+      "from": 357,
+      "to": 480
+    },
+    {
+      "text": "The Team page shows who is doing what.",
+      "from": 492,
+      "to": 582
+    },
+    {
+      "text": "Each bar is a person's tasks against what they can take.",
+      "from": 582,
+      "to": 707
+    },
+    {
+      "text": "A badge shows who is away, and until when.",
+      "from": 719,
+      "to": 816
+    },
+    {
+      "text": "Check it before you hand out new work.",
+      "from": 816,
+      "to": 906
+    }
+  ],
+  "areas": {}
+}

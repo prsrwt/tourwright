@@ -3,6 +3,7 @@
 import { defineStage, defineStages } from 'tourwright/stage';
 import '@/app/globals.css';
 import { explainerStages } from './explainer/stages';
+import { museTourStages } from './muse-tour/stages';
 import { AppShell } from '@/components/AppShell';
 import { StatCards } from '@/components/StatCards';
 import { TaskTable } from '@/components/TaskTable';
@@ -47,4 +48,6 @@ export default defineStages({
   }),
   // Stages for the "setup" walkthrough, which explains Tourwright itself.
   ...explainerStages,
+  // Stages for the "muse" walkthrough, which explains Muse to someone new to it.
+  ...museTourStages,
 });

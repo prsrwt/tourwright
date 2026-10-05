@@ -1,0 +1,635 @@
+{
+  "notes": [
+    {
+      "ms": 71033,
+      "frame": 2130,
+      "scene": "controls",
+      "sceneIndex": 3,
+      "sentence": "Slow it down or speed it up here.",
+      "text": "naration box position is incorrect",
+      "rect": {
+        "x": 1112,
+        "y": 536,
+        "w": 219,
+        "h": 133
+      },
+      "screen": {
+        "frame": 2130,
+        "seconds": 71,
+        "title": false,
+        "scene": "controls",
+        "sceneIndex": 3,
+        "stage": "muse-tour",
+        "sentence": "Slow it down or speed it up here.",
+        "targets": [
+          {
+            "name": "muse-room",
+            "share": 0.8350934417190411,
+            "visible": 0.3981104577099531,
+            "cut": [
+              "top",
+              "right"
+            ]
+          },
+          {
+            "name": "muse",
+            "share": 0.6466059664560859,
+            "visible": 0.3510655764863073,
+            "cut": [
+              "top",
+              "right"
+            ]
+          },
+          {
+            "name": "video",
+            "share": 0.3588017984867951,
+            "visible": 0.39756501143002443,
+            "cut": [
+              "top"
+            ]
+          },
+          {
+            "name": "transport",
+            "share": 0.19419255975289187,
+            "visible": 1,
+            "cut": []
+          },
+          {
+            "name": "scrubber",
+            "share": 0.05730776528384174,
+            "visible": 0.9999999999999998,
+            "cut": []
+          },
+          {
+            "name": "box-track",
+            "share": 0.04138650474439533,
+            "visible": 0.9999999999999994,
+            "cut": []
+          },
+          {
+            "name": "side",
+            "share": 0.012831629198853927,
+            "visible": 0.026942790645665196,
+            "cut": [
+              "top",
+              "right"
+            ]
+          },
+          {
+            "name": "jump",
+            "share": 0.0075048876009100795,
+            "visible": 1.0000000000000002,
+            "cut": []
+          },
+          {
+            "name": "clock",
+            "share": 0.006991739149050269,
+            "visible": 0.9999999999999989,
+            "cut": []
+          },
+          {
+            "name": "add-box",
+            "share": 0.006451631403652692,
+            "visible": 0.9999999999999994,
+            "cut": []
+          },
+          {
+            "name": "write-note",
+            "share": 0.004865665154349628,
+            "visible": 1.0000000000000002,
+            "cut": []
+          },
+          {
+            "name": "jonas-box",
+            "share": 0.0033628082531752344,
+            "visible": 1.0000000000000007,
+            "cut": []
+          },
+          {
+            "name": "play",
+            "share": 0.0030569072652939563,
+            "visible": 0.9999999999999993,
+            "cut": []
+          },
+          {
+            "name": "speed",
+            "share": 0.0029748527654646023,
+            "visible": 0.9999999999999991,
+            "cut": []
+          },
+          {
+            "name": "loop",
+            "share": 0.0020469301307365446,
+            "visible": 1.0000000000000007,
+            "cut": []
+          }
+        ],
+        "highlight": {
+          "target": "speed",
+          "text": ""
+        },
+        "caption": "Slow it down or speed it up here.",
+        "values": [
+          {
+            "name": "moment",
+            "text": "\"slower\"",
+            "counting": false
+          },
+          {
+            "name": "rendered",
+            "text": "0",
+            "counting": false
+          }
+        ]
+      },
+      "scope": "moment",
+      "id": "a5d7a57e",
+      "status": "closed",
+      "replies": [
+        {
+          "from": "agent",
+          "text": "The narration box now sits evenly round the speed control. Muse's player was sizing itself after the page was drawn, so the box was placed from a layout that then moved; it now sizes itself first, and the box lands 10 px outside the control on every side.",
+          "at": "2026-09-25T20:04:12.674Z"
+        }
+      ],
+      "created": "2026-09-25T19:56:40.219Z",
+      "snippet": "notes/a5d7a57e.png"
+    },
+    {
+      "ms": 75100,
+      "frame": 2253,
+      "scene": "controls",
+      "sceneIndex": 3,
+      "sentence": "Or loop one scene, to watch it again and again.",
+      "text": "narration box placement",
+      "rect": {
+        "x": 996,
+        "y": 494,
+        "w": 202,
+        "h": 184
+      },
+      "screen": {
+        "frame": 2253,
+        "seconds": 75.1,
+        "title": false,
+        "scene": "controls",
+        "sceneIndex": 3,
+        "stage": "muse-tour",
+        "sentence": "Or loop one scene, to watch it again and again.",
+        "targets": [
+          {
+            "name": "muse-room",
+            "share": 0.8350934417190411,
+            "visible": 0.3981104577099531,
+            "cut": [
+              "top",
+              "right"
+            ]
+          },
+          {
+            "name": "muse",
+            "share": 0.6466059664560859,
+            "visible": 0.3510655764863073,
+            "cut": [
+              "top",
+              "right"
+            ]
+          },
+          {
+            "name": "video",
+            "share": 0.3588017984867951,
+            "visible": 0.39756501143002443,
+            "cut": [
+              "top"
+            ]
+          },
+          {
+            "name": "transport",
+            "share": 0.19419255975289187,
+            "visible": 1,
+            "cut": []
+          },
+          {
+            "name": "scrubber",
+            "share": 0.05730776528384174,
+            "visible": 0.9999999999999998,
+            "cut": []
+          },
+          {
+            "name": "box-track",
+            "share": 0.04138650474439533,
+            "visible": 0.9999999999999994,
+            "cut": []
+          },
+          {
+            "name": "side",
+            "share": 0.012831629198853927,
+            "visible": 0.026942790645665196,
+            "cut": [
+              "top",
+              "right"
+            ]
+          },
+          {
+            "name": "jump",
+            "share": 0.0075048876009100795,
+            "visible": 1.0000000000000002,
+            "cut": []
+          },
+          {
+            "name": "clock",
+            "share": 0.006991739149050269,
+            "visible": 0.9999999999999989,
+            "cut": []
+          },
+          {
+            "name": "add-box",
+            "share": 0.006451631403652692,
+            "visible": 0.9999999999999994,
+            "cut": []
+          },
+          {
+            "name": "write-note",
+            "share": 0.004865665154349628,
+            "visible": 1.0000000000000002,
+            "cut": []
+          },
+          {
+            "name": "jonas-box",
+            "share": 0.0033628082531752344,
+            "visible": 1.0000000000000007,
+            "cut": []
+          },
+          {
+            "name": "play",
+            "share": 0.0030569072652939563,
+            "visible": 0.9999999999999993,
+            "cut": []
+          },
+          {
+            "name": "speed",
+            "share": 0.0029748527654646023,
+            "visible": 0.9999999999999991,
+            "cut": []
+          },
+          {
+            "name": "loop",
+            "share": 0.0020469301307365446,
+            "visible": 1.0000000000000007,
+            "cut": []
+          }
+        ],
+        "highlight": {
+          "target": "loop",
+          "text": ""
+        },
+        "caption": "Or loop one scene, to watch it again and again.",
+        "values": [
+          {
+            "name": "moment",
+            "text": "\"looping\"",
+            "counting": false
+          },
+          {
+            "name": "rendered",
+            "text": "0",
+            "counting": false
+          }
+        ]
+      },
+      "scope": "moment",
+      "id": "487ea7e5",
+      "status": "closed",
+      "replies": [
+        {
+          "from": "agent",
+          "text": "Fixed with the others: every narration box now sits exactly round its target, checked beat by beat in Muse's preview.",
+          "at": "2026-09-26T03:45:38.674Z"
+        }
+      ],
+      "created": "2026-09-25T20:03:07.363Z",
+      "snippet": "notes/487ea7e5.png"
+    },
+    {
+      "ms": 80733,
+      "frame": 2421,
+      "scene": "controls",
+      "sceneIndex": 3,
+      "sentence": "Press the question mark to see every keyboard shortcut.",
+      "text": "naration box placement is incorrect",
+      "rect": {
+        "x": 1193,
+        "y": 13,
+        "w": 697,
+        "h": 417
+      },
+      "areaText": [
+        "Space",
+        "play or pause",
+        "←",
+        "→",
+        "one frame, with Shift one second",
+        "[",
+        "]",
+        "previous or next scene",
+        "L",
+        "loop the scene",
+        "N",
+        "note at this moment",
+        "Ctrl",
+        "Enter",
+        "add the note"
+      ],
+      "screen": {
+        "frame": 2421,
+        "seconds": 80.7,
+        "title": false,
+        "scene": "controls",
+        "sceneIndex": 3,
+        "stage": "muse-tour",
+        "sentence": "Press the question mark to see every keyboard shortcut.",
+        "targets": [
+          {
+            "name": "muse-room",
+            "share": 0.8350934417190411,
+            "visible": 0.3981104577099531,
+            "cut": [
+              "top",
+              "right"
+            ]
+          },
+          {
+            "name": "muse",
+            "share": 0.6466059664560859,
+            "visible": 0.3510655764863073,
+            "cut": [
+              "top",
+              "right"
+            ]
+          },
+          {
+            "name": "video",
+            "share": 0.3588017984867951,
+            "visible": 0.39756501143002443,
+            "cut": [
+              "top"
+            ]
+          },
+          {
+            "name": "transport",
+            "share": 0.19419255975289187,
+            "visible": 1,
+            "cut": []
+          },
+          {
+            "name": "shortcuts",
+            "share": 0.09605738201532511,
+            "visible": 1,
+            "cut": []
+          },
+          {
+            "name": "scrubber",
+            "share": 0.05730776528384174,
+            "visible": 0.9999999999999998,
+            "cut": []
+          },
+          {
+            "name": "box-track",
+            "share": 0.04138650474439533,
+            "visible": 0.9999999999999994,
+            "cut": []
+          },
+          {
+            "name": "side",
+            "share": 0.012831629198853927,
+            "visible": 0.026942790645665196,
+            "cut": [
+              "top",
+              "right"
+            ]
+          },
+          {
+            "name": "jump",
+            "share": 0.0075048876009100795,
+            "visible": 1.0000000000000002,
+            "cut": []
+          },
+          {
+            "name": "clock",
+            "share": 0.006991739149050269,
+            "visible": 0.9999999999999989,
+            "cut": []
+          },
+          {
+            "name": "add-box",
+            "share": 0.006451631403652692,
+            "visible": 0.9999999999999994,
+            "cut": []
+          },
+          {
+            "name": "write-note",
+            "share": 0.004865665154349628,
+            "visible": 1.0000000000000002,
+            "cut": []
+          },
+          {
+            "name": "jonas-box",
+            "share": 0.0033628082531752344,
+            "visible": 1.0000000000000007,
+            "cut": []
+          },
+          {
+            "name": "play",
+            "share": 0.0030569072652939563,
+            "visible": 0.9999999999999993,
+            "cut": []
+          },
+          {
+            "name": "speed",
+            "share": 0.0029748527654646023,
+            "visible": 0.9999999999999991,
+            "cut": []
+          },
+          {
+            "name": "loop",
+            "share": 0.0020469301307365446,
+            "visible": 1.0000000000000007,
+            "cut": []
+          }
+        ],
+        "highlight": {
+          "target": "shortcuts",
+          "text": "Space play or pause ← → one frame, with Shift one second [ ] previous or next scene L loop the scene N note at this moment Ctrl Enter add the note"
+        },
+        "caption": "Press the question mark to see every keyboard shortcut.",
+        "values": [
+          {
+            "name": "moment",
+            "text": "\"keys\"",
+            "counting": false
+          },
+          {
+            "name": "rendered",
+            "text": "0",
+            "counting": false
+          }
+        ]
+      },
+      "scope": "moment",
+      "id": "31293d1c",
+      "status": "closed",
+      "replies": [
+        {
+          "from": "agent",
+          "text": "Same cause as the speed control: the box was measured before Muse's player finished sizing itself. Fixed, so the box now sits evenly round the keyboard shortcuts panel.",
+          "at": "2026-09-25T20:04:14.229Z"
+        }
+      ],
+      "created": "2026-09-25T19:57:39.905Z",
+      "snippet": "notes/31293d1c.png"
+    },
+    {
+      "ms": 89767,
+      "frame": 2693,
+      "scene": "two-ways",
+      "sceneIndex": 4,
+      "sentence": "For something about the whole video, use Ask for changes, and type it in a line.",
+      "text": "narration box placement",
+      "rect": {
+        "x": 579,
+        "y": 13,
+        "w": 1314,
+        "h": 129
+      },
+      "areaText": [
+        "Send to the agent",
+        "Cancel"
+      ],
+      "screen": {
+        "frame": 2693,
+        "seconds": 89.767,
+        "title": false,
+        "scene": "two-ways",
+        "sceneIndex": 4,
+        "stage": "muse-tour",
+        "sentence": "For something about the whole video, use Ask for changes, and type it in a line.",
+        "targets": [
+          {
+            "name": "muse",
+            "share": 1,
+            "visible": 0.25,
+            "cut": [
+              "bottom",
+              "left"
+            ]
+          },
+          {
+            "name": "muse-room",
+            "share": 1,
+            "visible": 0.21951219512195122,
+            "cut": [
+              "bottom",
+              "left"
+            ]
+          },
+          {
+            "name": "side",
+            "share": 0.47873798161050085,
+            "visible": 0.46286473338210077,
+            "cut": [
+              "bottom"
+            ]
+          },
+          {
+            "name": "video",
+            "share": 0.336213974893829,
+            "visible": 0.17153774229276988,
+            "cut": [
+              "bottom",
+              "left"
+            ]
+          },
+          {
+            "name": "header",
+            "share": 0.1382716002287688,
+            "visible": 0.5,
+            "cut": [
+              "left"
+            ]
+          },
+          {
+            "name": "review",
+            "share": 0.06825014231613795,
+            "visible": 1,
+            "cut": []
+          },
+          {
+            "name": "tabs",
+            "share": 0.06160493780065466,
+            "visible": 1,
+            "cut": []
+          },
+          {
+            "name": "note-text",
+            "share": 0.038892726886681175,
+            "visible": 1,
+            "cut": []
+          },
+          {
+            "name": "composer",
+            "share": 0.02296076679831503,
+            "visible": 1,
+            "cut": []
+          },
+          {
+            "name": "scenes-tab",
+            "share": 0.008581609720972834,
+            "visible": 1,
+            "cut": []
+          },
+          {
+            "name": "review-status",
+            "share": 0.008523963128792713,
+            "visible": 1,
+            "cut": []
+          },
+          {
+            "name": "notes-tab",
+            "share": 0.007852057274280755,
+            "visible": 1,
+            "cut": []
+          }
+        ],
+        "highlight": {
+          "target": "review",
+          "text": "Not reviewed yet Send to the agent Cancel"
+        },
+        "caption": "For something about the whole video, use Ask for changes, and type it in a line.",
+        "values": [
+          {
+            "name": "moment",
+            "text": "\"asking\"",
+            "counting": false
+          },
+          {
+            "name": "rendered",
+            "text": "0",
+            "counting": false
+          }
+        ]
+      },
+      "scope": "moment",
+      "id": "e0fbe479",
+      "status": "closed",
+      "replies": [
+        {
+          "from": "agent",
+          "text": "The comment box now opens one beat earlier, so the narration box is placed round the review bar as it looks once open.",
+          "at": "2026-09-26T03:45:40.783Z"
+        }
+      ],
+      "created": "2026-09-25T20:03:58.198Z",
+      "snippet": "notes/e0fbe479.png"
+    }
+  ]
+}
